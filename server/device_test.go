@@ -6,7 +6,7 @@ import (
 	"github.com/fiumaralabs/lwm2m"
 )
 
-// Proves: OBJ-03
+// Proves: OBJ-03, SEC-20
 // Device object duties the server relies on: it can set the client clock
 // through /3/0/13; power-source resources 6-8 must share instance IDs; an
 // Error Code of a single 0 means no error, and /3/0/11 can be observed.

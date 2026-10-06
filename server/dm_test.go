@@ -92,7 +92,7 @@ func TestReadUnknownResources(t *testing.T) {
 	}
 }
 
-// Proves: GEN-09, DM-11
+// Proves: GEN-09, DM-11, SEC-21
 // The server refuses to send paths the client must reject: operations on
 // /0, /21 and /23 outside bootstrap, Execute on anything but a resource,
 // Delete on anything but an instance, Write on an object. Nothing is sent.

@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"net"
@@ -30,6 +31,17 @@ type coapConn interface {
 	Context() context.Context
 }
 
+const (
+	blockSize     = 1024                  // szx 6, see ListenUDP/ListenDTLS
+	optRequestTag = message.OptionID(292) // RFC 9175
+)
+
+func newRequestTag() []byte {
+	b := make([]byte, 4)
+	_, _ = rand.Read(b)
+	return b
+}
+
 var errEmptyResponse = errors.New("server: client answered with an empty message")
 
 // coapPeer is the Peer of one CoAP session (binding U, or T for TCP).
@@ -49,6 +61,12 @@ func (p *coapPeer) Exchange(ctx context.Context, req *Message) (*Message, error)
 		return nil, err
 	}
 	m.SetType(message.Confirmable) // GEN-03; Anjay Lite drops NON requests (C12)
+	if len(req.Payload) > blockSize {
+		// Request-Tag (RFC 9175 §3) on every block of a block-wise request
+		// stops block interchange between transfers (GEN-07). go-coap copies
+		// the request's options onto each block.
+		m.SetOptionBytes(optRequestTag, newRequestTag())
+	}
 	res, err := p.cc.Do(m)
 	if err != nil {
 		return nil, err

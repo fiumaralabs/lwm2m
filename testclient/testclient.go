@@ -91,6 +91,7 @@ type Client struct {
 	aclSSID         uint16 // non-zero: enforce /2 Access Control (acl.go)
 	bindingOverride string
 	bootstrapHook   ExecHook
+	rawLog          []RawRequest      // requests as received, before block-wise reassembly
 	notifyMu        sync.Mutex        // one notification in flight at a time
 	resetCh         chan message.Type // Reset for the notification in flight
 }
@@ -138,6 +139,15 @@ func New(cfg Config) *Client {
 // to the pending CON first (ending WriteMessage) and then still hands it to
 // this hook, so a Reset is seen right after WriteMessage returns.
 func (c *Client) process(req *pool.Message, cc *client.Conn, handler config.HandlerFunc[*client.Conn]) {
+	if req.Code() >= 1 && req.Code() < 32 {
+		raw := RawRequest{Code: req.Code()}
+		raw.RequestTag, _ = req.GetOptionBytes(message.OptionID(292))
+		raw.RequestTag = append([]byte(nil), raw.RequestTag...)
+		raw.HasBlock1 = req.HasOption(message.Block1)
+		c.mu.Lock()
+		c.rawLog = append(c.rawLog, raw)
+		c.mu.Unlock()
+	}
 	if req.Type() == message.Reset {
 		c.mu.Lock()
 		ch := c.resetCh
@@ -206,6 +216,21 @@ func (c *Client) SetOverride(o Override) {
 	c.mu.Lock()
 	c.override = o
 	c.mu.Unlock()
+}
+
+// RawRequest is one request datagram as received (each Block1 block
+// separately).
+type RawRequest struct {
+	Code       codes.Code
+	RequestTag []byte
+	HasBlock1  bool
+}
+
+// RawRequests returns the received request datagrams.
+func (c *Client) RawRequests() []RawRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]RawRequest(nil), c.rawLog...)
 }
 
 // Requests returns the requests received so far.

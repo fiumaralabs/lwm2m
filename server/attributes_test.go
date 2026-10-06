@@ -167,7 +167,7 @@ func TestChangeObservationAttributes(t *testing.T) {
 	}
 }
 
-// Proves: REG-19, GEN-15, REG-24, GEN-14, REG-25, REG-26, PROF-10
+// Proves: REG-19, GEN-15, REG-24, GEN-14, REG-25, REG-26, PROF-10, SEC-20
 // Server object triggers: Execute /1/x/8 makes the client Update (with a
 // binding override only if /1/x/7 lists it); Disable /1/x/4 makes it
 // de-register and come back after /1/x/5 seconds; /1/x/22, /1/x/7,
@@ -201,6 +201,15 @@ func TestServerObjectTriggers(t *testing.T) {
 	}
 	if v, _ := c.Get(p("/1/0/27")); v.Uint != 6 {
 		t.Fatal("/1/0/27")
+	}
+
+	bs := make(chan struct{}, 1)
+	c.SetBootstrapTrigger(func(testclient.Request) { bs <- struct{}{} })
+	expect(t, "2.04")(h.srv.TriggerBootstrap(h.ctx, "trig"))
+	select {
+	case <-bs:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Bootstrap-Request Trigger not executed")
 	}
 
 	c.Set(p("/1/0/5"), lwm2m.Integer(1))

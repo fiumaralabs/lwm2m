@@ -3,3 +3,4 @@
 GEN-11 Meta-rule on reading the TS (RFC 8174 keyword casing); it governs how spec/standards*.md was extracted, not runtime behaviour.
 QM-06 Firewall configuration of the deployment network. The server-side remedy it names (CoAP over TCP/TLS) is proven by TCP-01/TCP-02.
 TCP-04 Descriptive statement that block-interchange and freshness attacks do not apply over connection-oriented transports; no behaviour to implement.
+SEC-13 Pointer row ("see the TLS13 and CID groups"); its content is tracked by the TLS13-* and CID-* rows individually.
