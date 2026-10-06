@@ -10,11 +10,11 @@ import (
 	"hash"
 	"sync/atomic"
 
-	dtls "github.com/pion/dtls/v3"
-	"github.com/pion/dtls/v3/pkg/crypto/ciphersuite"
-	"github.com/pion/dtls/v3/pkg/crypto/clientcertificate"
-	"github.com/pion/dtls/v3/pkg/crypto/prf"
-	"github.com/pion/dtls/v3/pkg/protocol/recordlayer"
+	dtls "github.com/fiumaralabs/dtls/v3"
+	"github.com/fiumaralabs/dtls/v3/pkg/crypto/ciphersuite"
+	"github.com/fiumaralabs/dtls/v3/pkg/crypto/clientcertificate"
+	"github.com/fiumaralabs/dtls/v3/pkg/crypto/prf"
+	"github.com/fiumaralabs/dtls/v3/pkg/protocol/recordlayer"
 )
 
 // TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 is 0xC023 (RFC 5289 §3.1).

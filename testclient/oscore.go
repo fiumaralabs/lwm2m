@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/oscore"
-	piondtls "github.com/pion/dtls/v3"
-	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"
@@ -105,7 +105,7 @@ func (o *OSCOREClient) Dial(addr string) error {
 			PSKIdentityHint: []byte(o.cfg.PSKIdentity),
 			CipherSuites:    []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},
 		}
-		conn, err := coapdtls.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
+		conn, err := dtlscoap.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
 		if err != nil {
 			return err
 		}

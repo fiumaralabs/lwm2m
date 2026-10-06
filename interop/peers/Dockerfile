@@ -98,7 +98,6 @@ ENV WAKAAMA_CLIENT=/usr/local/bin/wakaama-client \
 FROM peers AS test
 WORKDIR /src
 COPY go.mod go.sum ./
-COPY third_party third_party
 RUN go mod download
 COPY . .
 RUN go build -o /usr/local/bin/lwm2md ./cmd/lwm2md \

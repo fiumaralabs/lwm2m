@@ -4,15 +4,16 @@ go 1.26.5
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/fiumaralabs/dtls/v3 v3.1.11-lwm2m.1
 	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/gorilla/websocket v1.5.3
 	github.com/mochi-mqtt/server/v2 v2.7.9
-	github.com/pion/dtls/v3 v3.1.10
 	github.com/plgd-dev/go-coap/v3 v3.5.4
 )
 
 require (
 	github.com/dsnet/golib/memfile v1.0.0 // indirect
+	github.com/pion/dtls/v3 v3.1.10 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/transport/v5 v5.0.0 // indirect
 	github.com/rs/xid v1.4.0 // indirect
@@ -24,6 +25,3 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 )
-
-// RFC 7250 raw public keys and unknown_psk_identity: see third_party/pion-dtls/LWM2M-PATCH.md.
-replace github.com/pion/dtls/v3 => ./third_party/pion-dtls

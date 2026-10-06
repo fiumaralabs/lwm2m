@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
-	piondtls "github.com/pion/dtls/v3"
-	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/net/blockwise"
@@ -418,7 +418,7 @@ func (f *Firmware) pullCoAP(ctx context.Context, u *url.URL, secure bool) ([]byt
 		if id == "" {
 			id, key = f.c.cfg.PSKIdentity, f.c.cfg.PSKKey
 		}
-		conn, err = coapdtls.Dial(host, &piondtls.Config{
+		conn, err = dtlscoap.Dial(host, &piondtls.Config{
 			PSK:             func([]byte) ([]byte, error) { return key, nil },
 			PSKIdentityHint: []byte(id),
 			CipherSuites:    []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},

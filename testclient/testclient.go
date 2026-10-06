@@ -17,13 +17,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/codec/senml"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/model"
-	piondtls "github.com/pion/dtls/v3"
-	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"
@@ -180,7 +180,7 @@ func (c *Client) Dial(addr string) error {
 		if c.cfg.CID {
 			cfg.ConnectionIDGenerator = piondtls.OnlySendCIDGenerator()
 		}
-		conn, err := coapdtls.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
+		conn, err := dtlscoap.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
 		if err != nil {
 			return err
 		}

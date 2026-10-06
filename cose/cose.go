@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/fiumaralabs/dtls/v3/pkg/crypto/ccm"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/pion/dtls/v3/pkg/crypto/ccm"
 )
 
 // AEAD algorithms (RFC 8152 Tbls 9, 10), the values of /23/x/1.

@@ -21,7 +21,7 @@ jobs:
           go-version-file: go.mod
       - name: gofmt
         run: |
-          out=$(gofmt -l $(git ls-files '*.go' | grep -v '^third_party/'))
+          out=$(gofmt -l $(git ls-files '*.go'))
           if [ -n "$out" ]; then echo "unformatted:"; echo "$out"; exit 1; fi
       - name: vet
         run: go vet ./...
@@ -43,3 +43,15 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test -race -count=20 ./server ./bootstrap ./fota ./mqttbinding ./compat
+
+  consumer:
+    # Builds a throwaway module that requires this commit, importing every
+    # public package. Go ignores replace directives outside the main module,
+    # so one in our go.mod would pass the jobs above and break every user.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: ./scripts/consumer-build.sh

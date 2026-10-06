@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	piondtls "github.com/pion/dtls/v3"
+	piondtls "github.com/fiumaralabs/dtls/v3"
 )
 
 // sessionStore keeps DTLS 1.2 sessions so a client that wakes up on a new

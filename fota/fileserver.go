@@ -11,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	piondtls "github.com/pion/dtls/v3"
+	piondtls "github.com/fiumaralabs/dtls/v3"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -90,7 +91,7 @@ func (f *FileServer) ListenUDP(addr string) (net.Addr, error) {
 // ListenDTLS serves coaps:// on addr with the given DTLS configuration
 // (PSK, RPK or certificates).
 func (f *FileServer) ListenDTLS(addr string, cfg *piondtls.Config) (net.Addr, error) {
-	l, err := coapnet.NewDTLSListener("udp", addr, cfg)
+	l, err := dtlscoap.Listen("udp", addr, cfg)
 	if err != nil {
 		return nil, err
 	}

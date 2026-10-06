@@ -46,6 +46,7 @@ Each vector's `source` field cites the originating file and line.
 > The above license is used as a license under copyright only. Please reference the OMA IPR Policy for patent licensing terms: https://www.omaspecworks.org/about/intellectual-property-rights/
 
 ## Pion DTLS
-- https://github.com/pion/dtls, v3.1.10, vendored and patched in `third_party/pion-dtls/` (RFC 7250 raw public keys and LwM2M alert/session fixes; see `third_party/pion-dtls/LWM2M-PATCH.md`).
-- Licensed under the MIT License (`third_party/pion-dtls/LICENSE`).
-- Copyright (c) the Pion community <https://pion.ly>.
+- https://github.com/pion/dtls (MIT License, copyright (c) the Pion community <https://pion.ly>). Not vendored: the module depends on `github.com/fiumaralabs/dtls/v3`, a fork of pion/dtls v3 with LwM2M patches (RFC 7250 raw public keys and alert/session/curve/port-reuse fixes) on the `lwm2m-v3` branch, documented in its `LWM2M.md`. The fork keeps pion's MIT licence.
+
+## go-coap
+- https://github.com/plgd-dev/go-coap, v3.5.4 (Apache License 2.0, copyright (c) the go-coap authors). `internal/dtlscoap` adapts go-coap's `net.DTLSListener` and `dtls.Client` to the pion/dtls fork.

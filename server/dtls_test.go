@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
+	pionelliptic "github.com/fiumaralabs/dtls/v3/pkg/crypto/elliptic"
+	"github.com/fiumaralabs/dtls/v3/pkg/protocol/extension"
+	"github.com/fiumaralabs/dtls/v3/pkg/protocol/handshake"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/dtlssuite"
 	"github.com/fiumaralabs/lwm2m/testclient"
-	piondtls "github.com/pion/dtls/v3"
-	pionelliptic "github.com/pion/dtls/v3/pkg/crypto/elliptic"
-	"github.com/pion/dtls/v3/pkg/protocol/extension"
-	"github.com/pion/dtls/v3/pkg/protocol/handshake"
 )
 
 // secureSetup is a harness with a listener serving PSK, RPK and X.509.

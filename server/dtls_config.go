@@ -9,8 +9,8 @@ import (
 	"errors"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m/dtlssuite"
-	piondtls "github.com/pion/dtls/v3"
 )
 
 // CertificateModes are the certificate-based security modes of a DTLS

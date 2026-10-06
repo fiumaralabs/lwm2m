@@ -15,16 +15,16 @@ import (
 	"testing"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/est"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
-	piondtls "github.com/pion/dtls/v3"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
-	coapnet "github.com/plgd-dev/go-coap/v3/net"
 	"github.com/plgd-dev/go-coap/v3/net/blockwise"
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/udp/client"
@@ -100,7 +100,7 @@ func newFixture(t *testing.T) *fixture {
 		ClientCAs:    clientCAs,
 		CipherSuites: []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8},
 	}
-	l, err := coapnet.NewDTLSListener("udp", "127.0.0.1:0", cfg)
+	l, err := dtlscoap.Listen("udp", "127.0.0.1:0", cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) dial(t *testing.T, cert tls.Certificate) *client.Conn {
 	t.Helper()
-	cc, err := coapdtls.Dial(f.addr, &piondtls.Config{
+	cc, err := dtlscoap.Dial(f.addr, &piondtls.Config{
 		Certificates: []tls.Certificate{cert}, RootCAs: f.roots, ServerName: "localhost",
 		CipherSuites: []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8},
 	}, options.WithBlockwise(true, blockwise.SZX64, 10*time.Second))

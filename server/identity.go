@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"net"
 
-	piondtls "github.com/pion/dtls/v3"
+	piondtls "github.com/fiumaralabs/dtls/v3"
 )
 
 // SecurityMode is the transport security a client used (T §5.2, SEC-08).

@@ -6,9 +6,9 @@ import (
 	"crypto/x509"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m/dtlssuite"
-	piondtls "github.com/pion/dtls/v3"
-	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/plgd-dev/go-coap/v3/mux"
 	"github.com/plgd-dev/go-coap/v3/options"
 )
@@ -22,7 +22,7 @@ func (c *Client) DialDTLS(addr string, cfg *piondtls.Config) error {
 	}
 	r := mux.NewRouter()
 	r.DefaultHandle(mux.HandlerFunc(c.handle))
-	conn, err := coapdtls.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second),
+	conn, err := dtlscoap.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second),
 		options.WithProcessReceivedMessageFunc(c.process))
 	if err != nil {
 		return err

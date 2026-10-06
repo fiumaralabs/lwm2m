@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	piondtls "github.com/pion/dtls/v3"
-	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
+	piondtls "github.com/fiumaralabs/dtls/v3"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -47,7 +47,7 @@ func TestDTLSNewHandshakeFromSamePort(t *testing.T) {
 			if err := dc.HandshakeContext(ctx); err != nil {
 				t.Fatalf("cid=%v: handshake from a reused port: %v", cid, err)
 			}
-			cc := coapdtls.Client(dc)
+			cc := dtlscoap.Client(dc)
 			req, err := cc.NewPostRequest(ctx, "/rd", message.AppLinkFormat, bytes.NewReader([]byte("</3/0>")))
 			if err != nil {
 				t.Fatal(err)

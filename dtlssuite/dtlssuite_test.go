@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	dtls "github.com/pion/dtls/v3"
-	"github.com/pion/dtls/v3/pkg/protocol/extension"
-	"github.com/pion/dtls/v3/pkg/protocol/handshake"
+	dtls "github.com/fiumaralabs/dtls/v3"
+	"github.com/fiumaralabs/dtls/v3/pkg/protocol/extension"
+	"github.com/fiumaralabs/dtls/v3/pkg/protocol/handshake"
 )
 
 // Proves: SEC-09

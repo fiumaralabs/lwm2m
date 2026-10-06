@@ -9,7 +9,7 @@ import (
 )
 
 // RawKey returns a credential that presents key as an RFC 7250 raw public
-// key (security mode 1, SEC-09). The patched pion (third_party/pion-dtls)
+// key (security mode 1, SEC-09). The patched pion (github.com/fiumaralabs/dtls)
 // sends the SubjectPublicKeyInfo of PrivateKey; Certificate carries the
 // same SPKI only because pion requires a non-empty chain.
 func RawKey(key crypto.Signer) (tls.Certificate, error) {

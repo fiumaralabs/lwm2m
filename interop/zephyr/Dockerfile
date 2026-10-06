@@ -11,7 +11,6 @@ ARG ZEPHYR_VERSION=v4.4.2
 FROM golang:1.26 AS lwm2md
 WORKDIR /src
 COPY go.mod go.sum ./
-COPY third_party ./third_party
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /lwm2md ./cmd/lwm2md

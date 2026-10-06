@@ -20,12 +20,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/server"
-	piondtls "github.com/pion/dtls/v3"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	dtlsServer "github.com/plgd-dev/go-coap/v3/dtls/server"
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -179,7 +180,7 @@ func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 		}
 		cfg.ConnectionIDGenerator = piondtls.RandomCIDGenerator(n)
 	}
-	l, err := coapnet.NewDTLSListener("udp", addr, cfg)
+	l, err := dtlscoap.Listen("udp", addr, cfg)
 	if err != nil {
 		return nil, err
 	}
