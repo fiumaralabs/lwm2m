@@ -50,6 +50,9 @@ func checkBase(base lwm2m.Path) error {
 // (RFC 8949 §3.1), floats are 64-bit, Time is tag 1 + epoch integer
 // (RFC 8949 §3.4.2), Objlnk is the text "oid:iid", Opaque a byte string.
 func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
+	if err := codec.RejectPrefix(nodes); err != nil {
+		return nil, err
+	}
 	if err := checkBase(base); err != nil {
 		return nil, err
 	}

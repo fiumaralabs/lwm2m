@@ -484,6 +484,9 @@ func typeOf(def lwm2m.ResourceDef, ok bool) lwm2m.Type {
 
 // Encode encodes nodes below base (see the package doc for the rules).
 func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
+	if err := codec.RejectPrefix(nodes); err != nil {
+		return nil, err
+	}
 	if base.IsRoot() {
 		return nil, errf("cannot encode at the root path")
 	}

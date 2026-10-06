@@ -261,6 +261,9 @@ func parsePath(s string) (lwm2m.Path, error) {
 // trailing slash ("/" for the root), n relative to it, and absolute "t" per
 // entry (no bt). Entry order follows nodes.
 func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
+	if err := codec.RejectPrefix(nodes); err != nil {
+		return nil, err
+	}
 	bn := base.Truncate(2).String()
 	if !strings.HasSuffix(bn, "/") {
 		bn += "/"

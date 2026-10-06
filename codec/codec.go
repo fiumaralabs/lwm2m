@@ -41,3 +41,31 @@ func For(f lwm2m.ContentFormat) (Codec, error) {
 	}
 	return nil, fmt.Errorf("%w: %d", ErrUnsupportedFormat, f)
 }
+
+// ErrPrefix is returned by encoders whose format has no way to carry a
+// gateway end-device prefix (GW §9): TLV, text, opaque, CBOR, OMA JSON.
+var ErrPrefix = errors.New("codec: format cannot carry an end-device prefix")
+
+// RejectPrefix fails when any node has an end-device prefix, so encoders
+// never drop one silently.
+func RejectPrefix(nodes []lwm2m.Node) error {
+	for _, n := range nodes {
+		if n.Prefix != "" {
+			return fmt.Errorf("%w: %s", ErrPrefix, n.PathString())
+		}
+	}
+	return nil
+}
+
+// WithRoot returns c configured for a client's alternate path (GEN-08)
+// when the format carries names (SenML, SenML-ETCH); other codecs are
+// returned unchanged.
+func WithRoot(c Codec, root string) Codec {
+	if root == "" {
+		return c
+	}
+	if r, ok := c.(interface{ WithRoot(string) Codec }); ok {
+		return r.WithRoot(root)
+	}
+	return c
+}

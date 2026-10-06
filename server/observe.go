@@ -135,7 +135,7 @@ func (s *Server) ObserveComposite(ctx context.Context, ep string, paths []lwm2m.
 		}
 	}
 	reqCF, acc := o.formats(reg)
-	body, err := encodePaths(reqCF, paths)
+	body, err := encodePaths(reg, reqCF, paths)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -196,7 +196,7 @@ func (s *Server) CancelObservation(ctx context.Context, ob *Observation, active 
 	}
 	one := uint32(1)
 	if ob.Composite {
-		body, err := encodePaths(ob.Format, ob.Paths) // exactly the same list (OBS-05)
+		body, err := encodePaths(reg, ob.Format, ob.Paths) // exactly the same list (OBS-05)
 		if err != nil {
 			return nil, err
 		}

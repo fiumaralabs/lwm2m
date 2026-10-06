@@ -143,6 +143,7 @@ func (s *Server) decodeResponse(reg *Registration, res *Message, prefix string, 
 	}
 	if out.HasFormat && len(out.Payload) > 0 && out.ContentFormat != lwm2m.FormatLinkFormat {
 		if c, err := codec.For(out.ContentFormat); err == nil {
+			c = codec.WithRoot(c, reg.RootPath) // SenML names include the alternate path (GEN-08)
 			out.Nodes, out.DecodeErr = c.Decode(base, out.Payload, s.schema(reg))
 			out.DecodeErr = errors.Join(out.DecodeErr, ownPrefix(out.Nodes, prefix))
 		} else {
@@ -253,6 +254,7 @@ func (s *Server) writeWithFormat(ctx context.Context, reg *Registration, method 
 		if err != nil {
 			return nil, err
 		}
+		c = codec.WithRoot(c, reg.RootPath) // GEN-08
 		body, err := c.Encode(p, nodes)
 		if err != nil {
 			if forced != nil {
@@ -423,12 +425,12 @@ func (o CompositeOptions) formats(reg *Registration) (lwm2m.ContentFormat, lwm2m
 }
 
 // encodePaths encodes a composite path list in a SenML or ETCH format.
-func encodePaths(cf lwm2m.ContentFormat, paths []lwm2m.Path) ([]byte, error) {
+func encodePaths(reg *Registration, cf lwm2m.ContentFormat, paths []lwm2m.Path) ([]byte, error) {
 	c, err := codec.For(cf)
 	if err != nil {
 		return nil, err
 	}
-	sc, ok := c.(senml.Codec)
+	sc, ok := codec.WithRoot(c, reg.RootPath).(senml.Codec) // GEN-08
 	if !ok {
 		return nil, fmt.Errorf("%w: composite path lists need SenML or SenML-ETCH, not %v", ErrBadRequest, cf)
 	}
@@ -448,7 +450,7 @@ func (s *Server) ReadComposite(ctx context.Context, ep string, paths []lwm2m.Pat
 		}
 	}
 	reqCF, acc := o.formats(reg)
-	body, err := encodePaths(reqCF, paths)
+	body, err := encodePaths(reg, reqCF, paths)
 	if err != nil {
 		return nil, err
 	}
@@ -478,6 +480,7 @@ func (s *Server) WriteComposite(ctx context.Context, ep string, nodes []lwm2m.No
 	if err != nil {
 		return nil, err
 	}
+	c = codec.WithRoot(c, reg.RootPath) // GEN-08
 	body, err := c.Encode(lwm2m.Root, nodes)
 	if err != nil {
 		return nil, err

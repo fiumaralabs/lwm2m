@@ -49,6 +49,9 @@ func (Codec) Decode(base lwm2m.Path, data []byte, s lwm2m.Schema) ([]lwm2m.Node,
 
 // Encode returns the bytes of the single opaque node at base.
 func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
+	if err := codec.RejectPrefix(nodes); err != nil {
+		return nil, err
+	}
 	if err := checkBase(base); err != nil {
 		return nil, err
 	}

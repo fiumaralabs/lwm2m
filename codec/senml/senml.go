@@ -76,6 +76,9 @@ func init() {
 
 func (c Codec) Format() lwm2m.ContentFormat { return c.format }
 
+// WithRoot implements the codec.WithRoot hook.
+func (c Codec) WithRoot(root string) codec.Codec { return c.WithRootPath(root) }
+
 // WithRootPath returns c using root as alternate path / gateway prefix.
 func (c Codec) WithRootPath(root string) Codec {
 	c.RootPath = strings.TrimSuffix(root, "/")

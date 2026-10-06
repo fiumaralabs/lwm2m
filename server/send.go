@@ -25,6 +25,7 @@ func (s *Server) send(peer Peer, m *Message) reply {
 	if err != nil {
 		return replyCode(codes.BadRequest)
 	}
+	c = codec.WithRoot(c, reg.RootPath) // SenML names include the alternate path (GEN-08)
 	nodes, err := c.Decode(lwm2m.Root, m.Payload, s.schema(reg))
 	if err != nil || len(nodes) == 0 {
 		return replyCode(codes.BadRequest)

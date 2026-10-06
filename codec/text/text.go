@@ -76,6 +76,9 @@ func (Codec) Decode(base lwm2m.Path, data []byte, s lwm2m.Schema) ([]lwm2m.Node,
 
 // Encode encodes the single node at base.
 func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
+	if err := codec.RejectPrefix(nodes); err != nil {
+		return nil, err
+	}
 	if _, _, err := checkBase(base, nil); err != nil {
 		return nil, err
 	}
