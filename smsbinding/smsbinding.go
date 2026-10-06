@@ -23,6 +23,8 @@ type SMS struct {
 	MSISDN string // TP-DA when sent, TP-OA when received
 	UDH    []byte // user data header information elements, without the UDHL byte
 	Data   []byte // user data after the header
+	PID    byte   // TP-PID; 0 is the default
+	DCS    byte   // TP-DCS; 0 leaves the SMSC's 8-bit default
 }
 
 // MaxUserData is the user data size of one SMS, UDHL and UDH included.
@@ -63,12 +65,14 @@ func PayloadBudget(withToken bool) int {
 }
 
 // Security protects the SMS channel (SMS Secured mode, T §5.3.2): DTLS
-// for a device end-point or 3GPP 31.115 Secured Packets for a smartcard.
-// Open must fail for anything not protected with the expected /0/x/7
-// parameters and /0/x/8 keys.
+// for a device end-point or 3GPP 31.115 Secured Packets for a smartcard
+// (SecuredPacket). Seal returns the SMS to send (a non-empty MSISDN
+// overrides the TP-DA). Open gets the inbound SMS, reassembled, with the
+// TP-OA as received and the first part's UDH, and must fail for anything
+// not protected with the expected /0/x/7 parameters and /0/x/8 keys.
 type Security interface {
-	Seal(msisdn string, coap []byte) ([]byte, error)
-	Open(msisdn string, data []byte) ([]byte, error)
+	Seal(msisdn string, coap []byte) (SMS, error)
+	Open(m SMS) ([]byte, error)
 }
 
 // Config configures a Binding.
@@ -94,11 +98,11 @@ type Binding struct {
 	mu    sync.Mutex
 	conns map[string]*coapwire.Conn
 	ref   uint8
-	parts map[string][][]byte // MSISDN/ref -> concatenated parts
+	parts map[string][]*SMS // MSISDN/ref -> concatenated parts
 }
 
 func New(cfg Config) *Binding {
-	return &Binding{cfg: cfg, conns: map[string]*coapwire.Conn{}, parts: map[string][][]byte{}}
+	return &Binding{cfg: cfg, conns: map[string]*coapwire.Conn{}, parts: map[string][]*SMS{}}
 }
 
 var ErrMSISDN = errors.New("smsbinding: invalid MSISDN")
@@ -141,21 +145,32 @@ func (b *Binding) send(ctx context.Context, msisdn string, coap []byte) error {
 	if b.cfg.Security == nil && !b.cfg.Debug {
 		return errors.New("smsbinding: NoSec SMS is trigger-only (set Debug)")
 	}
-	data := coap
+	m := SMS{Data: coap}
 	if b.cfg.Security != nil {
 		var err error
-		if data, err = b.cfg.Security.Seal(msisdn, coap); err != nil {
+		if m, err = b.cfg.Security.Seal(msisdn, coap); err != nil {
 			return err
 		}
 	}
-	return b.submit(ctx, msisdn, nil, data)
+	if m.MSISDN == "" {
+		m.MSISDN = msisdn
+	}
+	return b.submit(ctx, m)
 }
 
-// submit sends data in one SMS, or concatenated SMS with the 8-bit
-// reference IE (3GPP 23.040 §9.2.3.24.1) when it does not fit.
-func (b *Binding) submit(ctx context.Context, msisdn string, udh, data []byte) error {
+// submit sends m in one SMS, or concatenated SMS with the 8-bit
+// reference IE (3GPP 23.040 §9.2.3.24.1) when it does not fit. A Command
+// or Response Packet IE goes in the first part only (31.115 §4.3, §4.5).
+func (b *Binding) submit(ctx context.Context, m SMS) error {
+	udh, data := m.UDH, m.Data
 	if 1+len(udh)+len(data) <= MaxUserData || len(udh) == 0 && len(data) <= MaxUserData {
-		return b.cfg.SMSC.Submit(ctx, SMS{MSISDN: msisdn, UDH: udh, Data: data})
+		return b.cfg.SMSC.Submit(ctx, m)
+	}
+	var rest []byte // UDH of later parts
+	for ie := udh; len(ie) >= 2 && len(ie) >= 2+int(ie[1]); ie = ie[2+int(ie[1]):] {
+		if ie[0] != IECommandPacket && ie[0] != IEResponsePacket {
+			rest = append(rest, ie[:2+int(ie[1])]...)
+		}
 	}
 	room := MaxUserData - 1 - len(udh) - 5
 	n := (len(data) + room - 1) / room
@@ -168,8 +183,11 @@ func (b *Binding) submit(ctx context.Context, msisdn string, udh, data []byte) e
 	b.mu.Unlock()
 	for i := range n {
 		part := data[i*room : min(len(data), (i+1)*room)]
+		if i == 1 {
+			udh = rest
+		}
 		h := append(append([]byte{}, udh...), 0x00, 0x03, ref, byte(n), byte(i+1))
-		if err := b.cfg.SMSC.Submit(ctx, SMS{MSISDN: msisdn, UDH: h, Data: part}); err != nil {
+		if err := b.cfg.SMSC.Submit(ctx, SMS{MSISDN: m.MSISDN, UDH: h, Data: part, PID: m.PID, DCS: m.DCS}); err != nil {
 			return err
 		}
 	}
@@ -185,15 +203,16 @@ func (b *Binding) Deliver(ctx context.Context, m SMS) error {
 	if b.cfg.Allowed != nil && !b.cfg.Allowed(n) {
 		return nil // unknown sender: silently ignored (T §5.3)
 	}
-	data, done := b.reassemble(n, m)
+	m, done := b.reassemble(n, m)
 	if !done {
 		return nil
 	}
+	data := m.Data
 	if b.cfg.Security == nil {
 		if !b.cfg.Debug {
 			return nil // NoSec: inbound CoAP over SMS is for debugging only (T §5.3)
 		}
-	} else if data, err = b.cfg.Security.Open(n, data); err != nil {
+	} else if data, err = b.cfg.Security.Open(m); err != nil {
 		return nil // not correctly protected: discard, no reply (T §5.3.2)
 	}
 	c, err := b.Peer(n)
@@ -203,35 +222,43 @@ func (b *Binding) Deliver(ctx context.Context, m SMS) error {
 	return c.Receive(ctx, data)
 }
 
-// reassemble joins concatenated SMS parts.
+// reassemble joins concatenated SMS parts; the result keeps the first
+// part's UDH.
 // ponytail: incomplete sets stay buffered forever; add expiry if senders lose parts.
-func (b *Binding) reassemble(msisdn string, m SMS) ([]byte, bool) {
+func (b *Binding) reassemble(msisdn string, m SMS) (SMS, bool) {
 	for ie := m.UDH; len(ie) >= 2 && len(ie) >= 2+int(ie[1]); ie = ie[2+int(ie[1]):] {
 		if ie[0] != 0x00 || ie[1] != 3 {
 			continue
 		}
 		ref, total, seq := ie[2], int(ie[3]), int(ie[4])
 		if total == 0 || seq == 0 || seq > total {
-			return nil, false
+			return SMS{}, false
 		}
 		key := fmt.Sprintf("%s/%d", msisdn, ref)
 		b.mu.Lock()
 		defer b.mu.Unlock()
 		ps := b.parts[key]
 		if ps == nil {
-			ps = make([][]byte, total)
+			ps = make([]*SMS, total)
 			b.parts[key] = ps
 		}
-		ps[seq-1] = append([]byte(nil), m.Data...)
+		if len(ps) != total {
+			return SMS{}, false
+		}
+		ps[seq-1] = &m
+		var data [][]byte
 		for _, p := range ps {
 			if p == nil {
-				return nil, false
+				return SMS{}, false
 			}
+			data = append(data, p.Data)
 		}
 		delete(b.parts, key)
-		return bytes.Join(ps, nil), true
+		out := *ps[0]
+		out.Data = bytes.Join(data, nil)
+		return out, true
 	}
-	return m.Data, true
+	return m, true
 }
 
 // WAP Push framing of App. L: WDP port IE (destination 2948) and a WSP
@@ -308,12 +335,20 @@ func (b *Binding) Trigger(ctx context.Context, msisdn string, instance uint16, b
 		return err
 	}
 	if b.cfg.Security != nil {
-		if coap, err = b.cfg.Security.Seal(n, coap); err != nil {
+		m, err := b.cfg.Security.Seal(n, coap)
+		if err != nil {
 			return err
 		}
+		if len(m.UDH) > 0 { // a Secured Packet goes to the UICC by TAR, not by WAP Push
+			if m.MSISDN == "" {
+				m.MSISDN = n
+			}
+			return b.submit(ctx, m)
+		}
+		coap = m.Data
 	}
 	udh, data := WAPPush(coap)
-	return b.submit(ctx, n, udh, data)
+	return b.submit(ctx, SMS{MSISDN: n, UDH: udh, Data: data})
 }
 
 // ShouldTrigger reports whether the server may wake reg with an SMS

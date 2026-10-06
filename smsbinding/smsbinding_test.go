@@ -166,7 +166,7 @@ func TestCoAPOverSMS(t *testing.T) {
 		t.Fatal("reassembled early")
 	}
 	got, done2 = b.reassemble(msisdn, SMS{UDH: parts[2].UDH, Data: parts[2].Data})
-	if !done2 || !bytes.Equal(got, joined) {
+	if !done2 || !bytes.Equal(got.Data, joined) {
 		t.Fatal("reassembly out of order failed")
 	}
 }
@@ -248,15 +248,16 @@ func TestSMSTrigger(t *testing.T) {
 // followed by the message XOR 0x5A.
 type xorSec struct{}
 
-func (xorSec) Seal(_ string, p []byte) ([]byte, error) {
+func (xorSec) Seal(_ string, p []byte) (SMS, error) {
 	out := []byte{0xA5}
 	for _, c := range p {
 		out = append(out, c^0x5A)
 	}
-	return out, nil
+	return SMS{Data: out}, nil
 }
 
-func (xorSec) Open(_ string, d []byte) ([]byte, error) {
+func (xorSec) Open(m SMS) ([]byte, error) {
+	d := m.Data
 	if len(d) == 0 || d[0] != 0xA5 {
 		return nil, errors.New("not protected")
 	}
@@ -283,11 +284,11 @@ func TestSMSSecurity(t *testing.T) {
 	_ = b.Deliver(ctx, SMS{MSISDN: msisdn, Data: req}) // clear text
 	smsc.none(t)
 	sealed, _ := xorSec{}.Seal(msisdn, req)
-	_ = b.Deliver(ctx, SMS{MSISDN: "999", Data: sealed}) // unknown sender
+	_ = b.Deliver(ctx, SMS{MSISDN: "999", Data: sealed.Data}) // unknown sender
 	smsc.none(t)
-	_ = b.Deliver(ctx, SMS{MSISDN: msisdn, Data: sealed})
+	_ = b.Deliver(ctx, SMS{MSISDN: msisdn, Data: sealed.Data})
 	out := smsc.next(t)
-	plain, err := xorSec{}.Open(msisdn, out.Data)
+	plain, err := xorSec{}.Open(out)
 	if err != nil || frame(t, plain).Msg.Code != codes.Created {
 		t.Fatalf("secured reply %x %v", out.Data, err)
 	}
