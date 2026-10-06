@@ -116,7 +116,7 @@ func (s *Server) ListenUDP(addr string) (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := udp.NewServer(options.WithMux(s.router), options.WithBlockwise(true, 0x6, s.cfg.RequestTimeout),
+	srv := udp.NewServer(options.WithMux(s.router), options.WithBlockwise(true, server.BlockSZX, s.cfg.RequestTimeout),
 		options.WithProcessReceivedMessageFunc(s.process))
 	s.mu.Lock()
 	s.udp = append(s.udp, srv)
@@ -183,7 +183,7 @@ func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := coapdtls.NewServer(options.WithMux(s.router), options.WithBlockwise(true, 0x6, s.cfg.RequestTimeout),
+	srv := coapdtls.NewServer(options.WithMux(s.router), options.WithBlockwise(true, server.BlockSZX, s.cfg.RequestTimeout),
 		options.WithProcessReceivedMessageFunc(s.process))
 	s.mu.Lock()
 	s.dtls = append(s.dtls, srv)
@@ -510,6 +510,15 @@ func (s *Server) packRequest(peer server.Peer, m *server.Message) *server.Messag
 	_, writes := cfg.plan(bsIDs, true) // packable checks the Pack covers the deletes
 	res := Result{Endpoint: ep, Identity: id, Pack: true, Format: format, Query: m.Query}
 	why := cfg.packable(writes)
+	// AutoIDForSecurityObject promises that no /0 write lands on the client's
+	// BS account. A Pack has no Bootstrap-Discover, so only acc (BS-14, 1.2.1)
+	// names that instance; pre-1.2.1 clients (Anjay 3.15) omit it. Refuse
+	// (4.05, BS-12) so the client falls back to Bootstrap-Request, whose
+	// Discover finds the account (found by interop/peers with Anjay: a Pack
+	// /0/1 replaced its BS account at /0/1).
+	if _, hasAcc := q["acc"]; why == "" && cfg.AutoIDForSecurityObject && !hasAcc {
+		why = "no acc: AutoIDForSecurityObject cannot locate the BS account"
+	}
 	// The client keeps its BS account's /21 instance (BS-15): a Pack
 	// instance on that ID would clash with it.
 	// ponytail: refused, so the client falls back to Bootstrap-Request;

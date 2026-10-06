@@ -87,7 +87,7 @@ func (s *Server) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
 func (s *Server) serveTCP(l tcpServer.Listener) {
 	srv := tcp.NewServer(
 		options.WithMux(mux.HandlerFunc(s.serveTCPMessage)),
-		options.WithBlockwise(true, 0x6, s.cfg.RequestTimeout),
+		options.WithBlockwise(true, BlockSZX, s.cfg.RequestTimeout),
 		options.WithOnNewConn(func(cc *tcpClient.Conn) {
 			cc.SetContextValue(tcpPeerKey{}, &tcpPeer{coapPeer{cc: cc, binding: "T"}})
 		}),

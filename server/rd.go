@@ -144,6 +144,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 	}
 	old := s.store.Add(reg)
 	if old != nil {
+		s.queues.handover(old.ID, reg.ID) // before dropClientState: queued requests follow the new registration (T24)
 		s.dropClientState(old)
 	}
 	return reply{

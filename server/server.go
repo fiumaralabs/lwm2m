@@ -79,6 +79,8 @@ type Server struct {
 	profiles *profileCache
 	formats  sync.Map // registration ID -> learned multi-value format
 	coap     coapBinding
+	held     heldConns       // connections of registered clients (keepconn.go)
+	block1   block1Assembler // client Block1 reassembly (block1.go)
 	closed   bool
 }
 
@@ -125,6 +127,7 @@ func (s *Server) Store() Store { return s.store }
 func (s *Server) Security() SecurityStore { return s.security }
 
 func (s *Server) emit(e Event) {
+	s.held.track(e)
 	if s.cfg.OnEvent != nil {
 		s.cfg.OnEvent(e)
 	}
@@ -139,8 +142,9 @@ func (s *Server) ListenUDP(addr string) (net.Addr, error) {
 	}
 	srv := udp.NewServer(
 		options.WithMux(s.router),
-		options.WithBlockwise(true, 0x6, s.cfg.RequestTimeout),
+		options.WithBlockwise(true, BlockSZX, s.cfg.RequestTimeout),
 		options.WithProcessReceivedMessageFunc(s.processUDP),
+		s.held.monitor(),
 	)
 	s.mu.Lock()
 	s.udp = append(s.udp, srv)
@@ -195,8 +199,9 @@ func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 	}
 	srv := coapdtls.NewServer(
 		options.WithMux(s.router),
-		options.WithBlockwise(true, 0x6, s.cfg.RequestTimeout),
+		options.WithBlockwise(true, BlockSZX, s.cfg.RequestTimeout),
 		options.WithProcessReceivedMessageFunc(s.processUDP),
+		s.held.monitor(),
 	)
 	s.mu.Lock()
 	s.dtls = append(s.dtls, srv)

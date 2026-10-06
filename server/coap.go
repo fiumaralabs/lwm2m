@@ -33,7 +33,13 @@ type coapConn interface {
 }
 
 const (
-	blockSize     = 1024                  // szx 6, see ListenUDP/ListenDTLS
+	// BlockSZX is the block size of downlink block-wise transfers: 512
+	// bytes (SZX 5), Californium's default. A 1024-byte Block1 over DTLS
+	// with CID is a 1087-byte datagram, which constrained clients drop
+	// before CoAP sees it (Zephyr interop test_blockwise_*: 1 KiB of RX
+	// buffers); a client asking for smaller blocks still gets them.
+	BlockSZX      = 0x5
+	blockSize     = 16 << BlockSZX        // 512
 	optRequestTag = message.OptionID(292) // RFC 9175
 )
 
@@ -215,6 +221,9 @@ func (s *Server) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
 	for _, l := range resp.Location {
 		w.Message().AddOptionString(message.LocationPath, l)
 	}
+	if b, err := m.GetOptionUint32(message.Block1); err == nil {
+		w.Message().SetOptionUint32(message.Block1, b) // final block of a Block1 request (RFC 7959 §2.3)
+	}
 }
 
 // isResponseCode reports a 2.xx-5.xx code (a response, not a request).
@@ -236,6 +245,9 @@ func (s *Server) processUDP(req *pool.Message, cc *client.Conn, handler config.H
 		cc.ReleaseMessage(rst)
 		cc.ReleaseMessage(req)
 		return
+	}
+	if s.block1.handle(req, cc) {
+		return // 2.31 Continue or an error sent; the request is released
 	}
 	cc.ProcessReceivedMessageWithHandler(req, handler)
 	s.coap.runAfters(cc)

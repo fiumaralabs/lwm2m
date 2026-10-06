@@ -1,0 +1,62 @@
+# Zephyr's LwM2M interop suite (tests/net/lib/lwm2m/interop), unchanged,
+# against lwm2md in place of Leshan. Same container as a local run
+# (interop/zephyr/run.sh); on x86_64 the DUT is native_sim, as upstream.
+name: zephyr-interop
+
+on:
+  schedule:
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+    inputs:
+      twister_args:
+        description: "Extra twister args, e.g. --pytest-args='-k int_102'"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zephyr-interop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: interop/zephyr/Dockerfile
+          tags: lwm2m-zephyr-interop
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run suite
+        env:
+          TWISTER_ARGS: ${{ inputs.twister_args }}
+        run: |
+          mkdir -p out
+          # shellcheck disable=SC2086
+          docker run --rm --cap-add NET_ADMIN --device /dev/net/tun \
+            -v "$PWD/out:/out" lwm2m-zephyr-interop $TWISTER_ARGS
+      - name: Summary
+        if: always()
+        run: |
+          f=$(find out/twister-out -name twister_report.xml -o -name twister.xml 2>/dev/null | head -1)
+          [ -n "$f" ] && python3 - "$f" <<'PY' >> "$GITHUB_STEP_SUMMARY" || true
+          import sys, xml.etree.ElementTree as ET
+          print("| test | result |\n|---|---|")
+          for tc in ET.parse(sys.argv[1]).iter("testcase"):
+              r = "fail" if tc.find("failure") is not None or tc.find("error") is not None else ("skip" if tc.find("skipped") is not None else "pass")
+              print(f"| {tc.get('name')} | {r} |")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zephyr-interop
+          path: out/

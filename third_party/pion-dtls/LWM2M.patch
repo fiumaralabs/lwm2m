@@ -1,4 +1,4 @@
-diff --color -ruN -x g a/config.go b/config.go
+diff -ruN a/config.go b/config.go
 --- a/config.go
 +++ b/config.go
 @@ -199,6 +199,21 @@
@@ -23,10 +23,18 @@ diff --color -ruN -x g a/config.go b/config.go
  	// PaddingLengthGenerator generates the number of padding bytes used to
  	// inflate ciphertext size in order to obscure content size from observers.
  	// The length of the content is passed to the generator such that both
-diff --color -ruN -x g a/conn.go b/conn.go
+diff -ruN a/conn.go b/conn.go
 --- a/conn.go
 +++ b/conn.go
-@@ -232,6 +232,8 @@
+@@ -63,6 +63,7 @@
+ type Conn struct {
+ 	lock           sync.RWMutex      // Internal lock (must not be public)
+ 	nextConn       netctx.PacketConn // Embedded Conn, typically a udpconn we read/write from
++	rawConn        net.PacketConn    // nextConn unwrapped (lwm2m patch)
+ 	fragmentBuffer *fragmentBuffer   // out-of-order and missing fragment handling
+ 	handshakeCache *handshakeCache   // caching of handshake messages for verifyData generation
+ 	decrypted      chan any          // Decrypted Application Data or error, pull by calling `Read`
+@@ -232,6 +233,8 @@
  		localGetClientCertificate:     config.GetClientCertificate,
  		insecureSkipHelloVerify:       config.InsecureSkipVerifyHello,
  		connectionIDGenerator:         config.ConnectionIDGenerator,
@@ -35,7 +43,26 @@ diff --color -ruN -x g a/conn.go b/conn.go
  		helloRandomBytesGenerator:     config.HelloRandomBytesGenerator,
  		clientHelloMessageHook:        config.ClientHelloMessageHook,
  		serverHelloMessageHook:        config.ServerHelloMessageHook,
-diff --color -ruN -x g a/crypto.go b/crypto.go
+@@ -244,6 +247,7 @@
+ 	conn := &Conn{
+ 		rAddr:                   rAddr,
+ 		nextConn:                netctx.NewPacketConn(nextConn),
++		rawConn:                 nextConn, // lwm2m patch
+ 		handshakeConfig:         handshakeConfig,
+ 		fragmentBuffer:          newFragmentBuffer(),
+ 		handshakeCache:          newHandshakeCache(),
+@@ -1289,6 +1293,10 @@
+ 	ctxRead, cancelRead := context.WithCancel(context.Background())
+ 	cfg.onFlightState = func(_ flightVal, s handshakeState) {
+ 		if s == handshakeFinished && c.setHandshakeCompletedSuccessfully() {
++			// lwm2m patch: tell the listener's conn (see internal/net/udp).
++			if hd, ok := c.rawConn.(interface{ HandshakeDone() }); ok {
++				hd.HandshakeDone()
++			}
+ 			close(done)
+ 		}
+ 	}
+diff -ruN a/crypto.go b/crypto.go
 --- a/crypto.go
 +++ b/crypto.go
 @@ -142,7 +142,7 @@
@@ -56,7 +83,7 @@ diff --color -ruN -x g a/crypto.go b/crypto.go
  	if err != nil {
  		return err
  	}
-diff --color -ruN -x g a/flight0handler.go b/flight0handler.go
+diff -ruN a/flight0handler.go b/flight0handler.go
 --- a/flight0handler.go
 +++ b/flight0handler.go
 @@ -6,6 +6,7 @@
@@ -110,7 +137,7 @@ diff --color -ruN -x g a/flight0handler.go b/flight0handler.go
  
  			if err := state.initCipherSuite(); err != nil {
  				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
-diff --color -ruN -x g a/flight1handler.go b/flight1handler.go
+diff -ruN a/flight1handler.go b/flight1handler.go
 --- a/flight1handler.go
 +++ b/flight1handler.go
 @@ -161,6 +161,8 @@
@@ -122,7 +149,7 @@ diff --color -ruN -x g a/flight1handler.go b/flight1handler.go
  	clientHello := &handshake.MessageClientHello{
  		Version:            protocol.Version1_2,
  		SessionID:          state.SessionID,
-diff --color -ruN -x g a/flight3handler.go b/flight3handler.go
+diff -ruN a/flight3handler.go b/flight3handler.go
 --- a/flight3handler.go
 +++ b/flight3handler.go
 @@ -6,6 +6,7 @@
@@ -160,16 +187,17 @@ diff --color -ruN -x g a/flight3handler.go b/flight3handler.go
  			case *extension.ConnectionID:
  				// Only set connection ID to be sent if client supports connection
  				// IDs.
-@@ -86,6 +100,13 @@
+@@ -85,7 +99,14 @@
+ 					state.remoteConnectionID = ext.CID
  				}
  			}
- 		}
++		}
 +		// lwm2m patch: without the extension the server certificate is X.509,
 +		// which a raw-key-only client refuses.
 +		if !serverCertTypeSelected && cfg.serverCertificateTypes != nil &&
 +			!slices.Contains(cfg.serverCertificateTypes, CertificateTypeX509) {
 +			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}, errInvalidCertificate
-+		}
+ 		}
 +
  		// If the server doesn't support connection IDs, the client should not
  		// expect one to be sent.
@@ -184,16 +212,16 @@ diff --color -ruN -x g a/flight3handler.go b/flight3handler.go
  		state.PeerCertificates = h.Certificate
  	} else if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeCertificate {
  		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.NoCertificate}, errInvalidCertificate
-@@ -332,6 +356,8 @@
- 	if state.getLocalConnectionID() != nil {
+@@ -333,6 +357,8 @@
  		extensions = append(extensions, &extension.ConnectionID{CID: state.getLocalConnectionID()})
  	}
-+
-+	extensions = appendCertificateTypeOffers(extensions, cfg) // lwm2m patch: RFC 7250
  
++	extensions = appendCertificateTypeOffers(extensions, cfg) // lwm2m patch: RFC 7250
++
  	clientHello := &handshake.MessageClientHello{
  		Version:            protocol.Version1_2,
-diff --color -ruN -x g a/flight4handler.go b/flight4handler.go
+ 		SessionID:          state.SessionID,
+diff -ruN a/flight4handler.go b/flight4handler.go
 --- a/flight4handler.go
 +++ b/flight4handler.go
 @@ -46,6 +46,9 @@
@@ -253,17 +281,17 @@ diff --color -ruN -x g a/flight4handler.go b/flight4handler.go
  	var pkts []*packet
  	cipherSuiteID := uint16(state.cipherSuite.ID())
  
-@@ -363,6 +377,10 @@
+@@ -362,6 +376,10 @@
+ 		})
  		if err != nil {
  			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
- 		}
++		}
 +		certMsg, err := certificateMessage(certificate, state.localCertificateType) // lwm2m patch
 +		if err != nil {
 +			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
-+		}
+ 		}
  
  		pkts = append(pkts, &packet{
- 			record: &recordlayer.RecordLayer{
 @@ -370,9 +388,7 @@
  					Version: protocol.Version1_2,
  				},
@@ -275,7 +303,7 @@ diff --color -ruN -x g a/flight4handler.go b/flight4handler.go
  				},
  			},
  		})
-diff --color -ruN -x g a/flight5handler.go b/flight5handler.go
+diff -ruN a/flight5handler.go b/flight5handler.go
 --- a/flight5handler.go
 +++ b/flight5handler.go
 @@ -91,6 +91,9 @@
@@ -325,27 +353,7 @@ diff --color -ruN -x g a/flight5handler.go b/flight5handler.go
  			certAlgs := cfg.localCertSignatureSchemes
  			if len(certAlgs) == 0 {
  				certAlgs = cfg.localSignatureSchemes
-diff --color -ruN -x g a/go.mod b/go.mod
---- a/go.mod
-+++ b/go.mod
-@@ -3,15 +3,10 @@
- require (
- 	github.com/pion/logging v0.2.4
- 	github.com/pion/transport/v5 v5.0.0
--	github.com/stretchr/testify v1.12.1
- 	golang.org/x/crypto v0.48.0
--	golang.org/x/net v0.49.0
- )
- 
--require (
--	go.yaml.in/yaml/v3 v3.0.5 // indirect
--	golang.org/x/sys v0.41.0 // indirect
--)
-+require golang.org/x/sys v0.41.0 // indirect
- 
- go 1.24.0
- 
-diff --color -ruN -x g a/handshaker.go b/handshaker.go
+diff -ruN a/handshaker.go b/handshaker.go
 --- a/handshaker.go
 +++ b/handshaker.go
 @@ -119,6 +119,8 @@
@@ -357,7 +365,193 @@ diff --color -ruN -x g a/handshaker.go b/handshaker.go
  	helloRandomBytesGenerator    func() [handshake.RandomBytesLength]byte
  
  	onFlightState func(flightVal, handshakeState)
-diff --color -ruN -x g a/pkg/protocol/alert/alert.go b/pkg/protocol/alert/alert.go
+diff -ruN a/internal/net/udp/packet_conn.go b/internal/net/udp/packet_conn.go
+--- a/internal/net/udp/packet_conn.go
++++ b/internal/net/udp/packet_conn.go
+@@ -54,7 +54,10 @@
+ 
+ 	connLock sync.Mutex
+ 	conns    map[string]*PacketConn
+-	connWG   sync.WaitGroup
++	// pending holds, per remote address, a new handshake started by an
++	// epoch-0 ClientHello from an address whose conn is established (lwm2m patch).
++	pending map[string]*PacketConn
++	connWG  sync.WaitGroup
+ 
+ 	readWG   sync.WaitGroup
+ 	errClose atomic.Value // error
+@@ -187,6 +190,7 @@
+ 		pConn:          conn,
+ 		acceptCh:       make(chan *PacketConn, lc.Backlog),
+ 		conns:          make(map[string]*PacketConn),
++		pending:        make(map[string]*PacketConn), // lwm2m patch
+ 		doneCh:         make(chan struct{}),
+ 		acceptFilter:   lc.AcceptFilter,
+ 		datagramRouter: lc.DatagramRouter,
+@@ -230,53 +234,116 @@
+ 
+ 			return
+ 		}
+-		conn, ok, err := l.getConn(raddr, buf[:n])
++		conn, also, ok, err := l.getConn(raddr, buf[:n])
+ 		if err != nil {
+ 			continue
+ 		}
+ 		if ok {
+ 			_, _ = conn.buffer.WriteTo(buf[:n], raddr)
+ 		}
++		if also != nil { // lwm2m patch: see getConn
++			_, _ = also.buffer.WriteTo(buf[:n], raddr)
++		}
+ 	}
+ }
+ 
+-// getConn gets an existing connection or creates a new one.
+-func (l *listener) getConn(raddr net.Addr, buf []byte) (*PacketConn, bool, error) { //nolint:cyclop
++// getConn gets an existing connection or creates a new one. also, when not
++// nil, receives the datagram too (lwm2m patch).
++func (l *listener) getConn(raddr net.Addr, buf []byte) (conn, also *PacketConn, ok bool, err error) { //nolint:cyclop
+ 	l.connLock.Lock()
+ 	defer l.connLock.Unlock()
+ 	// If we have a custom resolver, use it.
+ 	if l.datagramRouter != nil {
+ 		if id, ok := l.datagramRouter(buf); ok {
+ 			if conn, ok := l.conns[id]; ok {
+-				return conn, true, nil
++				return conn, nil, true, nil
+ 			}
+ 		}
+ 	}
+ 
+ 	// If we don't have a custom resolver, or we were unable to find an
+ 	// associated connection, fall back to remote address.
+-	conn, ok := l.conns[raddr.String()]
++	key := raddr.String()
++	conn, ok = l.conns[key]
++	// lwm2m patch: a client that reuses its address for a new handshake
++	// (RFC 6347 §4.2.8: a ClientHello with epoch 0 on an existing
++	// association) gets a new conn. The established one keeps the address
++	// until the new handshake completes (HandshakeDone), so a spoofed
++	// ClientHello cannot take the address over. Meanwhile epoch-0 records go
++	// to the new conn only and later epochs to both: each conn drops the
++	// records it cannot decrypt.
++	if ok && conn.established.Load() {
++		pend := l.pending[key]
++		if pend == nil && isClientHello(buf) {
++			if isAccepting, ok := l.accepting.Load().(bool); !isAccepting || !ok {
++				return nil, nil, false, ErrClosedListener
++			}
++			pend = l.newPacketConn(raddr)
++			pend.pending = true
++			select {
++			case l.acceptCh <- pend:
++				l.pending[key] = pend
++			default:
++				return nil, nil, false, ErrListenQueueExceeded
++			}
++		}
++		if pend != nil {
++			if isEpochZero(buf) {
++				return pend, nil, true, nil
++			}
++
++			return conn, pend, true, nil
++		}
++	}
+ 	if !ok {
+ 		if isAccepting, ok := l.accepting.Load().(bool); !isAccepting || !ok {
+-			return nil, false, ErrClosedListener
++			return nil, nil, false, ErrClosedListener
+ 		}
+ 		if l.acceptFilter != nil {
+ 			if !l.acceptFilter(buf) {
+-				return nil, false, nil
++				return nil, nil, false, nil
+ 			}
+ 		}
+ 		conn = l.newPacketConn(raddr)
+ 		select {
+ 		case l.acceptCh <- conn:
+-			l.conns[raddr.String()] = conn
++			l.conns[key] = conn
+ 		default:
+-			return nil, false, ErrListenQueueExceeded
++			return nil, nil, false, ErrListenQueueExceeded
+ 		}
+ 	}
+ 
+-	return conn, true, nil
++	return conn, nil, true, nil
+ }
+ 
++// isEpochZero reports whether the first record of a datagram has epoch 0
++// (DTLS 1.2 record header: type, version, epoch, ...) (lwm2m patch).
++func isEpochZero(b []byte) bool { return len(b) >= 13 && b[3] == 0 && b[4] == 0 }
++
++// isClientHello reports whether a datagram starts with an epoch-0 handshake
++// record holding a ClientHello (lwm2m patch).
++func isClientHello(b []byte) bool { return isEpochZero(b) && b[0] == 22 && len(b) > 13 && b[13] == 1 }
++
++// HandshakeDone is called by the DTLS conn once its handshake completed: a
++// pending conn takes over its remote address (lwm2m patch).
++func (c *PacketConn) HandshakeDone() {
++	c.established.Store(true)
++	if !c.pending {
++		return
++	}
++	l, key := c.listener, c.raddr.String()
++	l.connLock.Lock()
++	defer l.connLock.Unlock()
++	if l.pending[key] != c {
++		return
++	}
++	delete(l.pending, key)
++	if old := l.conns[key]; old != nil {
++		old.rmraddr.Store(true) // the old conn no longer owns the address
++	}
++	l.conns[key] = c
++}
++
+ // PacketConn is a net.PacketConn implementation that is able to dictate its
+ // routing ID via an alternate identifier from its remote address. Internal
+ // buffering is performed for reads, and writes are passed through to the
+@@ -288,6 +355,9 @@
+ 	rmraddr atomic.Value // bool
+ 	id      atomic.Value // string
+ 
++	established atomic.Bool // handshake completed (lwm2m patch)
++	pending     bool        // started by a ClientHello on an established address (lwm2m patch)
++
+ 	buffer *idtlsnet.PacketBuffer
+ 
+ 	doneCh   chan struct{}
+@@ -370,15 +440,22 @@
+ 		c.listener.connLock.Lock()
+ 		// If we have an alternate identifier, remove it from the connection
+ 		// map.
+-		if id := c.id.Load(); id != nil {
++		if id := c.id.Load(); id != nil && c.listener.conns[id.(string)] == c { //nolint:forcetypeassert
+ 			delete(c.listener.conns, id.(string)) //nolint:forcetypeassert
+ 		}
+ 		// If we haven't already removed the remote address, remove it from the
+-		// connection map.
++		// connection map. lwm2m patch: only entries this conn still owns; a
++		// replacing conn may hold the address now.
++		key := c.raddr.String()
+ 		if c.rmraddr.Load() == nil {
+-			delete(c.listener.conns, c.raddr.String())
++			if c.listener.conns[key] == c {
++				delete(c.listener.conns, key)
++			}
+ 			c.rmraddr.Store(true)
+ 		}
++		if c.listener.pending[key] == c {
++			delete(c.listener.pending, key)
++		}
+ 		nConns := len(c.listener.conns)
+ 		c.listener.connLock.Unlock()
+ 
+diff -ruN a/pkg/protocol/alert/alert.go b/pkg/protocol/alert/alert.go
 --- a/pkg/protocol/alert/alert.go
 +++ b/pkg/protocol/alert/alert.go
 @@ -64,6 +64,7 @@
@@ -377,7 +571,7 @@ diff --color -ruN -x g a/pkg/protocol/alert/alert.go b/pkg/protocol/alert/alert.
  	case DecompressionFailure:
  		return "DecompressionFailure"
  	case HandshakeFailure:
-diff --color -ruN -x g a/pkg/protocol/extension/certificate_type.go b/pkg/protocol/extension/certificate_type.go
+diff -ruN a/pkg/protocol/extension/certificate_type.go b/pkg/protocol/extension/certificate_type.go
 --- a/pkg/protocol/extension/certificate_type.go
 +++ b/pkg/protocol/extension/certificate_type.go
 @@ -0,0 +1,120 @@
@@ -501,7 +695,7 @@ diff --color -ruN -x g a/pkg/protocol/extension/certificate_type.go b/pkg/protoc
 +func NewServerCertificateType(selected bool, types ...CertificateType) *ServerCertificateType {
 +	return &ServerCertificateType{certificateTypes{Types: types, Selected: selected}}
 +}
-diff --color -ruN -x g a/pkg/protocol/extension/errors.go b/pkg/protocol/extension/errors.go
+diff -ruN a/pkg/protocol/extension/errors.go b/pkg/protocol/extension/errors.go
 --- a/pkg/protocol/extension/errors.go
 +++ b/pkg/protocol/extension/errors.go
 @@ -20,6 +20,9 @@
@@ -514,7 +708,7 @@ diff --color -ruN -x g a/pkg/protocol/extension/errors.go b/pkg/protocol/extensi
  	errInvalidExtensionType = &protocol.FatalError{
  		Err: errors.New("invalid extension type"), //nolint:err113
  	}
-diff --color -ruN -x g a/pkg/protocol/extension/extension.go b/pkg/protocol/extension/extension.go
+diff -ruN a/pkg/protocol/extension/extension.go b/pkg/protocol/extension/extension.go
 --- a/pkg/protocol/extension/extension.go
 +++ b/pkg/protocol/extension/extension.go
 @@ -103,6 +103,10 @@
@@ -528,7 +722,7 @@ diff --color -ruN -x g a/pkg/protocol/extension/extension.go b/pkg/protocol/exte
  		default:
  		}
  
-diff --color -ruN -x g a/pkg/protocol/handshake/message_certificate.go b/pkg/protocol/handshake/message_certificate.go
+diff -ruN a/pkg/protocol/handshake/message_certificate.go b/pkg/protocol/handshake/message_certificate.go
 --- a/pkg/protocol/handshake/message_certificate.go
 +++ b/pkg/protocol/handshake/message_certificate.go
 @@ -13,6 +13,11 @@
@@ -559,12 +753,10 @@ diff --color -ruN -x g a/pkg/protocol/handshake/message_certificate.go b/pkg/pro
  	total := handshakeMessageCertificateLengthFieldSize
  
  	for _, cert := range m.Certificate {
-@@ -63,6 +77,18 @@
- 		data,
- 	)); certificateBodyLen+handshakeMessageCertificateLengthFieldSize != len(data) {
+@@ -65,6 +79,18 @@
  		return errLengthMismatch
-+	}
-+
+ 	}
+ 
 +	// lwm2m patch: a raw public key body (RFC 7250) is one DER
 +	// SubjectPublicKeyInfo, so it starts with a SEQUENCE tag (0x30) where a
 +	// certificate_list has the high byte of a 24-bit length. A list entry
@@ -575,10 +767,12 @@ diff --color -ruN -x g a/pkg/protocol/handshake/message_certificate.go b/pkg/pro
 +		m.RawPublicKey = true
 +
 +		return nil
- 	}
- 
++	}
++
  	offset := handshakeMessageCertificateLengthFieldSize
-diff --color -ruN -x g a/rpk.go b/rpk.go
+ 	for offset < len(data) {
+ 		certificateLen := int(util.BigEndianUint24(data[offset:]))
+diff -ruN a/rpk.go b/rpk.go
 --- a/rpk.go
 +++ b/rpk.go
 @@ -0,0 +1,138 @@
@@ -720,7 +914,7 @@ diff --color -ruN -x g a/rpk.go b/rpk.go
 +
 +	return exts, nil, nil
 +}
-diff --color -ruN -x g a/session.go b/session.go
+diff -ruN a/session.go b/session.go
 --- a/session.go
 +++ b/session.go
 @@ -9,6 +9,10 @@
@@ -734,7 +928,7 @@ diff --color -ruN -x g a/session.go b/session.go
  }
  
  // SessionStore defines methods needed for session resumption.
-diff --color -ruN -x g a/state.go b/state.go
+diff -ruN a/state.go b/state.go
 --- a/state.go
 +++ b/state.go
 @@ -68,6 +68,13 @@
@@ -751,3 +945,23 @@ diff --color -ruN -x g a/state.go b/state.go
  	replayDetector []replaydetector.ReplayDetector
  
  	peerSupportedProtocols []string
+diff -ruN a/go.mod b/go.mod
+--- a/go.mod
++++ b/go.mod
+@@ -3,15 +3,10 @@
+ require (
+ 	github.com/pion/logging v0.2.4
+ 	github.com/pion/transport/v5 v5.0.0
+-	github.com/stretchr/testify v1.12.1
+ 	golang.org/x/crypto v0.48.0
+-	golang.org/x/net v0.49.0
+ )
+ 
+-require (
+-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+-	golang.org/x/sys v0.41.0 // indirect
+-)
++require golang.org/x/sys v0.41.0 // indirect
+ 
+ go 1.24.0
+ 

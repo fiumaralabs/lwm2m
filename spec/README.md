@@ -82,7 +82,7 @@ Each row is either **spec** (the spec decides, and the row records the reading) 
 | C9 *(tolerance)* | **Create response**: Zephyr returns no Location-Path. | Always send the instance id in the Create payload. Never require Location. |
 | C10 *(tolerance)* | **Read-Composite request body**: Zephyr parses it with the Accept format. | Always set Accept equal to Content-Format on FETCH. |
 | C12 | **Emit rules derived from the client survey** (all of them spec-legal) | **Always** send Accept (client defaults differ: TLV, text, SenML-CBOR, LwM2M CBOR). **Always** CON for downlink (Anjay Lite drops NON). Composite FETCH/iPATCH have **no Uri-Path and no Uri-Query**, and attributes go via Write-Attributes. Location-Path is `/rd/<id>` with id ≤ 32 B (Anjay Lite allows ≤ 2 segments of ≤ 40 B). **Never** send Location-Query. Unsupported version gets **4.12** (Anjay falls back only on 4.12). Paths have no empty or trailing segments. |
-| T1–T72 | Per-client input tolerances | See client-ecosystem.md §3. Only T15 (/21 in the Register list) is something the spec forbids the client to send, and ignoring it on input is allowed. |
+| T1–T74 | Per-client input tolerances | See client-ecosystem.md §3. Only T15 (/21 in the Register list) is something the spec forbids the client to send, and ignoring it on input is allowed. |
 | C11 | **Device object version**: a 1.1 Zephyr reports `</3>;ver=1.0`. | Version is resolved per object from `ver`, falling back to the default for the client's `lwm2m` version (VER-01). |
 
 ---

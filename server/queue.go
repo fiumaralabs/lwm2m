@@ -25,6 +25,7 @@ type clientQueue struct {
 	awakeUntil time.Time
 	wakeCh     chan struct{}
 	dropped    bool
+	movedTo    string // ID of the registration that replaced this one, if any
 }
 
 func newQueues(s *Server) *queues { return &queues{s: s, m: map[string]*clientQueue{}} }
@@ -56,7 +57,17 @@ func (q *queues) wake(reg *Registration) {
 }
 
 // drop releases waiters of an ended registration.
-func (q *queues) drop(id string) {
+func (q *queues) drop(id string) { q.end(id, "") }
+
+// handover ends registration id, which a new Register of the same endpoint
+// replaced (REG-12), and moves its waiting requests to the replacement next.
+// Clients re-register on wake rather than Update when their transport
+// session is new (Anjay NoSec, Anjay Lite on any failure, u-blox after PSM:
+// client-ecosystem T24); dropping the queue would starve them of every
+// queued request. Observations still end (OBS-03).
+func (q *queues) handover(id, next string) { q.end(id, next) }
+
+func (q *queues) end(id, next string) {
 	q.mu.Lock()
 	cq, ok := q.m[id]
 	delete(q.m, id)
@@ -64,6 +75,7 @@ func (q *queues) drop(id string) {
 	if ok {
 		cq.mu.Lock()
 		cq.dropped = true
+		cq.movedTo = next
 		close(cq.wakeCh)
 		cq.wakeCh = make(chan struct{})
 		cq.mu.Unlock()
@@ -88,9 +100,23 @@ func (s *Server) Awake(ep string) bool {
 // run executes fn for reg. For queue-mode clients it waits until the client
 // is awake and serialises requests. fn receives the current registration,
 // whose connection may have changed while waiting.
+// A request queued for a registration that a re-Register replaced follows
+// the replacement (handover).
 func (q *queues) run(ctx context.Context, reg *Registration, fn func(*Registration) error) error {
+	for {
+		next, err := q.runOnce(ctx, reg, fn)
+		if next == nil {
+			return err
+		}
+		reg = next
+	}
+}
+
+// runOnce is run for one registration. A non-nil registration means reg was
+// replaced before fn ran: retry on it.
+func (q *queues) runOnce(ctx context.Context, reg *Registration, fn func(*Registration) error) (*Registration, error) {
 	if !reg.QueueMode {
-		return fn(reg)
+		return nil, fn(reg)
 	}
 	cq := q.get(reg.ID)
 	cq.serial.Lock()
@@ -98,10 +124,13 @@ func (q *queues) run(ctx context.Context, reg *Registration, fn func(*Registrati
 	notified := false
 	for {
 		cq.mu.Lock()
-		dropped, awake, ch := cq.dropped, !q.s.cfg.Now().After(cq.awakeUntil), cq.wakeCh
+		dropped, awake, ch, moved := cq.dropped, !q.s.cfg.Now().After(cq.awakeUntil), cq.wakeCh, cq.movedTo
 		cq.mu.Unlock()
 		if dropped {
-			return ErrQueueDropped
+			if next, ok := q.s.store.ByID(moved); ok && moved != "" {
+				return next, nil
+			}
+			return nil, ErrQueueDropped
 		}
 		if awake {
 			break
@@ -113,16 +142,16 @@ func (q *queues) run(ctx context.Context, reg *Registration, fn func(*Registrati
 		select {
 		case <-ch:
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil, ctx.Err()
 		}
 	}
 	cur, ok := q.s.store.ByID(reg.ID)
 	if !ok {
-		return ErrQueueDropped
+		return nil, ErrQueueDropped
 	}
 	err := fn(cur)
 	if err == nil {
 		q.wake(cur) // a response is a message from the client
 	}
-	return err
+	return nil, err
 }

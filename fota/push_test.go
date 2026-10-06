@@ -16,7 +16,7 @@ import (
 
 // Proves: FW-01, FW-02, FW-04
 // Push (bw-1): a 5000-byte (Zephyr's test image) and a 20 KiB package go to
-// /5/0/0 as opaque Block1 PUTs of 1024 bytes, one token per transfer,
+// /5/0/0 as opaque Block1 PUTs of server.BlockSZX (512 bytes), one token per transfer,
 // numbered from 0, Size1 on the first block, M=1 until the last. The
 // client ends with the exact bytes (CRC32 as bw-1 checks), the server
 // observes State and Update Result, executes /5/0/2 only once Downloaded,
@@ -77,14 +77,15 @@ func checkBlocks(t *testing.T, seen []block1, total, transfers int) {
 		t.Fatalf("%d Block1 transfers, want %d", len(order), transfers)
 	}
 	last := byTok[order[len(order)-1]]
-	n := (total + 1023) / 1024
+	bs := 16 << server.BlockSZX // downlink block size
+	n := (total + bs - 1) / bs
 	if len(last) != n {
 		t.Fatalf("%d blocks, want %d", len(last), n)
 	}
 	sum := 0
 	for i := range n {
 		b := last[int64(i)]
-		if b.size != 1024 || b.more != (i < n-1) {
+		if b.size != int64(bs) || b.more != (i < n-1) {
 			t.Fatalf("block %d: %+v", i, b)
 		}
 		sum += b.n
@@ -125,7 +126,7 @@ func TestPushAbortRestart(t *testing.T) {
 			first++
 		}
 	}
-	if first >= 5 {
+	if first >= (len(pkg)+(16<<server.BlockSZX)-1)/(16<<server.BlockSZX) {
 		t.Fatalf("the aborted transfer sent all %d blocks", first)
 	}
 	// Without retries the timeout is the job's error.
@@ -151,7 +152,11 @@ func TestReadBlock2(t *testing.T) {
 	if err != nil || !r.Success() || len(r.Nodes) != 1 || r.Nodes[0].Value.Str != big {
 		t.Fatalf("read: %v %v", r, err)
 	}
-	if n := len(c.RawRequests()) - before; n != 5 {
-		t.Fatalf("%d request datagrams for a 5-block read", n)
+	// The client answers the first GET with a 1024-byte block; the server
+	// asks for the rest in its own block size (RFC 7959 §2.4 late
+	// negotiation): 1 + ceil(3976/512) = 9 GETs.
+	bs := 16 << server.BlockSZX
+	if n, want := len(c.RawRequests())-before, 1+(len(big)-1024+bs-1)/bs; n != want {
+		t.Fatalf("%d request datagrams for the read, want %d", n, want)
 	}
 }

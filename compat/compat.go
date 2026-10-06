@@ -26,7 +26,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -47,11 +46,9 @@ type Options struct {
 	// Schema types empty multi-instance resources in node JSON; pass the
 	// same function as server.Config.Schema. Optional.
 	Schema func(*server.Registration) lwm2m.Schema
-	// Bootstrap, when set, is mounted at <Prefix>/bootstrap/. Hook for the
-	// Leshan bootstrap REST (zephyr-interop.md §4.2: POST/DELETE
-	// /bootstrap/<ep>), which the bootstrap package will provide; the
-	// bootstrap server's own :8081 listener also needs /security/clients,
-	// for which a second API over the bootstrap security store works.
+	// Bootstrap, when set, is mounted at <Prefix>/bootstrap/, to serve
+	// both REST APIs on one port. Leshan (and lwm2md) use a separate
+	// listener instead: see NewBootstrap.
 	Bootstrap http.Handler
 }
 
@@ -61,12 +58,6 @@ type API struct {
 	srv  atomic.Pointer[server.Server]
 	mux  *http.ServeMux
 	hub  hub
-
-	secMu sync.Mutex
-	// ponytail: server.SecurityStore cannot list, so GET /security/clients
-	// shows the endpoints added through this API that are still stored.
-	// Add SecurityStore.All to list credentials provisioned elsewhere.
-	secEPs map[string]struct{}
 }
 
 // New returns an API with no server; call Attach before serving.
@@ -81,7 +72,7 @@ func New(o Options) *API {
 	if o.Heartbeat == 0 {
 		o.Heartbeat = 2 * time.Second
 	}
-	a := &API{opts: o, mux: http.NewServeMux(), hub: hub{subs: map[*sub]struct{}{}}, secEPs: map[string]struct{}{}}
+	a := &API{opts: o, mux: http.NewServeMux(), hub: hub{subs: map[*sub]struct{}{}}}
 	p := o.Prefix
 	a.mux.HandleFunc(p+"/clients", a.serveClients)
 	a.mux.HandleFunc(p+"/clients/", a.serveClients)
@@ -640,22 +631,18 @@ func (a *API) serveSecurity(w http.ResponseWriter, r *http.Request) {
 		textError(w, http.StatusServiceUnavailable, "server not attached")
 		return
 	}
-	store := srv.Security()
-	segs := segments(strings.TrimPrefix(r.URL.Path, a.opts.Prefix+"/security"))
+	serveSecurity(w, r, srv.Security(), a.opts.Prefix)
+}
+
+// serveSecurity is Leshan's SecurityServlet over store, shared by the
+// server API (:8080) and the bootstrap API (:8081).
+func serveSecurity(w http.ResponseWriter, r *http.Request, store server.SecurityStore, prefix string) {
+	segs := segments(strings.TrimPrefix(r.URL.Path, prefix+"/security"))
 	switch {
 	case r.Method == http.MethodGet && len(segs) == 1 && segs[0] == "clients":
-		a.secMu.Lock()
-		eps := make([]string, 0, len(a.secEPs))
-		for ep := range a.secEPs {
-			eps = append(eps, ep)
-		}
-		a.secMu.Unlock()
-		slices.Sort(eps)
 		out := []securityJSON{}
-		for _, ep := range eps {
-			if si, ok := store.ByEndpoint(ep); ok {
-				out = append(out, newSecurityJSON(si))
-			}
+		for _, si := range store.All() {
+			out = append(out, newSecurityJSON(si))
 		}
 		writeJSON(w, out)
 	case r.Method == http.MethodGet && len(segs) == 1 && segs[0] == "server":
@@ -677,18 +664,11 @@ func (a *API) serveSecurity(w http.ResponseWriter, r *http.Request) {
 			textError(w, http.StatusBadRequest, err.Error()) // NonUniqueSecurityInfoException
 			return
 		}
-		a.secMu.Lock()
-		a.secEPs[si.Endpoint] = struct{}{}
-		a.secMu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	case r.Method == http.MethodDelete && len(segs) >= 2 && segs[0] == "clients":
-		ep := strings.Join(segs[1:], "/")
-		a.secMu.Lock()
-		delete(a.secEPs, ep)
-		a.secMu.Unlock()
 		// ponytail: Leshan also evicts the endpoint's registration here
 		// (infosAreCompromised); the native API has no operator-remove.
-		if _, ok := store.Remove(ep); !ok {
+		if _, ok := store.Remove(strings.Join(segs[1:], "/")); !ok {
 			writeJSON(w, map[string]string{"message": "not_found"})
 			return
 		}
