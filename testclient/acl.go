@@ -141,3 +141,42 @@ func (c *Client) readableNodes(p lwm2m.Path, nodes []lwm2m.Node) []lwm2m.Node {
 	}
 	return out
 }
+
+// Unbootstrap applies the client-side unbootstrapping rules for the
+// server removedSSID (T §5.2.5, DM-19): its ACL entries are removed;
+// instances it owned go to the remaining server with the highest W+D
+// sum, or are deleted (with their object instance) when no other server
+// had access. Changed values are notified to observers.
+func (c *Client) Unbootstrap(removedSSID uint16) {
+	var changed []lwm2m.Path
+	for _, a := range c.aclInstances() {
+		base := lwm2m.NewPath(2, a.ID)
+		if _, had := a.ACL[removedSSID]; had {
+			c.mu.Lock()
+			delete(c.values, base.Append(2).Append(removedSSID))
+			c.mu.Unlock()
+			changed = append(changed, base.Append(2))
+		}
+		if a.Owner != removedSSID {
+			continue
+		}
+		if owner, ok := acl.Unbootstrap(a, removedSSID); ok {
+			c.Set(base.Append(3), lwm2m.Integer(int64(owner)))
+			continue
+		}
+		target := lwm2m.NewPath(a.Object, a.Instance)
+		c.mu.Lock()
+		for _, ip := range []lwm2m.Path{base, target} {
+			delete(c.instances, ip)
+			for vp := range c.values {
+				if vp.HasPrefix(ip) {
+					delete(c.values, vp)
+				}
+			}
+		}
+		c.mu.Unlock()
+	}
+	for _, p := range changed {
+		c.notify(p)
+	}
+}

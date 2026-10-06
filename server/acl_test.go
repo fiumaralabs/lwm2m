@@ -65,3 +65,46 @@ func TestAccessControlOwner(t *testing.T) {
 		}
 	}
 }
+
+// Proves: DM-19
+// Unbootstrapping another server: the client moves ownership of that
+// server's ACL instances to the server with the highest W+D rights and
+// deletes instances nobody else could access; this server follows the
+// owner change by observing /2/x/3, as the spec allows.
+func TestUnbootstrapOwnership(t *testing.T) {
+	h := newHarness(t, func(c *Config) { c.ShortServerID = 101 })
+	c := h.device(testclient.Config{Endpoint: "unbs"})
+	c.Set(p("/16/0/0/0"), lwm2m.String("shared"))
+	c.Set(p("/16/1/0/0"), lwm2m.String("only-102"))
+	c.EnableAccessControl(101,
+		acl.Instance{ID: 0, Object: 16, Instance: 0, Owner: 102, ACL: map[uint16]acl.Rights{101: acl.Read | acl.Write | acl.Delete, 103: acl.Read}},
+		acl.Instance{ID: 1, Object: 16, Instance: 1, Owner: 102, ACL: map[uint16]acl.Rights{}},
+		acl.Instance{ID: 2, Object: 3, Instance: 0, Owner: 102, ACL: map[uint16]acl.Rights{0: acl.Read}},
+		acl.Instance{ID: 3, Object: 1, Instance: 0, Owner: 101, ACL: map[uint16]acl.Rights{}},
+	)
+	mustCode(mustRegister(h, c))
+	ob, r, err := h.srv.Observe(h.ctx, "unbs", p("/2/0/3"), ObserveOptions{})
+	if err != nil || !r.Success() || r.Nodes[0].Value.Int != 102 {
+		t.Fatalf("observe owner: %v %+v", err, r)
+	}
+	c.Unbootstrap(102)
+	n := notification(t, h, ob)
+	if n.Response.Nodes[0].Value.Int != 101 {
+		t.Fatalf("new owner %v, want 101 (highest W+D)", n.Response.Nodes)
+	}
+	insts, err := h.srv.ReadACL(h.ctx, "unbs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range insts {
+		if a.Object == 16 && a.Instance == 1 {
+			t.Fatal("ACL of an instance only the removed server owned survived")
+		}
+		if _, ok := a.ACL[102]; ok {
+			t.Fatal("removed server's ACL entry kept")
+		}
+	}
+	if _, ok := c.Get(p("/16/1/0/0")); ok {
+		t.Fatal("instance only the removed server could access was not deleted")
+	}
+}

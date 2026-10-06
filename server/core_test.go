@@ -344,3 +344,30 @@ func TestOMAJSONOnlyAccepted(t *testing.T) {
 		}
 	}
 }
+
+// Proves: DT-03
+// A Corelnk value naming LwM2M objects or instances gets the same target
+// check as an Objlnk: only registered ones may be written; non-LwM2M
+// links are left alone.
+func TestCorelnkTargets(t *testing.T) {
+	h := newHarness(t)
+	c := h.registered("clnk")
+	c.Set(p("/22/0/0/0"), lwm2m.Corelnk("</3/0>"))
+	if r, err := c.Update(h.ctx, nil, []byte(c.ObjectLinks())); err != nil || r.Code != codes.Changed {
+		t.Fatal(r, err)
+	}
+	w := func(v string) error {
+		_, err := h.srv.Write(h.ctx, "clnk", p("/22/0/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/22/0/0/0"), lwm2m.Corelnk(v))}, WriteOptions{})
+		return err
+	}
+	for _, ok := range []string{"</3/0>", "</3>,</1/0>", "<coap://example.com/x>"} {
+		if err := w(ok); err != nil {
+			t.Errorf("%q refused: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"</9/0>", "</3/7>", "</3/0>,</42>"} {
+		if err := w(bad); !errors.Is(err, ErrBadObjlnk) {
+			t.Errorf("%q sent: %v", bad, err)
+		}
+	}
+}

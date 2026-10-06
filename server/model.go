@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/model"
 )
 
@@ -77,6 +78,12 @@ var ErrBadObjlnk = errors.New("server: Objlnk target not registered")
 // accepted (the list says nothing about which exist).
 func checkLinks(reg *Registration, nodes []lwm2m.Node) error {
 	for _, n := range nodes {
+		if n.Kind == lwm2m.KindValue && n.Value.Type == lwm2m.TypeCorelnk {
+			if err := checkCorelnk(reg, n); err != nil {
+				return err
+			}
+			continue
+		}
 		if n.Kind != lwm2m.KindValue || n.Value.Type != lwm2m.TypeObjlnk {
 			continue
 		}
@@ -90,6 +97,27 @@ func checkLinks(reg *Registration, nodes []lwm2m.Node) error {
 		}
 		if l.Instance != lwm2m.MaxID && len(o.Instances) > 0 && !reg.HasInstance(l.Object, l.Instance) {
 			return fmt.Errorf("%w: %s -> %s", ErrBadObjlnk, n.Path, l)
+		}
+	}
+	return nil
+}
+
+// checkCorelnk applies the Objlnk target rule to a Corelnk value: every
+// link naming an LwM2M object or instance must name a registered one
+// (DT-03, C §6.3.3). Links that are not LwM2M paths are left alone.
+func checkCorelnk(reg *Registration, n lwm2m.Node) error {
+	links, err := link.Parse(n.Value.Str)
+	if err != nil {
+		return nil // not an LwM2M object/instance link list (e.g. absolute URIs)
+	}
+	for _, l := range links {
+		p, err := lwm2m.ParsePath(l.URI)
+		if err != nil || p.IsRoot() {
+			continue
+		}
+		o, ok := reg.Object(p.Object())
+		if !ok || (p.Len() >= 2 && len(o.Instances) > 0 && !reg.HasInstance(p.Object(), p.Instance())) {
+			return fmt.Errorf("%w: %s -> %s", ErrBadObjlnk, n.Path, l.URI)
 		}
 	}
 	return nil
