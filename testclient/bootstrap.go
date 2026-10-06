@@ -63,10 +63,17 @@ func (b *BootstrapClient) BootstrapQuery(pct *lwm2m.ContentFormat) []string {
 // BootstrapRequest sends POST /bs?ep=&pct= (C §6.1.7.1). The client is in
 // bootstrap mode from the request until Finish (or a non-2.04 answer).
 func (b *BootstrapClient) BootstrapRequest(ctx context.Context, query []string) (*Response, error) {
+	return b.BootstrapRequestWith(func() (*Response, error) { return b.Raw(ctx, codes.POST, "/bs", query, nil, nil) })
+}
+
+// BootstrapRequestWith enters bootstrap mode and sends the
+// Bootstrap-Request with send, e.g. over another transport (TCP, OSCORE).
+// The client leaves bootstrap mode unless the answer is 2.04.
+func (b *BootstrapClient) BootstrapRequestWith(send func() (*Response, error)) (*Response, error) {
 	b.bmu.Lock()
 	b.active = true // the BS may send its first request before our Do returns
 	b.bmu.Unlock()
-	r, err := b.Raw(ctx, codes.POST, "/bs", query, nil, nil)
+	r, err := send()
 	if err != nil || r.Code != codes.Changed {
 		b.bmu.Lock()
 		b.active = false

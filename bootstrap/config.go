@@ -211,6 +211,9 @@ func (c *BootstrapConfig) Validate() error {
 		if s.SecurityMode > ModeEST {
 			return invalid("/0/%d: security mode %d", id, s.SecurityMode)
 		}
+		if err := s.checkMode(id); err != nil {
+			return err
+		}
 		// BS-28: an RFC 7252 §6 style URI of at most 255 characters.
 		u, err := url.Parse(s.URI)
 		if len(s.URI) > 255 || err != nil || u.Scheme == "" || u.Host == "" && u.Opaque == "" {
@@ -309,6 +312,32 @@ func (c *BootstrapConfig) securityIDs(bsIDs []uint16) map[uint16]uint16 {
 }
 
 func u32(p *uint32) int64 { return int64(*p) }
+
+// modeUse is T Tbl 5.2.4-1: for each Security Mode, whether /0/x/3 Public
+// Key or Identity, /0/x/4 Server Public Key and /0/x/5 Secret Key are
+// required (true) or N/A (false).
+var modeUse = map[SecurityMode][3]bool{
+	ModePSK:   {true, false, true}, // PSK identity, -, PSK
+	ModeRPK:   {true, true, true},  // RPK, server RPK, private key
+	ModeX509:  {true, true, true},  // certificate, server certificate, private key
+	ModeNoSec: {false, false, false},
+	ModeEST:   {false, true, false}, // server certificate only; the key stays on the device (EST-03)
+}
+
+// checkMode enforces Tbl 5.2.4-1 (SEC-08): a resource the mode needs is
+// set, one that is N/A for it is empty.
+func (s SecurityConfig) checkMode(id uint16) error {
+	use := modeUse[s.SecurityMode]
+	for i, v := range [3]Bytes{s.PublicKeyOrID, s.ServerPublicKey, s.SecretKey} {
+		switch {
+		case use[i] && len(v) == 0:
+			return invalid("/0/%d/%d is required in security mode %d (SEC-08)", id, 3+i, s.SecurityMode)
+		case !use[i] && len(v) > 0:
+			return invalid("/0/%d/%d is N/A in security mode %d (SEC-08)", id, 3+i, s.SecurityMode)
+		}
+	}
+	return nil
+}
 
 func (s SecurityConfig) nodes(p lwm2m.Path) []lwm2m.Node {
 	r := func(id uint16, v lwm2m.Value) lwm2m.Node { return lwm2m.ValueNode(p.Append(id), v) }

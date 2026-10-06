@@ -34,7 +34,7 @@ func pskConfig(identity, key string) *piondtls.Config {
 // provisioned PSK at the LwM2M Server (int-401). A PSK identity bound to
 // another endpoint is refused with 4.00; without ep, the endpoint is the
 // one the PSK identity belongs to.
-// Proves: BS-01, BS-20
+// Proves: BS-01, BS-20, BS-10
 func TestInt1BootstrapPSK(t *testing.T) {
 	h := newHarness(t)
 	dm := server.New(server.Config{RequestTimeout: 5 * time.Second})
@@ -138,7 +138,7 @@ func (h *harness) certListener(t *testing.T, m server.CertificateModes) string {
 // bootstraps certificate and raw-public-key clients; the endpoint must be
 // the certificate CN (4.00 otherwise, BS-01) and is derived from it when
 // ep is omitted (BS-20); an RPK client is bound to its stored key.
-// Proves: BS-01, BS-20
+// Proves: BS-01, BS-20, BS-10
 func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
 	h := newHarness(t)
 	k := newPKI(t)

@@ -5,8 +5,8 @@
 //
 // T §7 does not say how the Server reaches the client (A-6); Config.ClientURL
 // supplies the client's base URL. Content-Type and Accept carry the IANA
-// media types of the Content-Formats (RFC 8075). The Bootstrap interface is
-// not served: this module has no Bootstrap-Server yet.
+// media types of the Content-Formats (RFC 8075). BootstrapBinding serves
+// the Bootstrap interface of a bootstrap.Server the same way (T §7.1.2).
 package httpbinding
 
 import (
@@ -82,7 +82,7 @@ func (b *Binding) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		msg.Format = &f
 	}
-	p := &peer{b: b, id: identity(r), addr: tcpAddr(r.RemoteAddr)}
+	p := &peer{cfg: &b.cfg, id: identity(r), addr: tcpAddr(r.RemoteAddr)}
 	seg := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	switch {
 	case len(seg) == 1 && seg[0] == "rd":
@@ -199,7 +199,7 @@ var ErrUnsupported = errors.New("httpbinding: not supported by the HTTP binding"
 
 // peer is the Peer of one HTTP client.
 type peer struct {
-	b    *Binding
+	cfg  *Config
 	id   server.Identity
 	addr net.Addr
 	mu   sync.Mutex
@@ -236,8 +236,8 @@ func (p *peer) Exchange(ctx context.Context, req *server.Message) (*server.Messa
 	ep := p.ep
 	p.mu.Unlock()
 	base := ""
-	if p.b.cfg.ClientURL != nil {
-		base = p.b.cfg.ClientURL(ep)
+	if p.cfg.ClientURL != nil {
+		base = p.cfg.ClientURL(ep)
 	}
 	if base == "" {
 		return nil, fmt.Errorf("httpbinding: no HTTP URL for endpoint %q", ep)
@@ -272,7 +272,7 @@ func (p *peer) Exchange(ctx context.Context, req *server.Message) (*server.Messa
 		}
 		hr.Header.Set("Accept", mt)
 	}
-	res, err := p.b.cfg.Client.Do(hr)
+	res, err := p.cfg.Client.Do(hr)
 	if err != nil {
 		return nil, err
 	}

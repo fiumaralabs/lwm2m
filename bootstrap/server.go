@@ -8,7 +8,7 @@ package bootstrap
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -33,6 +34,7 @@ import (
 	coapnet "github.com/plgd-dev/go-coap/v3/net"
 	"github.com/plgd-dev/go-coap/v3/options"
 	"github.com/plgd-dev/go-coap/v3/options/config"
+	tcpClient "github.com/plgd-dev/go-coap/v3/tcp/client"
 	"github.com/plgd-dev/go-coap/v3/udp"
 	"github.com/plgd-dev/go-coap/v3/udp/client"
 	udpServer "github.com/plgd-dev/go-coap/v3/udp/server"
@@ -69,10 +71,11 @@ type Server struct {
 
 	mu       sync.Mutex
 	sessions map[string]*session // by endpoint
+	oscore   atomic.Pointer[OSCORE]
 	udp      []*udpServer.Server
 	dtls     []*dtlsServer.Server
 	closers  []func() error
-	afters   sync.Map // *client.Conn -> func(), started once the response is out
+	afters   sync.Map // coapConn -> func(), started once the response is out
 	wg       sync.WaitGroup
 	closed   bool
 }
@@ -122,6 +125,10 @@ func (s *Server) ListenUDP(addr string) (net.Addr, error) {
 	return l.LocalAddr(), nil
 }
 
+// MinPSKKey is the shortest (D)TLS PSK the default PSK lookup accepts:
+// PSK suites MUST NOT be used with low-entropy secrets (T §5.2.4, BS-10).
+const MinPSKKey = 16
+
 // DTLSConfig configures a DTLS listener. Config is passed to pion/dtls
 // as is: PSK defaults to a lookup in the security store; X.509 needs
 // Certificates, ClientCAs and ClientAuth; RPK and other credential
@@ -147,6 +154,9 @@ func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 			si, ok := s.cfg.Security.ByPSKIdentity(string(id))
 			if !ok || len(si.PSKKey) == 0 {
 				return nil, errors.New("bootstrap: unknown PSK identity")
+			}
+			if len(si.PSKKey) < MinPSKKey {
+				return nil, errors.New("bootstrap: PSK shorter than 128 bits (BS-10: no low-entropy secrets)")
 			}
 			return si.PSKKey, nil
 		}
@@ -213,12 +223,25 @@ func (s *Server) Close() error {
 
 // --- CoAP binding -------------------------------------------------------
 
-// coapPeer is the server.Peer of one CoAP/UDP or DTLS session.
-type coapPeer struct{ cc *client.Conn }
+// coapConn is a go-coap UDP, DTLS, TCP or TLS connection.
+type coapConn interface {
+	AcquireMessage(ctx context.Context) *pool.Message
+	ReleaseMessage(*pool.Message)
+	Do(*pool.Message) (*pool.Message, error)
+	RemoteAddr() net.Addr
+	NetConn() net.Conn
+}
+
+// coapPeer is the server.Peer of one CoAP session: binding U (UDP, DTLS)
+// or T (TCP, TLS).
+type coapPeer struct {
+	cc      coapConn
+	binding string
+}
 
 func (p coapPeer) Identity() server.Identity { return identityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
 func (p coapPeer) RemoteAddr() net.Addr      { return p.cc.RemoteAddr() }
-func (p coapPeer) Binding() string           { return "U" }
+func (p coapPeer) Binding() string           { return p.binding }
 
 // Exchange sends one CON request (GEN-03); each call is a new message ID.
 func (p coapPeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
@@ -276,15 +299,22 @@ func fromPool(m *pool.Message) (*server.Message, error) {
 }
 
 func (s *Server) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
-	cc, ok := w.Conn().(*client.Conn)
+	cc, ok := w.Conn().(coapConn)
 	if !ok {
 		return
+	}
+	peer := coapPeer{cc, "U"}
+	if _, tcp := cc.(*tcpClient.Conn); tcp {
+		peer.binding = "T"
+	}
+	if o := s.oscore.Load(); o != nil && s.interceptOSCORE(o, w, m, peer) {
+		return // OSCORE layer (T §5.4.3)
 	}
 	msg, err := fromPool(m.Message)
 	if err != nil {
 		return
 	}
-	resp, after := s.HandleUplink(coapPeer{cc}, msg)
+	resp, after := s.HandleUplink(peer, msg)
 	s.afters.Store(cc, after)
 	var body io.ReadSeeker
 	if resp.Payload != nil {
@@ -307,23 +337,18 @@ func (s *Server) process(req *pool.Message, cc *client.Conn, handler config.Hand
 	}
 }
 
-// identityOf extracts the authenticated identity of a connection (the
-// same rules as the LwM2M Server's).
+// identityOf extracts the authenticated identity of a connection: the
+// LwM2M Server's rules (server.IdentityOf), plus a verified TLS client
+// certificate. Go's crypto/tls has neither PSK nor raw public keys, so a
+// TLS session is X.509 or NoSec.
 func identityOf(nc net.Conn, remote net.Addr) server.Identity {
-	if dc, ok := nc.(*piondtls.Conn); ok {
-		if st, ok := dc.ConnectionState(); ok {
-			if len(st.IdentityHint) > 0 {
-				return server.Identity{Mode: server.ModePSK, PSKIdentity: string(st.IdentityHint)}
-			}
-			if len(st.PeerCertificates) > 0 {
-				if c, err := x509.ParseCertificate(st.PeerCertificates[0]); err == nil {
-					return server.Identity{Mode: server.ModeX509, CertCN: c.Subject.CommonName, Cert: c}
-				}
-				return server.Identity{Mode: server.ModeRPK, PublicKey: st.PeerCertificates[0]}
-			}
+	if tc, ok := nc.(*tls.Conn); ok {
+		if st := tc.ConnectionState(); len(st.VerifiedChains) > 0 {
+			leaf := st.PeerCertificates[0]
+			return server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
 		}
 	}
-	return server.Identity{Mode: server.ModeNoSec, Addr: remote.String()}
+	return server.IdentityOf(nc, remote)
 }
 
 // --- uplink -------------------------------------------------------------
@@ -366,20 +391,6 @@ func queryParams(qs []string) map[string]string {
 	return out
 }
 
-// matches reports whether an authenticated identity is the one stored for
-// the endpoint (SEC-06): equality or lookup, never ep alone.
-func matches(si server.SecurityInfo, id server.Identity) bool {
-	switch id.Mode {
-	case server.ModePSK:
-		return si.PSKIdentity != "" && si.PSKIdentity == id.PSKIdentity
-	case server.ModeRPK:
-		return len(si.PublicKey) > 0 && bytes.Equal(si.PublicKey, id.PublicKey)
-	case server.ModeX509:
-		return si.X509 && id.CertCN == si.Endpoint
-	}
-	return false
-}
-
 // endpoint resolves and authorises the endpoint of a Bootstrap-Request or
 // -Pack-Request. ok=false means 4.00: no ep and none derivable (BS-20),
 // ep not bound to the authenticated identity (BS-01, SEC-06, C1), a NoSec
@@ -399,7 +410,7 @@ func (s *Server) endpoint(id server.Identity, ep string) (string, *BootstrapConf
 		}
 	}
 	si, has := s.cfg.Security.ByEndpoint(ep)
-	if id.Secure() != has || has && !matches(si, id) {
+	if id.Secure() != has || has && !si.Matches(id) {
 		return "", nil, false
 	}
 	c, ok := s.cfg.Configs.Get(ep)

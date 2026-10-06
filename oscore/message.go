@@ -284,6 +284,12 @@ func (c *Context) UnprotectRequest(m message.Message) (message.Message, *Exchang
 // (§4.1.3.5.2, §8.3.1), and so does a response when the server cannot
 // perform replay protection (Appendix B.1.2).
 func (c *Context) ProtectResponse(m message.Message, x *Exchange, newPIV bool) (message.Message, error) {
+	return c.protectResponse(m, x, newPIV, nil)
+}
+
+// protectResponse is ProtectResponse with an optional 'kid context' in
+// the response (Appendix B.2 response #1).
+func (c *Context) protectResponse(m message.Message, x *Exchange, newPIV bool, kidContext []byte) (message.Message, error) {
 	inner, outer, err := split(m.Options)
 	if err != nil {
 		return m, err
@@ -306,7 +312,7 @@ func (c *Context) ProtectResponse(m message.Message, x *Exchange, newPIV bool) (
 	if err != nil {
 		return m, err
 	}
-	var h Header
+	h := Header{KIDContext: kidContext}
 	nonce := x.nonce
 	if newPIV {
 		if h.PIV, err = c.nextPIV(); err != nil {

@@ -31,6 +31,11 @@ type OSCOREClient struct {
 	// RequireEcho makes the client demand Echo freshness (RFC 9175) once
 	// before it accepts a Write, Execute, Create or Delete (OSC-04).
 	RequireEcho bool
+	// Base, when set, makes the client derive its contexts with RFC 8613
+	// Appendix B.2 from these pre-established parameters: call Rederive
+	// to start with a random ID Context R1; a response carrying 'kid
+	// context' R2 switches to ID Context R2||R3.
+	Base *oscore.Params
 
 	omu      sync.Mutex
 	obs      map[string]*oscore.Exchange
@@ -45,11 +50,47 @@ type OSCOREResponse struct {
 	Response
 	Protected bool   // carried the OSCORE option
 	Echo      []byte // inner Echo option, if any
+	// KIDContext is the response's 'kid context' (Appendix B.2 R2).
+	KIDContext []byte
 }
 
 // NewOSCORE returns an OSCORE client with an empty store.
 func NewOSCORE(cfg Config, ctx *oscore.Context) *OSCOREClient {
-	return &OSCOREClient{Client: New(cfg), Ctx: ctx, obs: map[string]*oscore.Exchange{}}
+	return NewOSCOREOn(New(cfg), ctx)
+}
+
+// NewOSCOREOn returns an OSCORE client sharing c's store and override
+// (e.g. a BootstrapClient's Client, for bootstrap over OSCORE).
+func NewOSCOREOn(c *Client, ctx *oscore.Context) *OSCOREClient {
+	return &OSCOREClient{Client: c, Ctx: ctx, obs: map[string]*oscore.Exchange{}}
+}
+
+func (o *OSCOREClient) context() *oscore.Context {
+	o.omu.Lock()
+	defer o.omu.Unlock()
+	return o.Ctx
+}
+
+// Rederive starts Appendix B.2 (step 1): the next request is protected
+// with a context derived from Base with a random ID Context R1, sent as
+// 'kid context'.
+func (o *OSCOREClient) Rederive() error {
+	r1 := make([]byte, 8)
+	_, _ = rand.Read(r1)
+	return o.useIDContext(r1)
+}
+
+func (o *OSCOREClient) useIDContext(id []byte) error {
+	p := *o.Base
+	p.IDContext, p.SendKIDContext = id, true
+	c, err := oscore.New(p)
+	if err != nil {
+		return err
+	}
+	o.omu.Lock()
+	o.Ctx = c
+	o.omu.Unlock()
+	return nil
 }
 
 // Dial connects over UDP, or DTLS when PSKIdentity is set (OSCORE over
@@ -116,12 +157,15 @@ func (o *OSCOREClient) Raw(ctx context.Context, code codes.Code, path string, qu
 		m.Options = append(m.Options, uintOpt(message.ContentFormat, uint32(*cf)))
 	}
 	m.Options = sortOpts(append(m.Options, extra...))
-	prot, x, err := o.Ctx.ProtectRequest(m)
+	prot, x, err := o.context().ProtectRequest(m)
 	if err != nil {
 		return nil, err
 	}
 	o.omu.Lock()
-	o.last, o.lastX = prot, x
+	last := prot // go-coap may edit the options it sends: keep a copy
+	last.Options = append(message.Options(nil), prot.Options...)
+	last.Payload = append([]byte(nil), prot.Payload...)
+	o.last, o.lastX = last, x
 	o.omu.Unlock()
 	return o.send(ctx, prot, x)
 }
@@ -141,10 +185,31 @@ func (o *OSCOREClient) send(ctx context.Context, prot message.Message, x *oscore
 	}
 	out := &OSCOREResponse{}
 	if res.HasOption(oscore.OptionOSCORE) {
-		if in, err = o.Ctx.UnprotectResponse(in, x); err != nil {
+		v, _ := in.Options.GetBytes(oscore.OptionOSCORE)
+		h, err := oscore.ParseHeader(v)
+		if err != nil {
+			return nil, err
+		}
+		c := o.context()
+		if h.KIDContext != nil && o.Base != nil {
+			// Appendix B.2 step 3: verify response #1 with ID Context
+			// R2||ID1, then switch to R2||R3 for request #2.
+			p := *o.Base
+			p.IDContext = append(append([]byte{}, h.KIDContext...), c.Params().IDContext...)
+			if c, err = oscore.New(p); err != nil {
+				return nil, err
+			}
+			defer func() {
+				r3 := make([]byte, 8)
+				_, _ = rand.Read(r3)
+				_ = o.useIDContext(append(append([]byte{}, h.KIDContext...), r3...))
+			}()
+		}
+		if in, err = c.UnprotectResponse(in, x); err != nil {
 			return nil, err
 		}
 		out.Protected = true
+		out.KIDContext = h.KIDContext
 	}
 	out.Code = in.Code
 	for _, op := range in.Options {
@@ -251,7 +316,7 @@ func (o *OSCOREClient) handle(w mux.ResponseWriter, m *mux.Message) {
 	if err != nil {
 		return
 	}
-	inner, x, err := o.Ctx.UnprotectRequest(in)
+	inner, x, err := o.context().UnprotectRequest(in)
 	switch {
 	case errors.Is(err, oscore.ErrReplay), errors.Is(err, oscore.ErrNoContext):
 		respond(w, codes.Unauthorized, nil, nil)
@@ -316,7 +381,7 @@ func (o *OSCOREClient) checkEcho(inner message.Message) []byte {
 }
 
 func (o *OSCOREClient) reply(w mux.ResponseWriter, x *oscore.Exchange, resp message.Message) {
-	prot, err := o.Ctx.ProtectResponse(resp, x, false)
+	prot, err := o.context().ProtectResponse(resp, x, false)
 	if err != nil {
 		respond(w, codes.InternalServerError, nil, nil)
 		return
@@ -355,7 +420,7 @@ func (o *OSCOREClient) Notify(ctx context.Context, tok message.Token) error {
 	}
 	m := message.Message{Code: codes.Content, Token: tok, Payload: body, MessageID: -1, Type: message.Confirmable,
 		Options: message.Options{observeOpt(seq), uintOpt(message.ContentFormat, uint32(*cf))}}
-	prot, err := o.Ctx.ProtectResponse(m, x, true)
+	prot, err := o.context().ProtectResponse(m, x, true)
 	if err != nil {
 		return err
 	}
