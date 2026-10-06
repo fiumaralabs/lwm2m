@@ -75,3 +75,19 @@ func TestQueueSerialisesRequests(t *testing.T) {
 		}
 	}
 }
+
+// TestAwakeImmediatelyAfterRegister: a queue-mode client is reported awake
+// as soon as its Register has been handled, not only once post-reply
+// actions ran (regression: a CI-only race in compat's TestQueueModeBlocks).
+func TestAwakeImmediatelyAfterRegister(t *testing.T) {
+	h := newHarness(t)
+	reg := &Registration{ID: "aw", Endpoint: "aw", QueueMode: true}
+	wasAsleep := h.srv.queues.markAwake(reg)
+	if !wasAsleep {
+		t.Fatal("a new client must count as asleep before its first message")
+	}
+	h.srv.Store().Add(reg)
+	if !h.srv.Awake("aw") {
+		t.Fatal("not awake right after markAwake")
+	}
+}

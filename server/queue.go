@@ -44,16 +44,33 @@ func (q *queues) get(id string) *clientQueue {
 // wake marks a client reachable for QueueAwake from now (QM-03): after
 // Register, Update, a notification, Send or any response.
 func (q *queues) wake(reg *Registration) {
+	q.release(reg, q.markAwake(reg))
+}
+
+// release lets requests waiting for reg go out, and emits Awake when the
+// client was asleep before.
+func (q *queues) release(reg *Registration, wasAsleep bool) {
 	cq := q.get(reg.ID)
 	cq.mu.Lock()
-	wasAsleep := q.s.cfg.Now().After(cq.awakeUntil)
-	cq.awakeUntil = q.s.cfg.Now().Add(q.s.cfg.QueueAwake)
 	close(cq.wakeCh)
 	cq.wakeCh = make(chan struct{})
 	cq.mu.Unlock()
 	if wasAsleep && reg.QueueMode {
 		q.s.emit(Awake{Registration: reg})
 	}
+}
+
+// markAwake records that a client is reachable from now without releasing
+// waiters yet: Register and Update call it while handling the request, so
+// Awake is right at once, and wake (after the reply is sent, GEN-10) then
+// lets queued requests go.
+func (q *queues) markAwake(reg *Registration) (wasAsleep bool) {
+	cq := q.get(reg.ID)
+	cq.mu.Lock()
+	defer cq.mu.Unlock()
+	wasAsleep = q.s.cfg.Now().After(cq.awakeUntil)
+	cq.awakeUntil = q.s.cfg.Now().Add(q.s.cfg.QueueAwake)
+	return wasAsleep
 }
 
 // drop releases waiters of an ended registration.
