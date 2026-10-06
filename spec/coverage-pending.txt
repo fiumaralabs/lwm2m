@@ -1,6 +1,5 @@
 # Requirement IDs (spec/standards*.md) not yet proven by a test.
 # Remove an ID when a test carries `// Proves: <ID>`. Empty file = spec fully implemented.
-GEN-01
 GEN-02
 GEN-03
 GEN-04
@@ -9,24 +8,9 @@ GEN-06
 GEN-07
 GEN-08
 GEN-09
-GEN-10
-REG-01
-REG-02
-REG-03
-REG-04
-REG-05
-REG-06
-REG-11
-REG-12
-REG-13
-REG-14
-REG-15
-REG-16
-REG-17
 REG-19
 REG-20
 REG-21
-REG-22
 DM-01
 DM-02
 DM-03
@@ -44,7 +28,6 @@ ATT-05
 ATT-08
 OBS-01
 OBS-02
-OBS-03
 OBS-04
 OBS-05
 OBS-06
@@ -72,9 +55,6 @@ SEC-01
 SEC-02
 SEC-03
 SEC-04
-SEC-05
-SEC-06
-SEC-07
 SEC-08
 SEC-09
 SEC-10
@@ -103,20 +83,10 @@ GEN-12
 GEN-13
 GEN-14
 GEN-15
-REG-23
 REG-24
 REG-25
 REG-26
-REG-27
-PROF-01
-PROF-03
-PROF-04
-PROF-05
-PROF-06
-PROF-07
-PROF-08
 PROF-10
-PROF-11
 BS-14
 BS-15
 BS-16
