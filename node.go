@@ -54,10 +54,15 @@ func (n Node) Equal(m Node) bool {
 		(!n.HasTime || n.Time == m.Time) && (n.Kind != KindValue || n.Value.Equal(m.Value))
 }
 
-// SortNodes orders nodes by path, keeping the relative order of equal paths
-// (SenML may carry several timestamped values for one path).
+// SortNodes orders nodes by path, then by time (SenML may carry several
+// timestamped values for one path), keeping input order otherwise.
 func SortNodes(ns []Node) {
-	sort.SliceStable(ns, func(i, j int) bool { return ns[i].Path.Compare(ns[j].Path) < 0 })
+	sort.SliceStable(ns, func(i, j int) bool {
+		if c := ns[i].Path.Compare(ns[j].Path); c != 0 {
+			return c < 0
+		}
+		return ns[i].HasTime && ns[j].HasTime && ns[i].Time < ns[j].Time
+	})
 }
 
 // NodesEqual reports whether a and b hold the same nodes, ignoring order.

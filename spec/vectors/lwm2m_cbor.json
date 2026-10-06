@@ -1,1 +1,1365 @@
-[]
+[
+  {
+    "id": "lwcbor-own-type-string",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/110",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200186e6568656c6c6f",
+    "expected": [
+      {
+        "path": "/3442/0/110",
+        "type": "string",
+        "value": "hello"
+      }
+    ],
+    "notes": "String = text string (major 3)."
+  },
+  {
+    "id": "lwcbor-own-type-string-empty",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/110",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200186e60",
+    "expected": [
+      {
+        "path": "/3442/0/110",
+        "type": "string",
+        "value": ""
+      }
+    ],
+    "notes": "Empty text string."
+  },
+  {
+    "id": "lwcbor-own-type-string-utf8",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/110",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200186e63e282ac",
+    "expected": [
+      {
+        "path": "/3442/0/110",
+        "type": "string",
+        "value": "€"
+      }
+    ],
+    "notes": "Multi-byte UTF-8 (EURO SIGN)."
+  },
+  {
+    "id": "lwcbor-own-type-string-indef-chunks",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; RFC 8949 §3.2.3",
+    "direction": "decode",
+    "path": "/3442/0/110",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200186e7f62686560636c6c6fff",
+    "expected": [
+      {
+        "path": "/3442/0/110",
+        "type": "string",
+        "value": "hello"
+      }
+    ],
+    "notes": "Indefinite-length text in chunks, including an empty chunk (Anjay Lite chunks external data this way)."
+  },
+  {
+    "id": "lwcbor-own-type-integer-zero",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200187800",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Integer = major type 0/1, preferred (shortest) argument."
+  },
+  {
+    "id": "lwcbor-own-type-integer-23",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200187817",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": 23
+      }
+    ],
+    "notes": "Largest immediate argument."
+  },
+  {
+    "id": "lwcbor-own-type-integer-24",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018781818",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": 24
+      }
+    ],
+    "notes": "Smallest 1-byte argument."
+  },
+  {
+    "id": "lwcbor-own-type-integer-neg1",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200187820",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "Negative integer (major type 1)."
+  },
+  {
+    "id": "lwcbor-own-type-integer-neg25",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018783818",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": -25
+      }
+    ],
+    "notes": "Negative integer with 1-byte argument (-1-24)."
+  },
+  {
+    "id": "lwcbor-own-type-integer-max",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018781b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "int64 max."
+  },
+  {
+    "id": "lwcbor-own-type-integer-min",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018783b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "int64 min."
+  },
+  {
+    "id": "lwcbor-own-type-integer-nonpreferred",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; RFC 8949 §4.2.1",
+    "direction": "decode",
+    "path": "/3442/0/120",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018781b0000000000000005",
+    "expected": [
+      {
+        "path": "/3442/0/120",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "Well-formed but not preferred serialization (8-byte argument for 5): decoders accept it."
+  },
+  {
+    "id": "lwcbor-own-type-unsigned-max",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/125",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200187d1bffffffffffffffff",
+    "expected": [
+      {
+        "path": "/3442/0/125",
+        "type": "unsigned",
+        "value": "18446744073709551615"
+      }
+    ],
+    "notes": "Unsigned Integer = major type 0, full uint64 range."
+  },
+  {
+    "id": "lwcbor-own-type-unsigned-zero",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/125",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200187d00",
+    "expected": [
+      {
+        "path": "/3442/0/125",
+        "type": "unsigned",
+        "value": 0
+      }
+    ],
+    "notes": "Unsigned zero."
+  },
+  {
+    "id": "lwcbor-own-type-float-half",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882f93e00",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": 1.5
+      }
+    ],
+    "notes": "Float = floating point of any width; encoder uses the shortest exact width (half)."
+  },
+  {
+    "id": "lwcbor-own-type-float-single",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882fa47c35000",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": 100000.0
+      }
+    ],
+    "notes": "100000.0 needs single precision (half max is 65504)."
+  },
+  {
+    "id": "lwcbor-own-type-float-double",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882fb3fb999999999999a",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": 0.1
+      }
+    ],
+    "notes": "0.1 needs double precision."
+  },
+  {
+    "id": "lwcbor-own-type-float-integral",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882f94200",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "An integral float stays a float (f9 4200), not an integer."
+  },
+  {
+    "id": "lwcbor-own-type-float-double-wide",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "decode",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882fb3ff8000000000000",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": 1.5
+      }
+    ],
+    "notes": "1.5 sent as a double, as Zephyr and Anjay always do: decoders accept every width."
+  },
+  {
+    "id": "lwcbor-own-type-float-single-wide",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "decode",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882fa3fc00000",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": 1.5
+      }
+    ],
+    "notes": "1.5 sent as a single."
+  },
+  {
+    "id": "lwcbor-own-type-float-nan",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; RFC 8949 §4.2.2",
+    "direction": "both",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882f97e00",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": "NaN"
+      }
+    ],
+    "notes": "NaN, preferred half form."
+  },
+  {
+    "id": "lwcbor-own-type-float-neg-inf",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/130",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001882f9fc00",
+    "expected": [
+      {
+        "path": "/3442/0/130",
+        "type": "float",
+        "value": "-Infinity"
+      }
+    ],
+    "notes": "-Infinity, half form."
+  },
+  {
+    "id": "lwcbor-own-type-boolean-true",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/140",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200188cf5",
+    "expected": [
+      {
+        "path": "/3442/0/140",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Boolean = true/false simple values."
+  },
+  {
+    "id": "lwcbor-own-type-boolean-false",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/140",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200188cf4",
+    "expected": [
+      {
+        "path": "/3442/0/140",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "false."
+  },
+  {
+    "id": "lwcbor-own-type-opaque",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/150",
+    "content_format": 11544,
+    "bytes_hex": "a183190d72001896430102ff",
+    "expected": [
+      {
+        "path": "/3442/0/150",
+        "type": "opaque",
+        "value": "0102ff"
+      }
+    ],
+    "notes": "Opaque = byte string (major 2)."
+  },
+  {
+    "id": "lwcbor-own-type-opaque-empty",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/150",
+    "content_format": 11544,
+    "bytes_hex": "a183190d7200189640",
+    "expected": [
+      {
+        "path": "/3442/0/150",
+        "type": "opaque",
+        "value": ""
+      }
+    ],
+    "notes": "Empty byte string."
+  },
+  {
+    "id": "lwcbor-own-type-opaque-indef-chunks",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; RFC 8949 §3.2.3",
+    "direction": "decode",
+    "path": "/3442/0/150",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018965f42010241ffff",
+    "expected": [
+      {
+        "path": "/3442/0/150",
+        "type": "opaque",
+        "value": "0102ff"
+      }
+    ],
+    "notes": "Indefinite-length byte string in two chunks."
+  },
+  {
+    "id": "lwcbor-own-type-time-uint",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; §7.5.4.3",
+    "direction": "both",
+    "path": "/3442/0/160",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018a01a5182428f",
+    "expected": [
+      {
+        "path": "/3442/0/160",
+        "type": "time",
+        "value": 1367491215
+      }
+    ],
+    "notes": "Time as a plain unsigned integer, as in the §7.5.4.3 example (/3/0/13); encoder uses this form."
+  },
+  {
+    "id": "lwcbor-own-type-time-tag1",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; RFC 8949 §3.4.2",
+    "direction": "decode",
+    "path": "/3442/0/160",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018a0c11a5182428f",
+    "expected": [
+      {
+        "path": "/3442/0/160",
+        "type": "time",
+        "value": 1367491215
+      }
+    ],
+    "notes": "Time as tag 1 epoch-based date/time (Anjay Lite form)."
+  },
+  {
+    "id": "lwcbor-own-type-time-tag0",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2; RFC 8949 §3.4.1",
+    "direction": "decode",
+    "path": "/3442/0/160",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018a0c074323031332d30352d30325431303a34303a31355a",
+    "expected": [
+      {
+        "path": "/3442/0/160",
+        "type": "time",
+        "value": 1367491215
+      }
+    ],
+    "notes": "Time as tag 0 date/time string \"2013-05-02T10:40:15Z\"."
+  },
+  {
+    "id": "lwcbor-own-type-time-negative",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/160",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018a020",
+    "expected": [
+      {
+        "path": "/3442/0/160",
+        "type": "time",
+        "value": -1
+      }
+    ],
+    "notes": "Negative Time (1969-12-31T23:59:59Z): the Time type is signed though Tbl C-2 says unsigned (A-8); written as major type 1."
+  },
+  {
+    "id": "lwcbor-own-type-objlnk",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/170",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018aa63333a30",
+    "expected": [
+      {
+        "path": "/3442/0/170",
+        "type": "objlnk",
+        "value": "3:0"
+      }
+    ],
+    "notes": "Objlnk = text \"oid:iid\", no trailing NUL."
+  },
+  {
+    "id": "lwcbor-own-type-objlnk-null",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/170",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018aa6b36353533353a3635353335",
+    "expected": [
+      {
+        "path": "/3442/0/170",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Null object link MAX_ID:MAX_ID."
+  },
+  {
+    "id": "lwcbor-own-type-corelnk",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3442/0/180",
+    "content_format": 11544,
+    "bytes_hex": "a183190d720018b4663c2f332f303e",
+    "expected": [
+      {
+        "path": "/3442/0/180",
+        "type": "corelnk",
+        "value": "</3/0>"
+      }
+    ],
+    "notes": "Corelnk = text string."
+  },
+  {
+    "id": "lwcbor-own-type-none-null",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, App. C Tbl C-2",
+    "direction": "both",
+    "path": "/3/0/4",
+    "content_format": 11544,
+    "bytes_hex": "a183030004f6",
+    "expected": [
+      {
+        "path": "/3/0/4",
+        "type": "none",
+        "value": null
+      }
+    ],
+    "notes": "none = null (Tbl C-2), the only type null is accepted for (A-8)."
+  },
+  {
+    "id": "lwcbor-own-layout-ri-base",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.2",
+    "direction": "both",
+    "path": "/3/0/6/1",
+    "content_format": 11544,
+    "bytes_hex": "a1840300060105",
+    "expected": [
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "Read of a resource instance: one 4-element array key."
+  },
+  {
+    "id": "lwcbor-own-layout-nested-int-keys",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.1",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a103a100a1091864",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "{3: {0: {9: 100}}}: one map per level (Anjay Lite layout)."
+  },
+  {
+    "id": "lwcbor-own-layout-array-len1",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a18103a18100a181091864",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "{[3]: {[0]: {[9]: 100}}}: 1-element array keys are legal IDs (1*uint)."
+  },
+  {
+    "id": "lwcbor-own-layout-inner-array-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.6",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11544,
+    "bytes_hex": "a103a1820006a200010105",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "{3: {[0, 6]: {0: 1, 1: 5}}}: array key below a uint key, relative to it."
+  },
+  {
+    "id": "lwcbor-own-layout-ri-array-keys",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.2",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11544,
+    "bytes_hex": "a2840300060001840300060105",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "{[3,0,6,0]: 1, [3,0,6,1]: 5}: multi-instance resource with array keys down to /o/i/r/ri."
+  },
+  {
+    "id": "lwcbor-own-layout-split-instance",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.5",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "a2820300a10918648303000a0f",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      }
+    ],
+    "notes": "{[3,0]: {9: 100}, [3,0,10]: 15}: one instance spread over two top-level keys of different depth."
+  },
+  {
+    "id": "lwcbor-own-layout-instance",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.3",
+    "direction": "both",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "a1820300a206a200010105091864",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "Read /3/0: [3,0] key, then one map level per ID, multi-instance resource as a nested map (canonical encoder layout)."
+  },
+  {
+    "id": "lwcbor-own-layout-object-one-instance",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.4",
+    "direction": "both",
+    "path": "/3",
+    "content_format": 11544,
+    "bytes_hex": "a1820300a2006161091864",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "a"
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "Read /3 with one instance: the top-level key runs to the first branch ([3,0])."
+  },
+  {
+    "id": "lwcbor-own-layout-object-two-instances",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.4",
+    "direction": "both",
+    "path": "/1",
+    "content_format": 11544,
+    "bytes_hex": "a101a200a1011a0001518001a10119012c",
+    "expected": [
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/1/1",
+        "type": "integer",
+        "value": 300
+      }
+    ],
+    "notes": "Read /1 with two instances: uint key 1, instances as nested maps."
+  },
+  {
+    "id": "lwcbor-own-layout-root-mixed",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.5",
+    "direction": "both",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a283030009186401a200a1011a0001518001a10119012c",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/1/1",
+        "type": "integer",
+        "value": 300
+      }
+    ],
+    "notes": "Composite response: top-level keys of different depth ([3,0,9] leaf, 1 map). Keys keep request order."
+  },
+  {
+    "id": "lwcbor-own-layout-indef-top",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "bf830300091864ff",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "Indefinite-length top-level map (CBOR_infinite_map_start ... CBOR_break)."
+  },
+  {
+    "id": "lwcbor-own-layout-indef-nested",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "bf03bf00bf091864ffffff",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "Indefinite maps at every level (Anjay/Anjay Lite write only indefinite maps)."
+  },
+  {
+    "id": "lwcbor-own-layout-indef-array-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a19f030009ff1864",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "Indefinite-length array key (CBOR_infinite_array_start ... CBOR_break)."
+  },
+  {
+    "id": "lwcbor-own-layout-indef-mixed",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "bf820300a106bf0001ffff",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "Indefinite and definite maps mixed."
+  },
+  {
+    "id": "lwcbor-own-layout-nonpreferred-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; RFC 8949 §4.2.1",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a183030018091864",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "ID 9 with a 1-byte argument (18 09): well-formed, accepted."
+  },
+  {
+    "id": "lwcbor-own-layout-create-max-id",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.6; §6.3.6",
+    "direction": "both",
+    "path": "/1",
+    "content_format": 11544,
+    "bytes_hex": "a1820119ffffa2001865011a00015180",
+    "expected": [
+      {
+        "path": "/1/65535/0",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/1/65535/1",
+        "type": "integer",
+        "value": 86400
+      }
+    ],
+    "notes": "Create with instance MAX_ID 65535 = no instance reference (1.2.1); the path keeps 65535."
+  },
+  {
+    "id": "lwcbor-own-empty-instance",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "both",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "a1820300a0",
+    "expected": [
+      {
+        "path": "/3/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "Empty object instance as an empty map. The grammar says 1*(ID, VALUE), but there is no other way to say it; decoders tolerate it."
+  },
+  {
+    "id": "lwcbor-own-empty-multiple",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.2",
+    "direction": "both",
+    "path": "/3/0/6",
+    "content_format": 11544,
+    "bytes_hex": "a183030006a0",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Multi-instance resource with no instances as an empty map (same caveat)."
+  },
+  {
+    "id": "lwcbor-own-empty-multiple-indef",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.2",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11544,
+    "bytes_hex": "a183030006bfff",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty indefinite map for an empty multi-instance resource."
+  },
+  {
+    "id": "lwcbor-own-empty-top-definite",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a0",
+    "expected": [],
+    "notes": "Empty top-level map: no values (tolerated although the grammar requires one entry)."
+  },
+  {
+    "id": "lwcbor-own-empty-top-indef",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3",
+    "content_format": 11544,
+    "bytes_hex": "bfff",
+    "expected": [],
+    "notes": "Empty indefinite top-level map, as Anjay Lite answers an empty read."
+  },
+  {
+    "id": "lwcbor-own-gateway-bare-prefix",
+    "source": "own: OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A §9",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a163643031a103a100a1006141",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "A",
+        "prefix": "d01"
+      }
+    ],
+    "notes": "ID = PREFIX: a bare text key names the end device, IDs below start at the object."
+  },
+  {
+    "id": "lwcbor-own-gateway-prefix-and-local",
+    "source": "own: OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A §9",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a284636430310300091864830300091832",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100,
+        "prefix": "d01"
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 50
+      }
+    ],
+    "notes": "Array key with PREFIX first, next to an unprefixed key for the gateway itself: same path, different devices, not duplicates."
+  },
+  {
+    "id": "lwcbor-own-err-top-array",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "8100",
+    "expected": "error",
+    "notes": "Top level must be a map (payload = CBOR map)."
+  },
+  {
+    "id": "lwcbor-own-err-top-uint",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "05",
+    "expected": "error",
+    "notes": "Top level must be a map."
+  },
+  {
+    "id": "lwcbor-own-err-top-text",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "63616263",
+    "expected": "error",
+    "notes": "Top level must be a map."
+  },
+  {
+    "id": "lwcbor-own-err-top-null",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "f6",
+    "expected": "error",
+    "notes": "Top level must be a map."
+  },
+  {
+    "id": "lwcbor-own-err-empty-payload",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Empty payload is not a map."
+  },
+  {
+    "id": "lwcbor-own-err-float-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a1f93c0005",
+    "expected": "error",
+    "notes": "ID must be uint or array of uint, not a float."
+  },
+  {
+    "id": "lwcbor-own-err-negative-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a12005",
+    "expected": "error",
+    "notes": "Negative integer key."
+  },
+  {
+    "id": "lwcbor-own-err-bytes-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a1410305",
+    "expected": "error",
+    "notes": "Byte string key."
+  },
+  {
+    "id": "lwcbor-own-err-text-key-inner",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a103a16130a10005",
+    "expected": "error",
+    "notes": "Text key below the top level (only a top-level Gateway PREFIX may be text)."
+  },
+  {
+    "id": "lwcbor-own-err-text-in-array-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a1830361300005",
+    "expected": "error",
+    "notes": "Text element that is not the first element of a top-level array key."
+  },
+  {
+    "id": "lwcbor-own-err-float-in-array-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a1830300f9400005",
+    "expected": "error",
+    "notes": "Float element in an array key."
+  },
+  {
+    "id": "lwcbor-own-err-id-over-max",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; §7.3",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a18303001a0001000005",
+    "expected": "error",
+    "notes": "Resource ID 65536 > 16-bit range."
+  },
+  {
+    "id": "lwcbor-own-err-object-id-over-max",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; §7.3",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a11a00010000a100a10005",
+    "expected": "error",
+    "notes": "Object ID 65536."
+  },
+  {
+    "id": "lwcbor-own-err-depth5-array",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a185030006000005",
+    "expected": "error",
+    "notes": "Array key with 5 IDs: paths have at most 4 levels."
+  },
+  {
+    "id": "lwcbor-own-err-depth5-nested",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a18403000600a10005",
+    "expected": "error",
+    "notes": "Map below a resource instance: 5 levels."
+  },
+  {
+    "id": "lwcbor-own-err-leaf-at-instance",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "a182030005",
+    "expected": "error",
+    "notes": "Value at instance level."
+  },
+  {
+    "id": "lwcbor-own-err-leaf-at-object",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3",
+    "content_format": 11544,
+    "bytes_hex": "a10305",
+    "expected": "error",
+    "notes": "Value at object level."
+  },
+  {
+    "id": "lwcbor-own-err-empty-array-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a18005",
+    "expected": "error",
+    "notes": "Empty array key (ID needs 1*uint)."
+  },
+  {
+    "id": "lwcbor-own-err-empty-indef-array-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a19fff05",
+    "expected": "error",
+    "notes": "Empty indefinite array key."
+  },
+  {
+    "id": "lwcbor-own-err-truncated-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a1830300",
+    "expected": "error",
+    "notes": "Truncated inside the array key."
+  },
+  {
+    "id": "lwcbor-own-err-truncated-text",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 11544,
+    "bytes_hex": "a183030000744f70",
+    "expected": "error",
+    "notes": "Text string shorter than its length."
+  },
+  {
+    "id": "lwcbor-own-err-truncated-no-break",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "bf8303000905",
+    "expected": "error",
+    "notes": "Indefinite map without break."
+  },
+  {
+    "id": "lwcbor-own-err-truncated-count",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a28303000905",
+    "expected": "error",
+    "notes": "map(2) with one entry."
+  },
+  {
+    "id": "lwcbor-own-err-missing-value",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "bf83030009ff",
+    "expected": "error",
+    "notes": "Break where a value is expected."
+  },
+  {
+    "id": "lwcbor-own-err-duplicate-path",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; A-8",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a283030009058303000906",
+    "expected": "error",
+    "notes": "Same path twice (A-8: reject)."
+  },
+  {
+    "id": "lwcbor-own-err-duplicate-mixed-layout",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; A-8",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a2830300090503a100a10906",
+    "expected": "error",
+    "notes": "Same path through an array key and nested keys."
+  },
+  {
+    "id": "lwcbor-own-err-resource-and-instance",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.2",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11544,
+    "bytes_hex": "a28303000601840300060002",
+    "expected": "error",
+    "notes": "/3/0/6 both a single value and a multi-instance resource."
+  },
+  {
+    "id": "lwcbor-own-err-empty-instance-and-value",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "a2820300a08303000905",
+    "expected": "error",
+    "notes": "/3/0 both empty and holding /3/0/9."
+  },
+  {
+    "id": "lwcbor-own-err-trailing-bytes",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a1830300090500",
+    "expected": "error",
+    "notes": "Bytes after the top-level map."
+  },
+  {
+    "id": "lwcbor-own-err-array-value",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a1830300098105",
+    "expected": "error",
+    "notes": "Array is not a value (VALUE = CBOR_value / payload)."
+  },
+  {
+    "id": "lwcbor-own-err-outside-base",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a18303000a05",
+    "expected": "error",
+    "notes": "Path /3/0/10 is outside the request path /3/0/9."
+  },
+  {
+    "id": "lwcbor-own-err-bignum-tag",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, Tbl C-2",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a183030009c24101",
+    "expected": "error",
+    "notes": "Tag 2 bignum is not an LwM2M value encoding."
+  },
+  {
+    "id": "lwcbor-own-err-undefined",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, Tbl C-2",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a183030009f7",
+    "expected": "error",
+    "notes": "undefined is not a value."
+  },
+  {
+    "id": "lwcbor-own-err-invalid-utf8",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, Tbl C-2",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 11544,
+    "bytes_hex": "a18303000062c328",
+    "expected": "error",
+    "notes": "Text string with invalid UTF-8."
+  },
+  {
+    "id": "lwcbor-own-err-reserved-info",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; RFC 8949 §3",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a1830300091c",
+    "expected": "error",
+    "notes": "Reserved additional information 28 (not well-formed)."
+  },
+  {
+    "id": "lwcbor-own-err-break-as-key",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a1ff",
+    "expected": "error",
+    "notes": "Break inside a definite map."
+  },
+  {
+    "id": "lwcbor-own-err-indef-uint",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4; RFC 8949 §3.2",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a18303001f05",
+    "expected": "error",
+    "notes": "Unsigned integer with additional info 31 (not well-formed)."
+  },
+  {
+    "id": "lwcbor-own-err-tag0-bad-string",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, Tbl C-2",
+    "direction": "decode",
+    "path": "/3/0/13",
+    "content_format": 11544,
+    "bytes_hex": "a18303000dc063616263",
+    "expected": "error",
+    "notes": "Tag 0 with a string that is not RFC 3339."
+  },
+  {
+    "id": "lwcbor-own-err-negint-overflow",
+    "source": "own: OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4, Tbl C-2",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 11544,
+    "bytes_hex": "a1830300093bffffffffffffffff",
+    "expected": "error",
+    "notes": "-2^64 is outside the signed 64-bit Integer range."
+  }
+]

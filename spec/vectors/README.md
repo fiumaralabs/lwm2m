@@ -102,7 +102,7 @@ Formats with non-node results (link-format, paths, attributes) use format-specif
 | `plain_text.json` | 0 | 60 | 52 | 8 | 0 | 0 | 9 |
 | `opaque.json` | 42 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `cbor.json` | 60 | 63 | 63 | 0 | 0 | 0 | 7 |
-| `lwm2m_cbor.json` | 11544 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `lwm2m_cbor.json` | 11544 | 97 | 0 | 0 | 0 | 0 | 39 |
 | `senml_cbor.json` | 112 | 68 | 57 | 11 | 0 | 0 | 8 |
 | `senml_json.json` | 110 | 37 | 0 | 37 | 0 | 0 | 2 |
 | `senml_etch_cbor.json` | 322 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -113,7 +113,11 @@ Formats with non-node results (link-format, paths, attributes) use format-specif
 | `attributes.json` | - | 75 | 0 | 75 | 0 | 0 | 47 |
 | `objlnk.json` | 0 / - | 12 | 0 | 0 | 12 | 0 | 6 |
 | `spec-examples.json` | mixed | 106 | 0 | 0 | 0 | 106 | 6 |
-| **total** | | **706** | **282** | **306** | **12** | **106** | **134** |
+| **total** | | **803** | **282** | **306** | **12** | **106** | **173** |
+
+(`lwm2m_cbor.json` holds 97 vectors we wrote from the TS rules; they are not counted in the per-source columns.)
+
+`lwm2m_cbor.json` holds our own vectors (`source` = `own: <TS> §x`, citing the rule each one proves): hex written by hand from Core 1.2.2 §7.5.4 and Table C-2, cross-checked by decoding with Python cbor2 and an independent flattener. They cover every data type, every key layout (array, nested, mixed, indefinite), each request-path level, empty containers, Gateway prefixes and the malformed cases.
 
 Gaps: there are no permissively licensed test sources, so we must write our own vectors:
 

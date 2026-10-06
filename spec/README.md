@@ -13,7 +13,7 @@ This file is the entry point. It records the precedence rules, scope and resolve
 | [zephyr-client-profile.md](zephyr-client-profile.md) | What the Zephyr client actually does on the wire | **Interop** (first fleet) |
 | [zephyr-interop.md](zephyr-interop.md) | 66 Zephyr interop tests (58 ETS IDs, automated), plus the Leshan REST contract the harness depends on | **Automated acceptance** (first CI gate) |
 | [leshan-tests.md](leshan-tests.md) | 389 Leshan test methods mined as an edge-case checklist, plus the implied server rules | **Reference behaviour** |
-| [vectors/](vectors/README.md) | **706** golden codec vectors from Zephyr, Leshan, Wakaama and the TS's own examples (`spec-examples.json`). Permissive sources only, see the licensing policy there | **Codec unit tests** |
+| [vectors/](vectors/README.md) | **803** golden codec vectors from Zephyr, Leshan, Wakaama, the TS's own examples and our own LwM2M CBOR vectors (`spec-examples.json`). Permissive sources only, see the licensing policy there | **Codec unit tests** |
 
 Pinned sources: Leshan `22bc7531`, Zephyr `74b7173e`, OMA lwm2m-registry `7d5204dd`, OMA LwM2M TS **1.2.2 (primary)**, 1.1.1, 1.0.2, ETS INT 1.2 (2023-10-03), ETS INT 1.2.1-C (2024-03-12).
 
