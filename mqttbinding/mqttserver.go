@@ -109,7 +109,7 @@ func (p MQTTServerParams) Nodes(inst uint16) ([]lwm2m.Node, error) {
 // BootstrapWrites returns the raw Bootstrap-Writes (bootstrap.BootstrapConfig.Writes)
 // that give the Server Account of /0/sec its MQTT configuration: the /24
 // instance mqttInst linked from /0/sec/26 and, when k is non-nil, the /23
-// instance coseInst linked from /0/sec/27, which obliges the client to
+// instance coseInst linked from /0/sec/27/0, which obliges the client to
 // use COSE with that Server (T §8.8). They follow the /0 instance write.
 func BootstrapWrites(sec uint16, mqttInst uint16, p MQTTServerParams, coseInst uint16, k *COSEKey) ([]bootstrap.Write, error) {
 	ns, err := p.Nodes(mqttInst)
@@ -118,7 +118,11 @@ func BootstrapWrites(sec uint16, mqttInst uint16, p MQTTServerParams, coseInst u
 	}
 	secP := lwm2m.NewPath(0, sec)
 	link := func(res, obj, inst uint16) bootstrap.Write {
-		return bootstrap.Write{Path: secP.Append(res), Nodes: []lwm2m.Node{lwm2m.ValueNode(secP.Append(res), lwm2m.Objlnk(obj, inst))}}
+		n := secP.Append(res)
+		if res == 27 {
+			n = n.Append(0) // /0/x/27 is a Multiple resource (OMNA 0-1_2.xml)
+		}
+		return bootstrap.Write{Path: secP.Append(res), Nodes: []lwm2m.Node{lwm2m.ValueNode(n, lwm2m.Objlnk(obj, inst))}}
 	}
 	ws := []bootstrap.Write{{Path: lwm2m.NewPath(24, mqttInst), Nodes: ns}, link(26, 24, mqttInst)}
 	if k != nil {

@@ -35,11 +35,13 @@ const ep = "b1cccdea-22ca-4448-bcf7-d07317ee0361"
 var listenerID atomic.Int32
 
 // startBroker runs an in-process MQTT broker and returns its address.
-func startBroker(t *testing.T, tlsCfg *tls.Config) string {
+func startBroker(t *testing.T, tlsCfg *tls.Config, hooks ...mochi.Hook) string {
 	t.Helper()
 	b := mochi.New(&mochi.Options{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
-	if err := b.AddHook(new(allowAll), nil); err != nil {
-		t.Fatal(err)
+	for _, h := range append([]mochi.Hook{new(allowAll)}, hooks...) {
+		if err := b.AddHook(h, nil); err != nil {
+			t.Fatal(err)
+		}
 	}
 	l := listeners.NewTCP(listeners.Config{ID: "t" + string(rune('a'+listenerID.Add(1))), Address: "127.0.0.1:0", TLSConfig: tlsCfg})
 	if err := b.AddListener(l); err != nil {
@@ -68,7 +70,7 @@ type env struct {
 	events chan server.Event
 }
 
-func newEnv(t *testing.T, prefix string) *env {
+func newEnv(t *testing.T, prefix string, opts ...func(*Config)) *env {
 	t.Helper()
 	e := &env{events: make(chan server.Event, 64), addr: startBroker(t, nil)}
 	e.srv = server.New(server.Config{OnEvent: func(ev server.Event) {
@@ -79,7 +81,11 @@ func newEnv(t *testing.T, prefix string) *env {
 	}, RequestTimeout: 3 * time.Second})
 	t.Cleanup(func() { _ = e.srv.Close() })
 	var err error
-	e.b, err = New(e.srv, Config{Broker: "mqtt://" + e.addr, Prefix: prefix})
+	cfg := Config{Broker: "mqtt://" + e.addr, Prefix: prefix}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	e.b, err = New(e.srv, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
