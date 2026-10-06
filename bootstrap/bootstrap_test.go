@@ -25,7 +25,7 @@ func methods(rs []testclient.Request) string {
 // ETS 1.1-int-0 Client Initiated Bootstrap (config C.13): Bootstrap-Request
 // 2.04, Bootstrap-Writes of /0 and /1 answered 2.04, Bootstrap-Discover
 // 2.05, Bootstrap-Finish 2.04; the BS account stays untouched.
-// Proves: BS-01, BS-03, BS-07, BS-16
+// Proves: BS-01, BS-03, BS-05, BS-07, BS-16
 func TestInt0ClientInitiatedBootstrap(t *testing.T) {
 	h := newHarness(t)
 	cfg := c1("coaps://server.example.com:5684", "ep0", "secret0123456789")
@@ -465,12 +465,12 @@ func TestConfigValidation(t *testing.T) {
 		"ssid 0 in /1":     func(c *BootstrapConfig) { c.Servers[0] = ServerConfig{ShortID: 0} },
 		"ssid 65535 in /1": func(c *BootstrapConfig) { c.Servers[0] = ServerConfig{ShortID: 65535} },
 		"two BS accounts": func(c *BootstrapConfig) {
-			c.Security[5] = SecurityConfig{URI: "coap://a", BootstrapServer: true}
-			c.Security[6] = SecurityConfig{URI: "coap://b", BootstrapServer: true}
+			c.Security[5] = SecurityConfig{URI: "coap://a", BootstrapServer: true, SecurityMode: ModeNoSec}
+			c.Security[6] = SecurityConfig{URI: "coap://b", BootstrapServer: true, SecurityMode: ModeNoSec}
 		},
 		"URI too long": func(c *BootstrapConfig) {
 			s := c.Security[0]
-			s.URI = "coap://" + strings.Repeat("a", 250)
+			s.URI = "coaps://" + strings.Repeat("a", 248) // 256 characters
 			c.Security[0] = s
 		},
 		"URI without scheme": func(c *BootstrapConfig) { s := c.Security[0]; s.URI = "server.example.com"; c.Security[0] = s },
@@ -499,6 +499,7 @@ func TestConfigValidation(t *testing.T) {
 	s := good.Security[0]
 	s.URI = "coaps://" + strings.Repeat("a", 247) // 255 characters
 	good.Security[0] = s
+	good.Security[9] = SecurityConfig{URI: "coaps://bs", BootstrapServer: true, SecurityMode: ModeNoSec} // one BS account is fine
 	if err := good.Validate(); err != nil {
 		t.Fatal(err)
 	}

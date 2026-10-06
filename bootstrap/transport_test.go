@@ -80,7 +80,7 @@ func TestBootstrapOverTLSAndWeakPSK(t *testing.T) {
 // then bootstraps: the /0 instance has Security Mode 4, the server
 // certificate in /0/x/4 and no /0/x/3 or /0/x/5. It registers with the
 // LwM2M Server in certificate mode with the EST certificate.
-// Proves: SEC-08, EST-01, EST-02
+// Proves: SEC-08, EST-01, EST-02, EST-03
 func TestESTViaBootstrapServer(t *testing.T) {
 	h := newHarness(t)
 	ca, err := est.NewTestCA("EST CA")
@@ -115,8 +115,23 @@ func TestESTViaBootstrapServer(t *testing.T) {
 	if err := dm.Security().Put(server.SecurityInfo{Endpoint: ep, X509: true}); err != nil {
 		t.Fatal(err)
 	}
+	estSec := SecurityConfig{URI: "coaps://" + dmAddr.String(), SecurityMode: ModeEST, ServerPublicKey: scert.Raw, ServerID: u16(1)}
+	// Mode 4 needs the server certificate in /0/x/4 and never provisions
+	// /0/x/3 or /0/x/5.
+	for name, mut := range map[string]func(*SecurityConfig){
+		"no /0/x/4": func(s *SecurityConfig) { s.ServerPublicKey = nil },
+		"/0/x/3":    func(s *SecurityConfig) { s.PublicKeyOrID = Bytes("cert") },
+		"/0/x/5":    func(s *SecurityConfig) { s.SecretKey = Bytes("key") },
+	} {
+		bad := estSec
+		mut(&bad)
+		cfg := &BootstrapConfig{Security: map[uint16]SecurityConfig{0: bad}, Servers: map[uint16]ServerConfig{0: {ShortID: 1, Lifetime: 60}}}
+		if err := cfg.Validate(); !errors.Is(err, ErrInvalidConfig) {
+			t.Fatalf("mode 4 with %s: %v", name, err)
+		}
+	}
 	h.put(ep, &BootstrapConfig{
-		Security: map[uint16]SecurityConfig{0: {URI: "coaps://" + dmAddr.String(), SecurityMode: ModeEST, ServerPublicKey: scert.Raw, ServerID: u16(1)}},
+		Security: map[uint16]SecurityConfig{0: estSec},
 		Servers:  map[uint16]ServerConfig{0: {ShortID: 1, Lifetime: 86400, Binding: "U"}},
 	})
 
@@ -183,6 +198,9 @@ func TestESTViaBootstrapServer(t *testing.T) {
 // N/A resource or misses a required one is invalid.
 // Proves: SEC-08
 func TestSecurityModeResources(t *testing.T) {
+	if [5]SecurityMode{ModePSK, ModeRPK, ModeX509, ModeNoSec, ModeEST} != [5]SecurityMode{0, 1, 2, 3, 4} {
+		t.Fatal("/0/x/2 values are not 0 PSK, 1 RPK, 2 Certificate, 3 NoSec, 4 EST")
+	}
 	id, spk, sk := Bytes("id"), Bytes("server-key"), Bytes("secret")
 	want := map[SecurityMode][3]bool{
 		ModePSK: {true, false, true}, ModeRPK: {true, true, true}, ModeX509: {true, true, true},

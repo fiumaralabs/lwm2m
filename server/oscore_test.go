@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/rand"
 	"errors"
 	"strings"
@@ -63,7 +64,7 @@ func oscoreCode(t *testing.T, r *testclient.OSCOREResponse, err error, want stri
 	}
 }
 
-// Proves: OSC-01, OSC-04, OSC-06, OSC-08
+// Proves: OSC-01, OSC-04, OSC-06, REG-06
 // OSCORE protects client↔Server traffic over plain UDP (Security Mode 3
 // plus OSCORE = OSCORE only). The first Register on a new context is
 // refused with a protected 4.01 carrying only Echo (Tbl 6.7-2, RFC 8613
@@ -286,14 +287,19 @@ func TestOSCOREObserve(t *testing.T) {
 		t.Fatalf("observe: %v %+v", err, resp)
 	}
 	req, _ := c.LastRequest()
-	c.Set(p("/3/0/9"), lwm2m.Integer(42)) // the embedded client notifies unprotected
-	if err := c.Notify(h.ctx, req.Token); err != nil {
+	c.Set(p("/3/0/9"), lwm2m.Integer(42))
+	if err := c.Notify(h.ctx, req.Token); err != nil { // protected
 		t.Fatal(err)
 	}
 	n := notification(t, h, ob)
 	if len(n.Response.Nodes) != 1 || !n.Response.Nodes[0].Value.Equal(lwm2m.Integer(42)) {
 		t.Fatalf("notification %+v", n.Response)
 	}
+	// The embedded plain client sends an unprotected one on the same token.
+	nctx, cancel := context.WithTimeout(h.ctx, 500*time.Millisecond)
+	_, _ = c.Client.Notify(nctx, req.Token)
+	<-nctx.Done()
+	cancel()
 	h.ev.mu.Lock()
 	count := 0
 	for _, e := range h.ev.l {
@@ -307,7 +313,7 @@ func TestOSCOREObserve(t *testing.T) {
 	}
 }
 
-// Proves: OSC-08
+// OSC-08 (DTLS + OSCORE clause only; the SMS clause is unimplemented, see spec/coverage-pending.txt)
 // OSCORE over DTLS (Security Mode 0 plus OSCORE = both): the registration
 // carries the DTLS identity and still needs OSCORE.
 func TestOSCOREOverDTLS(t *testing.T) {
@@ -318,6 +324,14 @@ func TestOSCOREOverDTLS(t *testing.T) {
 	}
 	cp := clientParams("c1")
 	_ = o.Put("urn:dev:both", cp.Reverse())
+	// DTLS alone is not enough: the plain Register over the same PSK session
+	// is refused.
+	plain := h.device(testclient.Config{Endpoint: "urn:dev:both", PSKIdentity: "both", PSKKey: []byte("0123456789abcdef")})
+	pr, err := plain.Register(h.ctx)
+	mustCode(t, pr, err, "4.01")
+	if len(h.srv.Store().All()) != 0 {
+		t.Fatal("plain DTLS Register processed")
+	}
 	c := h.oscoreDevice(testclient.Config{Endpoint: "urn:dev:both", PSKIdentity: "both", PSKKey: []byte("0123456789abcdef")}, cp)
 	r, err := c.Register(h.ctx)
 	oscoreCode(t, r, err, "2.01", true)

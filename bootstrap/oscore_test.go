@@ -50,7 +50,7 @@ func (h *harness) oscoreClient(ep string, p oscore.Params) (*testclient.Bootstra
 // unprotected requests). The same holds for Bootstrap-Pack-Request on a
 // new context. An unprotected Bootstrap-Request for an OSCORE endpoint is
 // refused with 4.01; one whose ep is not the context's endpoint gets 4.00.
-// Proves: BS-13, OSC-04
+// Proves: BS-13, OSC-04, OSC-05
 func TestOSCOREBootstrapEcho(t *testing.T) {
 	h := newHarness(t)
 	o := h.bs.EnableOSCORE()
@@ -94,7 +94,9 @@ func TestOSCOREBootstrapEcho(t *testing.T) {
 	plain := h.client("osc-ep", testclient.Config{})
 	pr, err := plain.BootstrapRequest(h.ctx, plain.BootstrapQuery(nil))
 	mustCode(t, pr, err, codes.Unauthorized)
-	// ep not bound to the context: 4.00 (protected).
+	// ep not bound to the context: 4.00 (protected), even for a known
+	// endpoint.
+	h.put("someone-else", c1("coap://dm.example.com", "someone-else", "dm-key-0123456789"))
 	rr, err := oc.Do(h.ctx, codes.POST, "/bs", []string{"ep=someone-else"}, nil, nil)
 	if err != nil || rr.Code != codes.BadRequest || !rr.Protected {
 		t.Fatalf("foreign ep: %+v %v", rr, err)
@@ -119,6 +121,11 @@ func TestOSCOREBootstrapEcho(t *testing.T) {
 	}
 	if res := h.result(); !res.Pack || res.Endpoint != "pack-ep" {
 		t.Fatalf("pack result %+v", res)
+	}
+	// A Bootstrap-Pack-Request whose ep is not the context's: 4.00.
+	pr2, err = pc.Do(h.ctx, codes.GET, "/bspack", []string{"ep=someone-else"}, nil, nil)
+	if err != nil || pr2.Code != codes.BadRequest || !pr2.Protected {
+		t.Fatalf("pack foreign ep: %+v %v", pr2, err)
 	}
 }
 
@@ -198,5 +205,36 @@ func TestOSCOREBootstrapPSKAppendixB2(t *testing.T) {
 	rp, err := oc.Replay(h.ctx)
 	if err != nil || rp.Code != codes.Unauthorized || rp.Protected {
 		t.Fatalf("replayed request #2: %+v %v", rp, err)
+	}
+}
+
+// The BS only provisions valid OSCORE links (T §5.4.7.1): /0/x/17 must
+// name a /21 instance the config writes, with resources 0-2, and no /21
+// instance may be linked from two /0 instances.
+// Proves: OSC-07
+func TestOSCORELinkValidation(t *testing.T) {
+	cfg := func(links ...uint16) *BootstrapConfig {
+		c := &BootstrapConfig{
+			Security: map[uint16]SecurityConfig{},
+			Servers:  map[uint16]ServerConfig{0: {ShortID: 1, Lifetime: 60}},
+			OSCORE:   map[uint16]OSCOREConfig{0: {MasterSecret: randBytes(16), SenderID: Bytes("dev"), RecipientID: Bytes("srv")}},
+		}
+		for i, l := range links {
+			c.Security[uint16(i)] = SecurityConfig{URI: "coap://s.example.com", SecurityMode: ModeNoSec, ServerID: u16(uint16(i + 1)), OSCORE: u16(l)}
+		}
+		return c
+	}
+	if err := cfg(0).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]*BootstrapConfig{"missing /21": cfg(3), "shared /21": cfg(0, 0)} {
+		if err := c.Validate(); !errors.Is(err, ErrInvalidConfig) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	bad := cfg(0)
+	bad.OSCORE[0] = OSCOREConfig{SenderID: Bytes("dev"), RecipientID: Bytes("srv")} // no Master Secret
+	if err := bad.Validate(); !errors.Is(err, ErrInvalidConfig) {
+		t.Errorf("no master secret: %v", err)
 	}
 }

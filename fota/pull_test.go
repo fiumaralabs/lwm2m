@@ -240,6 +240,11 @@ func TestProtocolAndDeliveryChoice(t *testing.T) {
 		t.Fatalf("%+v %v", out, err)
 	}
 
+	h.device(testclient.Config{Endpoint: "only-unknown"}, testclient.FirmwareConfig{Protocols: []int64{77}}, "")
+	if ps, err := h.mgr.Protocols(h.ctx, "only-unknown"); err != nil || len(ps) != 1 || ps[0] != fota.CoAP {
+		t.Fatalf("protocols %v %v", ps, err)
+	}
+
 	h.device(testclient.Config{Endpoint: "push-only"}, testclient.FirmwareConfig{Delivery: 1}, "")
 	if out, err := h.mgr.Run(h.ctx, "push-only", fota.Job{URIs: []string{coap}, Package: img}); err != nil || out.Method != fota.Push {
 		t.Fatalf("%+v %v", out, err)

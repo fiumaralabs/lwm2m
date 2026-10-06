@@ -7,11 +7,13 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/dtlssuite"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	piondtls "github.com/pion/dtls/v3"
@@ -386,6 +388,12 @@ func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 	}
 	rc, _ := testclient.RPKConfig(srvKey, spkiOf(t, srvKey))
 	h.handshakeFails(testclient.Config{Endpoint: "copycat"}, addr, rc)
+	// The same holds for X.509: the server's own certificate (a trusted
+	// chain whose CN has credentials) is not a client key pair.
+	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "lwm2m.test", X509: true}); err != nil {
+		t.Fatal(err)
+	}
+	h.handshakeFails(testclient.Config{Endpoint: "lwm2m.test"}, addr, testclient.X509Config(sc, p.pool, "lwm2m.test"))
 	shared := newKey(t)
 	for _, ep := range []string{"twin-1", "twin-2"} {
 		if err := h.srv.Security().Put(SecurityInfo{Endpoint: ep, PublicKey: spkiOf(t, shared)}); err != nil {
@@ -589,4 +597,31 @@ func serverKeyExchangeCurve(ds []datagram) uint16 {
 		}
 	}
 	return 0
+}
+
+// Proves: SEC-21
+// The Security object is never accessible to a LwM2M Server: Write,
+// Observe, Discover, Delete, Create and Write-Attributes on /0 are
+// refused before anything is sent, like Read (TestServerValidatesTargets).
+func TestSecurityObjectInaccessible(t *testing.T) {
+	h := newHarness(t)
+	c := h.registered("sec0")
+	ctx := h.ctx
+	_, _, obsErr := h.srv.Observe(ctx, "sec0", p("/0/0"), ObserveOptions{})
+	for i, err := range []error{
+		second(h.srv.Write(ctx, "sec0", p("/0/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/0/0/0"), lwm2m.String("coap://evil"))}, WriteOptions{})),
+		obsErr,
+		second(h.srv.Discover(ctx, "sec0", p("/0"), nil)),
+		second(h.srv.Delete(ctx, "sec0", p("/0/1"))),
+		second(h.srv.Create(ctx, "sec0", p("/0"), nil, nil)),
+		second(h.srv.WriteAttributes(ctx, "sec0", p("/0/0"), []string{"pmin=1"})),
+		second(h.srv.WriteComposite(ctx, "sec0", []lwm2m.Node{lwm2m.ValueNode(p("/0/0/0"), lwm2m.String("coap://evil"))}, nil)),
+	} {
+		if !errors.Is(err, ErrBadRequest) {
+			t.Errorf("operation %d on /0: err %v, want ErrBadRequest", i, err)
+		}
+	}
+	if n := len(c.Requests()); n != 0 {
+		t.Fatalf("%d requests on /0 reached the client", n)
+	}
 }

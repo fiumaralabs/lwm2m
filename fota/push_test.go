@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"hash/crc32"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/fota"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
@@ -131,5 +134,24 @@ func TestPushAbortRestart(t *testing.T) {
 	rl.mu.Unlock()
 	if _, err := h.mgr.Run(h.ctx, "bw2", fota.Job{Method: fota.Push, Package: pkg, PushTimeout: 500 * time.Millisecond}); err == nil {
 		t.Fatal("timed-out push reported success")
+	}
+}
+
+// Proves: FW-01
+// The server also takes block-wise responses: a 5000-byte value comes
+// back from the client as Block2 blocks, which the server fetches block
+// by block and reassembles.
+func TestReadBlock2(t *testing.T) {
+	h := newHarness(t)
+	c, _ := h.device(testclient.Config{Endpoint: "big"}, testclient.FirmwareConfig{}, "")
+	big := strings.Repeat("0123456789", 500)
+	c.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String(big))
+	before := len(c.RawRequests())
+	r, err := h.srv.Read(h.ctx, "big", lwm2m.MustParsePath("/3/0/0"), server.ReadOptions{})
+	if err != nil || !r.Success() || len(r.Nodes) != 1 || r.Nodes[0].Value.Str != big {
+		t.Fatalf("read: %v %v", r, err)
+	}
+	if n := len(c.RawRequests()) - before; n != 5 {
+		t.Fatalf("%d request datagrams for a 5-block read", n)
 	}
 }

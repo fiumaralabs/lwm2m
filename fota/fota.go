@@ -547,8 +547,8 @@ func (m *Manager) choose(ctx context.Context, ep string, job Job) (Method, strin
 	return 0, "", ErrNoMethod
 }
 
-// Protocols reads /5/0/8. Unknown values are ignored and a missing
-// resource means CoAP only (FW-03).
+// Protocols reads /5/0/8. Unknown values are ignored, and a missing
+// resource or one with no known value means CoAP only (FW-03).
 func (m *Manager) Protocols(ctx context.Context, ep string) ([]Protocol, error) {
 	r, err := m.srv.Read(ctx, ep, PathProtocols, server.ReadOptions{})
 	if err != nil {
@@ -562,6 +562,9 @@ func (m *Manager) Protocols(ctx context.Context, ep string) ([]Protocol, error) 
 		if v, ok := intOf(n.Value); ok && n.Kind == lwm2m.KindValue && v >= int64(CoAP) && v <= int64(CoAPTLS) {
 			out = append(out, Protocol(v))
 		}
+	}
+	if len(out) == 0 {
+		out = []Protocol{CoAP} // nothing understood: CoAP is the default setting (C E.6 res 8)
 	}
 	return out, nil
 }

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -464,26 +465,27 @@ func packFormat(accept *lwm2m.ContentFormat) (lwm2m.ContentFormat, bool) {
 
 // parseAcc reads acc (BS-14): BS-account instances in CoRE link format,
 // instance paths without parameters, of /0, /21, /23 or /24.
-func parseAcc(v string) ([]uint16, error) {
+func parseAcc(v string) (sec, osc []uint16, err error) {
 	links, err := link.Parse(v)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var ids []uint16
 	for _, l := range links {
 		p, err := lwm2m.ParsePath(l.URI)
 		if err != nil || !p.IsInstance() || len(l.Params) > 0 {
-			return nil, fmt.Errorf("bootstrap: acc link %q", l.URI)
+			return nil, nil, fmt.Errorf("bootstrap: acc link %q", l.URI)
 		}
 		switch p.Object() {
 		case 0:
-			ids = append(ids, p.Instance())
-		case 21, 23, 24:
+			sec = append(sec, p.Instance())
+		case 21:
+			osc = append(osc, p.Instance())
+		case 23, 24:
 		default:
-			return nil, fmt.Errorf("bootstrap: acc link %q is not a BS-account object", l.URI)
+			return nil, nil, fmt.Errorf("bootstrap: acc link %q is not a BS-account object", l.URI)
 		}
 	}
-	return ids, nil
+	return sec, osc, nil
 }
 
 // packRequest answers Bootstrap-Pack-Request (C §6.1.7.7, BS-12, BS-15).
@@ -501,13 +503,23 @@ func (s *Server) packRequest(peer server.Peer, m *server.Message) *server.Messag
 	if !ok {
 		return status(codes.NotAcceptable)
 	}
-	bsIDs, err := parseAcc(q["acc"])
+	bsIDs, oscIDs, err := parseAcc(q["acc"])
 	if err != nil {
 		return status(codes.BadRequest)
 	}
 	_, writes := cfg.plan(bsIDs, true) // packable checks the Pack covers the deletes
 	res := Result{Endpoint: ep, Identity: id, Pack: true, Format: format, Query: m.Query}
-	if why := cfg.packable(writes); why != "" {
+	why := cfg.packable(writes)
+	// The client keeps its BS account's /21 instance (BS-15): a Pack
+	// instance on that ID would clash with it.
+	// ponytail: refused, so the client falls back to Bootstrap-Request;
+	// renumber /21 and rewrite /0/x/17 if a deployment needs the Pack.
+	for _, w := range writes {
+		if w.Path.Object() == 21 && w.Path.Len() >= 2 && slices.Contains(oscIDs, w.Path.Instance()) {
+			why = "/21/" + strconv.Itoa(int(w.Path.Instance())) + " is the client's BS-account OSCORE instance (acc)"
+		}
+	}
+	if why != "" {
 		res.Err = fmt.Errorf("%w: %s", ErrPackRefused, why)
 		s.report(res)
 		return status(codes.MethodNotAllowed) // supported but refused (BS-12)

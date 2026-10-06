@@ -100,7 +100,7 @@ func (s *Server) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]
 	}
 	if len(chains) > 0 { // X.509 (SEC-10)
 		leaf := chains[0][0]
-		if !strongKey(leaf.PublicKey) {
+		if !strongKey(leaf.PublicKey) || isOwn(leaf.RawSubjectPublicKeyInfo, own) {
 			return errPeerCredential
 		}
 		if si, ok := s.security.ByEndpoint(leaf.Subject.CommonName); !ok || !si.X509 {
@@ -113,10 +113,8 @@ func (s *Server) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]
 	if err != nil || !strongKey(pub) {
 		return errPeerCredential
 	}
-	for _, k := range own {
-		if bytes.Equal(k, raw[0]) {
-			return errPeerCredential // SEC-11: never the server's own key pair
-		}
+	if isOwn(raw[0], own) {
+		return errPeerCredential
 	}
 	if lk, ok := s.security.(PublicKeyLookup); ok {
 		if _, ok := lk.ByPublicKey(raw[0]); !ok {
@@ -124,6 +122,17 @@ func (s *Server) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]
 		}
 	}
 	return nil // other stores: Register still checks the exact key (SEC-06)
+}
+
+// isOwn reports whether a client presents one of the server's own key
+// pairs (SEC-11: Server, Bootstrap-Server and client keys differ).
+func isOwn(spki []byte, own [][]byte) bool {
+	for _, k := range own {
+		if bytes.Equal(k, spki) {
+			return true
+		}
+	}
+	return false
 }
 
 // strongKey rejects ECDSA keys on curves under 255 bits (SEC-16).

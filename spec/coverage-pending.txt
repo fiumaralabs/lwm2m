@@ -1,2 +1,4 @@
 # Requirement IDs (spec/standards*.md) not yet proven by a test.
 # Remove an ID when a test carries `// Proves: <ID>`. Empty file = spec fully implemented.
+# OSC-08: DTLS+OSCORE and OSCORE-only are tested (server/oscore_test.go TestOSCOREOverDTLS), but "SMS NoSec with /0/x/17 = SMS protected by OSCORE" is not: smsbinding never passes through the OSCORE layer.
+OSC-08

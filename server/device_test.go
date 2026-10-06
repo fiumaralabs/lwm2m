@@ -1,9 +1,12 @@
 package server
 
 import (
+	"context"
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/testclient"
+	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
 // Proves: OBJ-03, SEC-20
@@ -40,5 +43,30 @@ func TestDeviceObjectDuties(t *testing.T) {
 	n := notification(t, h, ob)
 	if errs := DeviceErrors(n.Response.Nodes); len(errs) != 1 || errs[0] != 2 {
 		t.Fatalf("errors %v", errs)
+	}
+}
+
+// Proves: OBJ-03
+// Factory Reset (/3/0/5) MAY De-register before answering the Execute:
+// the server takes the 2.04 that arrives after the registration is gone
+// and does not keep the registration.
+func TestFactoryResetDeregistersFirst(t *testing.T) {
+	h := newHarness(t)
+	c := h.registered("reset")
+	c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+		if r.Code != codes.POST || r.Path != "/3/0/5" {
+			return 0, nil, nil, false
+		}
+		if dr, err := c.Deregister(context.Background()); err != nil || dr.Code != codes.Deleted {
+			t.Errorf("de-register: %v %v", dr, err)
+		}
+		return codes.Changed, nil, nil, true
+	})
+	r, err := h.srv.Execute(h.ctx, "reset", p("/3/0/5"), "")
+	if err != nil || r.Code != codes.Changed {
+		t.Fatalf("execute: %v %v", r, err)
+	}
+	if _, ok := h.srv.Store().ByEndpoint("reset"); ok {
+		t.Fatal("registration kept after De-register")
 	}
 }

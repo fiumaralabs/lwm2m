@@ -79,9 +79,13 @@ func TestInt12BootstrapPack(t *testing.T) {
 		}
 	}
 
-	// acc names /0/0: the config's /0/0 moves to the first free ID.
+	// acc names /0/0: the config's /0/0 moves to the first free ID. The
+	// config's BS account and the /21 instance it links stay out of the Pack.
 	h := newHarness(t)
-	h.put("ep", c1("coaps://s.example.com", "ep", "key"))
+	cfg := c1("coaps://s.example.com", "ep", "key")
+	cfg.Security[1] = SecurityConfig{URI: "coap://bs.example.com", BootstrapServer: true, SecurityMode: ModeNoSec, OSCORE: u16(3)}
+	cfg.OSCORE = map[uint16]OSCOREConfig{3: {MasterSecret: randBytes(16), SenderID: Bytes("s"), RecipientID: Bytes("r")}}
+	h.put("ep", cfg)
 	c := h.client("ep", testclient.Config{Version: "1.2"})
 	pr, err := c.PackRequest(h.ctx, []string{"ep=ep", "acc=</0/0>,</21/0>"}, nil)
 	if err != nil || pr.Code != codes.Content {
@@ -90,6 +94,9 @@ func TestInt12BootstrapPack(t *testing.T) {
 	for _, n := range pr.Nodes {
 		if n.Path.Truncate(2) == p("/0/0") {
 			t.Fatalf("Pack writes over acc instance /0/0: %v", n)
+		}
+		if n.Path.Object() == 21 {
+			t.Fatalf("Pack carries the BS account's /21 instance: %v", n)
 		}
 	}
 	h.result()
@@ -126,6 +133,12 @@ func TestBootstrapPackErrors(t *testing.T) {
 	partial.Writes = []Write{{p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(60))}}}
 	h.put("partial", partial)
 	h.put("ok", c1("coap://s.example.com", "id", "key"))
+	osc := c1("coap://s.example.com", "id", "key")
+	sc := osc.Security[0]
+	sc.OSCORE = u16(0)
+	osc.Security[0] = sc
+	osc.OSCORE = map[uint16]OSCOREConfig{0: {MasterSecret: randBytes(16), SenderID: Bytes("s"), RecipientID: Bytes("r")}}
+	h.put("osc", osc)
 	c := h.client("", testclient.Config{})
 	for _, tc := range []struct {
 		name   string
@@ -146,6 +159,8 @@ func TestBootstrapPackErrors(t *testing.T) {
 		{"acc not link format", []string{"ep=ok", "acc=/0/1"}, nil, codes.BadRequest},
 		{"unknown ep", []string{"ep=nobody"}, nil, codes.BadRequest},
 		{"no ep", nil, nil, codes.BadRequest},
+		{"/21 on the BS account's instance", []string{"ep=osc", "acc=</0/1>,</21/0>"}, nil, codes.MethodNotAllowed},
+		{"/21 elsewhere", []string{"ep=osc", "acc=</0/1>,</21/1>"}, nil, codes.Content},
 	} {
 		pr, err := c.PackRequest(h.ctx, tc.query, tc.accept)
 		if err != nil {
