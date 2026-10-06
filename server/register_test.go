@@ -43,16 +43,16 @@ func TestRegisterRejectsBadParameters(t *testing.T) {
 	c := h.device(testclient.Config{Endpoint: "bad"})
 	links := []byte(c.ObjectLinks())
 	for name, q := range map[string][]string{
-		"missing lt":      {"ep=bad", "lwm2m=1.1"},
-		"missing lwm2m":   {"ep=bad", "lt=60"},
-		"unknown param":   {"ep=bad", "lt=60", "lwm2m=1.1", "foo=1"},
-		"duplicate":       {"ep=bad", "lt=60", "lt=70", "lwm2m=1.1"},
-		"bad lifetime":    {"ep=bad", "lt=-1", "lwm2m=1.1"},
-		"bad binding":     {"ep=bad", "lt=60", "lwm2m=1.1", "b=X"},
-		"Q with value":    {"ep=bad", "lt=60", "lwm2m=1.1", "Q=1"},
-		"bad profile id":  {"ep=bad", "lt=60", "lwm2m=1.2", "pid=6:ABCD"},
-		"1.0 without ep":  {"lt=60", "lwm2m=1.0"},
-		"empty ep":        {"ep=", "lt=60", "lwm2m=1.1"},
+		"missing lt":     {"ep=bad", "lwm2m=1.1"},
+		"missing lwm2m":  {"ep=bad", "lt=60"},
+		"unknown param":  {"ep=bad", "lt=60", "lwm2m=1.1", "foo=1"},
+		"duplicate":      {"ep=bad", "lt=60", "lt=70", "lwm2m=1.1"},
+		"bad lifetime":   {"ep=bad", "lt=-1", "lwm2m=1.1"},
+		"bad binding":    {"ep=bad", "lt=60", "lwm2m=1.1", "b=X"},
+		"Q with value":   {"ep=bad", "lt=60", "lwm2m=1.1", "Q=1"},
+		"bad profile id": {"ep=bad", "lt=60", "lwm2m=1.2", "pid=6:ABCD"},
+		"1.0 without ep": {"lt=60", "lwm2m=1.0"},
+		"empty ep":       {"ep=", "lt=60", "lwm2m=1.1"},
 	} {
 		r, err := c.RegisterRaw(h.ctx, q, links, true)
 		if err != nil {
@@ -95,7 +95,7 @@ func TestRegisterVersions(t *testing.T) {
 	mustCode(t, r, err, "4.12")
 }
 
-// Proves: REG-12, OBS-03
+// Proves: REG-12, OBS-03, OBS-10
 // A Register from an endpoint that is already registered replaces the old
 // registration (new location, Replaced event) and voids its observations.
 func TestReRegisterReplaces(t *testing.T) {

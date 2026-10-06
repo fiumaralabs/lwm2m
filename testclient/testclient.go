@@ -86,7 +86,8 @@ type Client struct {
 	override  Override
 	location  string
 	seq       uint32
-	mids      map[int32]chan message.Type // notifications awaiting ACK/RST
+	notifyMu  sync.Mutex        // one notification in flight at a time
+	resetCh   chan message.Type // Reset for the notification in flight
 }
 
 type observer struct {
@@ -123,20 +124,20 @@ func New(cfg Config) *Client {
 		multiple:  map[lwm2m.Path]bool{},
 		attrs:     map[lwm2m.Path][]string{},
 		observers: map[string]*observer{},
-		mids:      map[int32]chan message.Type{},
 	}
 }
 
-// process intercepts ACK/RST for our own notifications; everything else
-// goes through go-coap's normal handling.
+// process notes Resets for our notifications. go-coap matches the Reset
+// to the pending CON first (ending WriteMessage) and then still hands it to
+// this hook, so a Reset is seen right after WriteMessage returns.
 func (c *Client) process(req *pool.Message, cc *client.Conn, handler config.HandlerFunc[*client.Conn]) {
-	if t := req.Type(); t == message.Acknowledgement || t == message.Reset {
+	if req.Type() == message.Reset {
 		c.mu.Lock()
-		ch, ok := c.mids[req.MessageID()]
+		ch := c.resetCh
 		c.mu.Unlock()
-		if ok && req.Code() == codes.Empty {
+		if ch != nil {
 			select {
-			case ch <- t:
+			case ch <- message.Reset:
 			default:
 			}
 			cc.ReleaseMessage(req)
@@ -144,18 +145,6 @@ func (c *Client) process(req *pool.Message, cc *client.Conn, handler config.Hand
 		}
 	}
 	cc.ProcessReceivedMessageWithHandler(req, handler)
-}
-
-func (c *Client) watchMID(mid int32, ch chan message.Type) {
-	c.mu.Lock()
-	c.mids[mid] = ch
-	c.mu.Unlock()
-}
-
-func (c *Client) unwatchMID(mid int32) {
-	c.mu.Lock()
-	delete(c.mids, mid)
-	c.mu.Unlock()
 }
 
 // Dial connects to the server at addr.
@@ -914,23 +903,33 @@ func (c *Client) sendNotification(ctx context.Context, tok message.Token, seq ui
 	m.SetObserve(seq)
 	m.SetContentFormat(message.MediaType(cf))
 	m.SetBody(bytes.NewReader(body))
-	m.SetMessageID(c.conn.GetMessageID())
+	// go-coap assigns the message ID inside WriteMessage, so a Reset is
+	// matched to the one notification in flight.
+	c.notifyMu.Lock()
+	defer c.notifyMu.Unlock()
 	got := make(chan message.Type, 1)
-	mid := m.MessageID()
-	c.watchMID(mid, got)
-	defer c.unwatchMID(mid)
-	if err := c.conn.Session().WriteMessage(m); err != nil {
+	c.mu.Lock()
+	c.resetCh = got
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.resetCh = nil
+		c.mu.Unlock()
+	}()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	m.SetContext(ctx)
+	if err := c.conn.WriteMessage(m); err != nil { // CON: returns on ACK or RST
 		return 0, err
 	}
 	select {
-	case t := <-got:
-		if t == message.Reset {
-			return NotifyReset, nil
-		}
+	case <-got:
+		// A Reset cancels the observation (RFC 7641 §3.6).
+		c.mu.Lock()
+		delete(c.observers, string(tok))
+		c.mu.Unlock()
+		return NotifyReset, nil
+	case <-time.After(100 * time.Millisecond):
 		return NotifyAcked, nil
-	case <-ctx.Done():
-		return 0, ctx.Err()
-	case <-time.After(5 * time.Second):
-		return 0, fmt.Errorf("testclient: no ACK or RST for notification")
 	}
 }

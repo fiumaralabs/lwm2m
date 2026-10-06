@@ -8,6 +8,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
+	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
@@ -74,7 +75,9 @@ type harness struct {
 func newHarness(t *testing.T, mod ...func(*Config)) *harness {
 	t.Helper()
 	h := &harness{t: t, ev: newEvents(), clock: &fakeClock{now: time.Unix(1_700_000_000, 0)}}
-	cfg := Config{OnEvent: h.ev.on, Now: h.clock.Now, ExpiryCheck: time.Hour, RequestTimeout: 5 * time.Second}
+	models := NewModels(model.Default())
+	cfg := Config{OnEvent: h.ev.on, Now: h.clock.Now, ExpiryCheck: time.Hour, RequestTimeout: 5 * time.Second,
+		Schema: models.Schema, Validator: models}
 	for _, m := range mod {
 		m(&cfg)
 	}
