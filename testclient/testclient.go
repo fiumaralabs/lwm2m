@@ -20,6 +20,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/codec"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/codec/senml"
+	"github.com/fiumaralabs/lwm2m/model"
 	piondtls "github.com/pion/dtls/v3"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -297,18 +298,30 @@ func (c *Client) existsLocked(p lwm2m.Path) bool {
 	return ok
 }
 
-// schema types incoming values from the stored ones.
+// registry is the object model the test client knows (like a real client,
+// it types values of resources it has not stored yet from the model).
+var registry = model.Default()
+
+// schema types incoming values from the stored ones, then from the OMA
+// model at the client's default object versions.
 func (c *Client) schema() lwm2m.Schema {
 	c.mu.Lock()
 	defs := map[lwm2m.Path]lwm2m.ResourceDef{}
+	versions := map[uint16]model.Version{}
 	for p, v := range c.values {
 		r := p.Truncate(3)
 		defs[r] = lwm2m.ResourceDef{Type: v.Type, Multiple: c.multiple[r]}
 	}
+	for o := range c.objects {
+		versions[o] = model.DefaultVersion(c.cfg.Version, o)
+	}
 	c.mu.Unlock()
+	fallback := registry.Schema(versions)
 	return lwm2m.SchemaFunc(func(p lwm2m.Path) (lwm2m.ResourceDef, bool) {
-		d, ok := defs[p]
-		return d, ok
+		if d, ok := defs[p]; ok {
+			return d, true
+		}
+		return fallback.Resource(p)
 	})
 }
 
@@ -892,6 +905,16 @@ func (c *Client) Notify(ctx context.Context, tok message.Token) (NotifyResult, e
 		return 0, fmt.Errorf("testclient: cannot encode notification")
 	}
 	return c.sendNotification(ctx, tok, seq, *cf, body)
+}
+
+// NotifyRaw sends a CON notification with an arbitrary payload for token
+// tok (e.g. historical SenML records stored while offline).
+func (c *Client) NotifyRaw(ctx context.Context, tok message.Token, cf lwm2m.ContentFormat, body []byte) (NotifyResult, error) {
+	c.mu.Lock()
+	c.seq++
+	seq := c.seq
+	c.mu.Unlock()
+	return c.sendNotification(ctx, tok, seq, cf, body)
 }
 
 func (c *Client) sendNotification(ctx context.Context, tok message.Token, seq uint32, cf lwm2m.ContentFormat, body []byte) (NotifyResult, error) {

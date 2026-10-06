@@ -48,6 +48,7 @@ func TestPathVectors(t *testing.T) {
 	}
 }
 
+// Proves: ID-01
 // TestPathRejects proves the path rules from Core §7.3 / T §6.4.4 that the
 // vectors don't cover.
 func TestPathRejects(t *testing.T) {

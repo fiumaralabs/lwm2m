@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -49,12 +51,46 @@ func (m *Models) schemaOf(reg *Registration) *model.Schema {
 // Schema implements Config.Schema.
 func (m *Models) Schema(reg *Registration) lwm2m.Schema { return m.schemaOf(reg) }
 
-// CheckWrite implements Validator (DM-06).
+// CheckWrite implements Validator (DM-06): types, ranges and writability
+// from the model, and Objlnk targets (DT-03).
 func (m *Models) CheckWrite(reg *Registration, nodes []lwm2m.Node) error {
-	return m.schemaOf(reg).CheckWrite(nodes)
+	if err := m.schemaOf(reg).CheckWrite(nodes); err != nil {
+		return err
+	}
+	return checkLinks(reg, nodes)
 }
 
 // CheckCreate implements Validator (DM-09).
 func (m *Models) CheckCreate(reg *Registration, object uint16, nodes []lwm2m.Node) error {
-	return m.schemaOf(reg).CheckCreate(object, nodes)
+	if err := m.schemaOf(reg).CheckCreate(object, nodes); err != nil {
+		return err
+	}
+	return checkLinks(reg, nodes)
+}
+
+// ErrBadObjlnk: an Objlnk value names neither the null link, a registered
+// object (oid:65535) nor a registered instance (DT-03).
+var ErrBadObjlnk = errors.New("server: Objlnk target not registered")
+
+// checkLinks validates Objlnk targets against the client's object list.
+// When the client listed no instances of an object, any instance of it is
+// accepted (the list says nothing about which exist).
+func checkLinks(reg *Registration, nodes []lwm2m.Node) error {
+	for _, n := range nodes {
+		if n.Kind != lwm2m.KindValue || n.Value.Type != lwm2m.TypeObjlnk {
+			continue
+		}
+		l := n.Value.Link
+		if l == lwm2m.NullObjLink {
+			continue
+		}
+		o, ok := reg.Object(l.Object)
+		if !ok {
+			return fmt.Errorf("%w: %s -> %s", ErrBadObjlnk, n.Path, l)
+		}
+		if l.Instance != lwm2m.MaxID && len(o.Instances) > 0 && !reg.HasInstance(l.Object, l.Instance) {
+			return fmt.Errorf("%w: %s -> %s", ErrBadObjlnk, n.Path, l)
+		}
+	}
+	return nil
 }
