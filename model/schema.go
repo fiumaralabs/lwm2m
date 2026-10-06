@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	lwm2m "github.com/fiumaralabs/lwm2m"
@@ -84,6 +86,12 @@ func (r *Resource) CheckValue(v lwm2m.Value) error {
 	}
 	if v.Type == lwm2m.TypeString && !utf8.ValidString(v.Str) {
 		return fmt.Errorf("%w: resource %d: string is not UTF-8", ErrType, r.ID)
+	}
+	if enum, ok := stringEnum(r.Range); ok && v.Type == lwm2m.TypeString {
+		if !slices.Contains(enum, v.Str) { // a quoted list is a string enumeration (OBJ-02)
+			return fmt.Errorf("%w: resource %d: %q not in %s", ErrRange, r.ID, v.Str, r.Range)
+		}
+		return nil
 	}
 	m := rangeRE.FindStringSubmatch(r.Range)
 	if m == nil {
@@ -199,6 +207,34 @@ func (s *Schema) CheckExecute(p lwm2m.Path) error {
 	}
 	if !r.Executable() {
 		return fmt.Errorf("%w: %s", ErrNotExecutable, p)
+	}
+	return nil
+}
+
+var enumRE = regexp.MustCompile(`^\s*"[^"]*"(\s*,\s*"[^"]*")*\s*$`)
+
+// stringEnum parses a RangeEnumeration of quoted strings ("a","b").
+func stringEnum(r string) ([]string, bool) {
+	if !enumRE.MatchString(r) {
+		return nil, false
+	}
+	var out []string
+	for _, part := range strings.Split(r, ",") {
+		part = strings.TrimSpace(part)
+		out = append(out, part[1:len(part)-1])
+	}
+	return out, true
+}
+
+// CheckInstances checks a client's instance count of an object against
+// its template (C App. D.1, OBJ-02): a Single object has at most one
+// instance, a Mandatory Single object exactly one.
+func (o *Object) CheckInstances(n int) error {
+	switch {
+	case !o.Multiple && n > 1:
+		return fmt.Errorf("%w: object %d is single-instance, client has %d", ErrNotMultiple, o.ID, n)
+	case !o.Multiple && o.Mandatory && n != 1:
+		return fmt.Errorf("%w: mandatory single-instance object %d has %d instances", ErrMissing, o.ID, n)
 	}
 	return nil
 }

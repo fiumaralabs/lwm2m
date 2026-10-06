@@ -337,7 +337,7 @@ func TestRegisterForbidden(t *testing.T) {
 	mustCode(t, r, err, "4.03")
 }
 
-// Proves: PROF-01, PROF-03, PROF-04, PROF-05, PROF-06, PROF-07, PROF-08, PROF-11
+// Proves: PROF-01, PROF-03, PROF-04, PROF-05, PROF-06, PROF-07, PROF-08, PROF-11, REG-21
 // Profile IDs: an unknown pid without a list is 4.09; a pid sent with its
 // list is learned and later resolves alone; pre-configured oma:/v: IDs
 // resolve from configuration; several pids and a payload combine; a 1.2

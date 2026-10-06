@@ -17,14 +17,18 @@ import (
 //
 //	// Proves: REG-04, SEC-06
 //
-// IDs not yet proven are listed in spec/coverage-pending.txt. The test fails
-// when an ID is neither proven nor pending, when a pending ID has become
-// proven (remove it from the list), or when a test claims an unknown ID.
-// The spec is fully implemented when coverage-pending.txt is empty.
+// IDs not yet proven are listed in spec/coverage-pending.txt. Rows that
+// carry no implementable server behaviour (meta-text, deployment advice)
+// are listed in spec/coverage-informative.txt, each with a written reason.
+// The test fails when an ID is in none of the three sets, in more than one,
+// when an informative entry has no reason, or when a test claims an
+// unknown ID. The spec is fully implemented when coverage-pending.txt is
+// empty.
 func TestSpecCoverage(t *testing.T) {
 	defined := specIDs(t)
 	proven := provenIDs(t)
 	pending := pendingIDs(t)
+	informative := informativeIDs(t)
 
 	for id := range proven {
 		if !defined[id] {
@@ -34,10 +38,17 @@ func TestSpecCoverage(t *testing.T) {
 	var missing, stale []string
 	for id := range defined {
 		switch {
-		case proven[id] && pending[id]:
+		case proven[id] && (pending[id] || informative[id] != ""):
 			stale = append(stale, id)
-		case !proven[id] && !pending[id]:
+		case pending[id] && informative[id] != "":
+			t.Errorf("%s is both pending and informative", id)
+		case !proven[id] && !pending[id] && informative[id] == "":
 			missing = append(missing, id)
+		}
+	}
+	for id := range informative {
+		if !defined[id] {
+			t.Errorf("coverage-informative.txt lists unknown requirement %s", id)
 		}
 	}
 	for id := range pending {
@@ -51,9 +62,9 @@ func TestSpecCoverage(t *testing.T) {
 		t.Errorf("requirements with no proving test and not pending: %s", strings.Join(missing, ", "))
 	}
 	if len(stale) > 0 {
-		t.Errorf("proven requirements still in coverage-pending.txt (remove them): %s", strings.Join(stale, ", "))
+		t.Errorf("proven requirements still in coverage-pending.txt or coverage-informative.txt (remove them): %s", strings.Join(stale, ", "))
 	}
-	t.Logf("requirements: %d defined, %d proven, %d pending", len(defined), len(defined)-len(pending), len(pending))
+	t.Logf("requirements: %d defined, %d proven, %d informative, %d pending", len(defined), len(defined)-len(pending)-len(informative), len(informative), len(pending))
 }
 
 var (
@@ -111,6 +122,24 @@ func pendingIDs(t *testing.T) map[string]bool {
 			return
 		}
 		ids[strings.Fields(line)[0]] = true
+	})
+	return ids
+}
+
+// informativeIDs reads "ID reason..." lines; a missing reason fails.
+func informativeIDs(t *testing.T) map[string]string {
+	ids := map[string]string{}
+	eachLine(t, "spec/coverage-informative.txt", func(line string) {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			return
+		}
+		id, reason, _ := strings.Cut(line, " ")
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("coverage-informative.txt: %s has no reason", id)
+			reason = "-"
+		}
+		ids[id] = strings.TrimSpace(reason)
 	})
 	return ids
 }

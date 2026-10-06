@@ -1,0 +1,753 @@
+diff --color -ruN -x g a/config.go b/config.go
+--- a/config.go
++++ b/config.go
+@@ -199,6 +199,21 @@
+ 	// https://datatracker.ietf.org/doc/html/rfc9146
+ 	ConnectionIDGenerator func() []byte
+ 
++	// ClientCertificateTypes and ServerCertificateTypes enable RFC 7250
++	// raw public keys (lwm2m patch). Each lists, in preference order, the
++	// certificate types for the client's and the server's credential:
++	// a client offers them in client_certificate_type and
++	// server_certificate_type; a server selects the first of its own list
++	// that the client offered. nil keeps plain X.509 and sends no
++	// extension. With CertificateTypeRawPublicKey the credential is the
++	// SubjectPublicKeyInfo of Certificates[0].PrivateKey (Certificate may
++	// then hold any placeholder, such as the SPKI itself). A raw key has no
++	// chain to verify: VerifyPeerCertificate receives []{SPKI} and must
++	// decide; without it a raw key is rejected unless InsecureSkipVerify
++	// (client) or ClientAuth < VerifyClientCertIfGiven (server).
++	ClientCertificateTypes []CertificateType
++	ServerCertificateTypes []CertificateType
++
+ 	// PaddingLengthGenerator generates the number of padding bytes used to
+ 	// inflate ciphertext size in order to obscure content size from observers.
+ 	// The length of the content is passed to the generator such that both
+diff --color -ruN -x g a/conn.go b/conn.go
+--- a/conn.go
++++ b/conn.go
+@@ -232,6 +232,8 @@
+ 		localGetClientCertificate:     config.GetClientCertificate,
+ 		insecureSkipHelloVerify:       config.InsecureSkipVerifyHello,
+ 		connectionIDGenerator:         config.ConnectionIDGenerator,
++		clientCertificateTypes:        config.ClientCertificateTypes,
++		serverCertificateTypes:        config.ServerCertificateTypes,
+ 		helloRandomBytesGenerator:     config.HelloRandomBytesGenerator,
+ 		clientHelloMessageHook:        config.ClientHelloMessageHook,
+ 		serverHelloMessageHook:        config.ServerHelloMessageHook,
+diff --color -ruN -x g a/crypto.go b/crypto.go
+--- a/crypto.go
++++ b/crypto.go
+@@ -142,7 +142,7 @@
+ 	if len(rawCertificates) == 0 {
+ 		return errLengthMismatch
+ 	}
+-	certificate, err := x509.ParseCertificate(rawCertificates[0])
++	certificate, err := parsePeerCredential(rawCertificates[0]) // lwm2m patch: RFC 7250
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -255,7 +255,7 @@
+ 	if len(rawCertificates) == 0 {
+ 		return errLengthMismatch
+ 	}
+-	certificate, err := x509.ParseCertificate(rawCertificates[0])
++	certificate, err := parsePeerCredential(rawCertificates[0]) // lwm2m patch: RFC 7250
+ 	if err != nil {
+ 		return err
+ 	}
+diff --color -ruN -x g a/flight0handler.go b/flight0handler.go
+--- a/flight0handler.go
++++ b/flight0handler.go
+@@ -6,6 +6,7 @@
+ import (
+ 	"context"
+ 	"crypto/rand"
++	"slices"
+ 
+ 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+ 	"github.com/pion/dtls/v3/pkg/protocol"
+@@ -53,6 +54,7 @@
+ 	}
+ 
+ 	state.remoteRandom = clientHello.Random
++	state.remoteOfferedClientCertType, state.remoteOfferedServerCertType = nil, nil
+ 
+ 	cipherSuites := []CipherSuite{}
+ 	for _, id := range clientHello.CipherSuiteIDs {
+@@ -73,10 +75,13 @@
+ 	for _, val := range clientHello.Extensions {
+ 		switch ext := val.(type) {
+ 		case *extension.SupportedEllipticCurves:
+-			if len(ext.EllipticCurves) == 0 {
++			// lwm2m patch: the client's most preferred curve that we support
++			// (RFC 8422 §5.1, /0/x/18 order), not blindly the first one.
++			i := slices.IndexFunc(ext.EllipticCurves, func(c elliptic.Curve) bool { return slices.Contains(cfg.ellipticCurves, c) })
++			if i < 0 {
+ 				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InsufficientSecurity}, errNoSupportedEllipticCurves
+ 			}
+-			state.namedCurve = ext.EllipticCurves[0]
++			state.namedCurve = ext.EllipticCurves[i]
+ 		case *extension.UseSRTP:
+ 			profile, ok := findMatchingSRTPProfile(cfg.localSRTPProtectionProfiles, ext.ProtectionProfiles)
+ 			if !ok {
+@@ -100,6 +105,10 @@
+ 			if cfg.connectionIDGenerator != nil {
+ 				state.remoteConnectionID = ext.CID
+ 			}
++		case *extension.ClientCertificateType: // lwm2m patch: RFC 7250
++			state.remoteOfferedClientCertType = append([]CertificateType{}, ext.Types...)
++		case *extension.ServerCertificateType:
++			state.remoteOfferedServerCertType = append([]CertificateType{}, ext.Types...)
+ 		case *extension.SignatureAlgorithmsCert:
+ 			// Store the client's certificate signature schemes for later validation
+ 			state.remoteCertSignatureSchemes = ext.SignatureHashAlgorithms
+@@ -147,6 +156,7 @@
+ 
+ 			state.SessionID = sessionID
+ 			state.masterSecret = s.Secret
++			state.IdentityHint = s.IdentityHint // lwm2m patch
+ 
+ 			if err := state.initCipherSuite(); err != nil {
+ 				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
+diff --color -ruN -x g a/flight1handler.go b/flight1handler.go
+--- a/flight1handler.go
++++ b/flight1handler.go
+@@ -161,6 +161,8 @@
+ 		extensions = append(extensions, &extension.ConnectionID{CID: state.getLocalConnectionID()})
+ 	}
+ 
++	extensions = appendCertificateTypeOffers(extensions, cfg) // lwm2m patch: RFC 7250
++
+ 	clientHello := &handshake.MessageClientHello{
+ 		Version:            protocol.Version1_2,
+ 		SessionID:          state.SessionID,
+diff --color -ruN -x g a/flight3handler.go b/flight3handler.go
+--- a/flight3handler.go
++++ b/flight3handler.go
+@@ -6,6 +6,7 @@
+ import (
+ 	"bytes"
+ 	"context"
++	"slices"
+ 
+ 	"github.com/pion/dtls/v3/internal/ciphersuite/types"
+ 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+@@ -57,6 +58,8 @@
+ 		if !serverHelloMsg.Version.Equal(protocol.Version1_2) {
+ 			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.ProtocolVersion}, errUnsupportedProtocolVersion
+ 		}
++		state.localCertificateType, state.remoteCertificateType = CertificateTypeX509, CertificateTypeX509
++		serverCertTypeSelected := false
+ 		for _, v := range serverHelloMsg.Extensions {
+ 			switch ext := v.(type) {
+ 			case *extension.UseSRTP:
+@@ -78,6 +81,17 @@
+ 					}, extension.ErrALPNInvalidFormat // Meh, internal error?
+ 				}
+ 				state.NegotiatedProtocol = ext.ProtocolNameList[0]
++			case *extension.ClientCertificateType: // lwm2m patch: RFC 7250
++				if !ext.Selected || cfg.clientCertificateTypes == nil || !slices.Contains(cfg.clientCertificateTypes, ext.Types[0]) {
++					return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}, errInvalidCertificate
++				}
++				state.localCertificateType = ext.Types[0]
++			case *extension.ServerCertificateType:
++				if !ext.Selected || cfg.serverCertificateTypes == nil || !slices.Contains(cfg.serverCertificateTypes, ext.Types[0]) {
++					return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}, errInvalidCertificate
++				}
++				state.remoteCertificateType = ext.Types[0]
++				serverCertTypeSelected = true
+ 			case *extension.ConnectionID:
+ 				// Only set connection ID to be sent if client supports connection
+ 				// IDs.
+@@ -86,6 +100,13 @@
+ 				}
+ 			}
+ 		}
++		// lwm2m patch: without the extension the server certificate is X.509,
++		// which a raw-key-only client refuses.
++		if !serverCertTypeSelected && cfg.serverCertificateTypes != nil &&
++			!slices.Contains(cfg.serverCertificateTypes, CertificateTypeX509) {
++			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}, errInvalidCertificate
++		}
++
+ 		// If the server doesn't support connection IDs, the client should not
+ 		// expect one to be sent.
+ 		if state.remoteConnectionID == nil {
+@@ -153,6 +174,9 @@
+ 	state.handshakeRecvSequence = seq
+ 
+ 	if h, ok := msgs[handshake.TypeCertificate].(*handshake.MessageCertificate); ok {
++		if err := checkCertificateForm(h, state.remoteCertificateType); err != nil { // lwm2m patch
++			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}, err
++		}
+ 		state.PeerCertificates = h.Certificate
+ 	} else if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypeCertificate {
+ 		return 0, &alert.Alert{Level: alert.Fatal, Description: alert.NoCertificate}, errInvalidCertificate
+@@ -332,6 +356,8 @@
+ 	if state.getLocalConnectionID() != nil {
+ 		extensions = append(extensions, &extension.ConnectionID{CID: state.getLocalConnectionID()})
+ 	}
++
++	extensions = appendCertificateTypeOffers(extensions, cfg) // lwm2m patch: RFC 7250
+ 
+ 	clientHello := &handshake.MessageClientHello{
+ 		Version:            protocol.Version1_2,
+diff --color -ruN -x g a/flight4handler.go b/flight4handler.go
+--- a/flight4handler.go
++++ b/flight4handler.go
+@@ -46,6 +46,9 @@
+ 	}
+ 
+ 	if h, hasCert := msgs[handshake.TypeCertificate].(*handshake.MessageCertificate); hasCert {
++		if err := checkCertificateForm(h, state.remoteCertificateType); err != nil { // lwm2m patch
++			return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}, err
++		}
+ 		state.PeerCertificates = h.Certificate
+ 		// If the client offer its certificate, just disable session resumption.
+ 		// Otherwise, we have to store the certificate identitfication and expire time.
+@@ -97,7 +100,10 @@
+ 		var chains [][]*x509.Certificate
+ 		var err error
+ 		var verified bool
+-		if cfg.clientAuth >= VerifyClientCertIfGiven {
++		if state.remoteCertificateType == CertificateTypeRawPublicKey {
++			// lwm2m patch: a raw key has no chain; VerifyPeerCertificate decides.
++			verified = cfg.verifyPeerCertificate != nil
++		} else if cfg.clientAuth >= VerifyClientCertIfGiven {
+ 			// Use cert-specific algorithms if present, otherwise fall back to signature_algorithms per RFC 8446
+ 			certAlgs := cfg.localCertSignatureSchemes
+ 			if len(certAlgs) == 0 {
+@@ -129,7 +135,8 @@
+ 		if state.cipherSuite.AuthenticationType() == CipherSuiteAuthenticationTypePreSharedKey {
+ 			var psk []byte
+ 			if psk, err = cfg.localPSKCallback(clientKeyExchange.IdentityHint); err != nil {
+-				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
++				// lwm2m patch: RFC 4279 §2; LwM2M clients treat 115 as Fail (T Tbl 5.2.10-1).
++				return 0, &alert.Alert{Level: alert.Fatal, Description: alert.UnknownPSKIdentity}, err
+ 			}
+ 			state.IdentityHint = clientKeyExchange.IdentityHint
+ 			switch state.cipherSuite.KeyExchangeAlgorithm() {
+@@ -189,8 +196,9 @@
+ 
+ 	if len(state.SessionID) > 0 {
+ 		s := Session{
+-			ID:     state.SessionID,
+-			Secret: state.masterSecret,
++			ID:           state.SessionID,
++			Secret:       state.masterSecret,
++			IdentityHint: state.IdentityHint, // lwm2m patch
+ 		}
+ 		cfg.log.Tracef("[handshake] save new session: %x", s.ID)
+ 		if err := cfg.sessionStore.Set(state.SessionID, s); err != nil {
+@@ -317,6 +325,12 @@
+ 		extensions = append(extensions, &extension.ConnectionID{CID: state.getLocalConnectionID()})
+ 	}
+ 
++	certExts, alertPtr, err := negotiateCertificateTypes(state, cfg) // lwm2m patch: RFC 7250
++	if err != nil {
++		return nil, alertPtr, err
++	}
++	extensions = append(extensions, certExts...)
++
+ 	var pkts []*packet
+ 	cipherSuiteID := uint16(state.cipherSuite.ID())
+ 
+@@ -363,6 +377,10 @@
+ 		if err != nil {
+ 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
+ 		}
++		certMsg, err := certificateMessage(certificate, state.localCertificateType) // lwm2m patch
++		if err != nil {
++			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.InternalError}, err
++		}
+ 
+ 		pkts = append(pkts, &packet{
+ 			record: &recordlayer.RecordLayer{
+@@ -370,9 +388,7 @@
+ 					Version: protocol.Version1_2,
+ 				},
+ 				Content: &handshake.Handshake{
+-					Message: &handshake.MessageCertificate{
+-						Certificate: certificate.Certificate,
+-					},
++					Message: certMsg,
+ 				},
+ 			},
+ 		})
+diff --color -ruN -x g a/flight5handler.go b/flight5handler.go
+--- a/flight5handler.go
++++ b/flight5handler.go
+@@ -91,6 +91,9 @@
+ 		if r, ok2 := msgs[handshake.TypeCertificateRequest].(*handshake.MessageCertificateRequest); ok2 {
+ 			reqInfo.CertificateTypes = append([]clientcertificate.Type{}, r.CertificateTypes...)
+ 			reqInfo.AcceptableCAs = r.CertificateAuthoritiesNames
++			if state.localCertificateType == CertificateTypeRawPublicKey {
++				reqInfo.AcceptableCAs = nil // lwm2m patch: CA names do not apply to a raw key (RFC 7250)
++			}
+ 		} else {
+ 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, errClientCertificateRequired
+ 		}
+@@ -101,7 +104,11 @@
+ 		if certificate == nil {
+ 			return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, errNotAcceptableCertificateChain
+ 		}
++		certMsg := &handshake.MessageCertificate{Certificate: certificate.Certificate}
+ 		if certificate.Certificate != nil {
++			if certMsg, err = certificateMessage(certificate, state.localCertificateType); err != nil { // lwm2m patch
++				return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, err
++			}
+ 			signer, ok = certificate.PrivateKey.(crypto.Signer)
+ 			if !ok {
+ 				return nil, &alert.Alert{Level: alert.Fatal, Description: alert.HandshakeFailure}, errInvalidPrivateKey
+@@ -114,9 +121,7 @@
+ 						Version: protocol.Version1_2,
+ 					},
+ 					Content: &handshake.Handshake{
+-						Message: &handshake.MessageCertificate{
+-							Certificate: certificate.Certificate,
+-						},
++						Message: certMsg,
+ 					},
+ 				},
+ 			})
+@@ -377,7 +382,12 @@
+ 			return &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, err
+ 		}
+ 		var chains [][]*x509.Certificate
+-		if !cfg.insecureSkipVerify {
++		if state.remoteCertificateType == CertificateTypeRawPublicKey {
++			// lwm2m patch: a raw key has no chain; VerifyPeerCertificate decides.
++			if !cfg.insecureSkipVerify && cfg.verifyPeerCertificate == nil {
++				return &alert.Alert{Level: alert.Fatal, Description: alert.BadCertificate}, errInvalidCertificate
++			}
++		} else if !cfg.insecureSkipVerify {
+ 			certAlgs := cfg.localCertSignatureSchemes
+ 			if len(certAlgs) == 0 {
+ 				certAlgs = cfg.localSignatureSchemes
+diff --color -ruN -x g a/go.mod b/go.mod
+--- a/go.mod
++++ b/go.mod
+@@ -3,15 +3,10 @@
+ require (
+ 	github.com/pion/logging v0.2.4
+ 	github.com/pion/transport/v5 v5.0.0
+-	github.com/stretchr/testify v1.12.1
+ 	golang.org/x/crypto v0.48.0
+-	golang.org/x/net v0.49.0
+ )
+ 
+-require (
+-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+-	golang.org/x/sys v0.41.0 // indirect
+-)
++require golang.org/x/sys v0.41.0 // indirect
+ 
+ go 1.24.0
+ 
+diff --color -ruN -x g a/handshaker.go b/handshaker.go
+--- a/handshaker.go
++++ b/handshaker.go
+@@ -119,6 +119,8 @@
+ 	ellipticCurves               []elliptic.Curve
+ 	insecureSkipHelloVerify      bool
+ 	connectionIDGenerator        func() []byte
++	clientCertificateTypes       []CertificateType // lwm2m patch: RFC 7250
++	serverCertificateTypes       []CertificateType
+ 	helloRandomBytesGenerator    func() [handshake.RandomBytesLength]byte
+ 
+ 	onFlightState func(flightVal, handshakeState)
+diff --color -ruN -x g a/pkg/protocol/alert/alert.go b/pkg/protocol/alert/alert.go
+--- a/pkg/protocol/alert/alert.go
++++ b/pkg/protocol/alert/alert.go
+@@ -64,6 +64,7 @@
+ 	NoRenegotiation        Description = 100
+ 	UnsupportedExtension   Description = 110
+ 	NoApplicationProtocol  Description = 120
++	UnknownPSKIdentity     Description = 115 // RFC 4279 §2 (lwm2m patch)
+ )
+ 
+ func (d Description) String() string { //nolint:cyclop
+@@ -78,6 +79,8 @@
+ 		return "DecryptionFailed"
+ 	case RecordOverflow:
+ 		return "RecordOverflow"
++	case UnknownPSKIdentity:
++		return "UnknownPSKIdentity"
+ 	case DecompressionFailure:
+ 		return "DecompressionFailure"
+ 	case HandshakeFailure:
+diff --color -ruN -x g a/pkg/protocol/extension/certificate_type.go b/pkg/protocol/extension/certificate_type.go
+--- a/pkg/protocol/extension/certificate_type.go
++++ b/pkg/protocol/extension/certificate_type.go
+@@ -0,0 +1,120 @@
++// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
++// SPDX-License-Identifier: MIT
++
++// lwm2m patch: RFC 7250 client_certificate_type / server_certificate_type.
++
++package extension
++
++import "encoding/binary"
++
++// CertificateType is a TLS Certificate Type (IANA "TLS Certificate Types").
++type CertificateType uint8
++
++// Certificate types from RFC 7250 §3.
++const (
++	CertificateTypeX509         CertificateType = 0
++	CertificateTypeRawPublicKey CertificateType = 2
++)
++
++// Extension type values from RFC 7250 §3.
++const (
++	ClientCertificateTypeTypeValue TypeValue = 19
++	ServerCertificateTypeTypeValue TypeValue = 20
++)
++
++// certificateTypes is the common body of both RFC 7250 extensions. In a
++// ClientHello it is a list (1-byte length + types), in a ServerHello a
++// single type. The extension data length tells them apart: a list is at
++// least two bytes long.
++type certificateTypes struct {
++	Types    []CertificateType
++	Selected bool // ServerHello form: exactly one type, no list length
++}
++
++func (c *certificateTypes) marshal(t TypeValue) ([]byte, error) {
++	var body []byte
++	if c.Selected {
++		if len(c.Types) != 1 {
++			return nil, errInvalidCertificateTypes
++		}
++		body = []byte{byte(c.Types[0])}
++	} else {
++		if len(c.Types) == 0 || len(c.Types) > 255 {
++			return nil, errInvalidCertificateTypes
++		}
++		body = append(body, byte(len(c.Types)))
++		for _, ct := range c.Types {
++			body = append(body, byte(ct))
++		}
++	}
++	out := make([]byte, 4, 4+len(body))
++	binary.BigEndian.PutUint16(out, uint16(t))
++	binary.BigEndian.PutUint16(out[2:], uint16(len(body))) //nolint:gosec // G115, bounded above
++
++	return append(out, body...), nil
++}
++
++func (c *certificateTypes) unmarshal(t TypeValue, data []byte) error {
++	if len(data) < 4 {
++		return errBufferTooSmall
++	}
++	if TypeValue(binary.BigEndian.Uint16(data)) != t {
++		return errInvalidExtensionType
++	}
++	n := int(binary.BigEndian.Uint16(data[2:]))
++	if len(data) < 4+n || n == 0 {
++		return errLengthMismatch
++	}
++	body := data[4 : 4+n]
++	if n == 1 {
++		c.Selected = true
++		c.Types = []CertificateType{CertificateType(body[0])}
++
++		return nil
++	}
++	if int(body[0]) != n-1 {
++		return errLengthMismatch
++	}
++	c.Types = nil
++	for _, b := range body[1:] {
++		c.Types = append(c.Types, CertificateType(b))
++	}
++
++	return nil
++}
++
++// ClientCertificateType is the client_certificate_type extension (RFC 7250 §3).
++type ClientCertificateType struct{ certificateTypes }
++
++// TypeValue returns the extension TypeValue.
++func (ClientCertificateType) TypeValue() TypeValue { return ClientCertificateTypeTypeValue }
++
++// Marshal encodes the extension.
++func (c *ClientCertificateType) Marshal() ([]byte, error) { return c.marshal(c.TypeValue()) }
++
++// Unmarshal populates the extension from encoded data.
++func (c *ClientCertificateType) Unmarshal(data []byte) error { return c.unmarshal(c.TypeValue(), data) }
++
++// ServerCertificateType is the server_certificate_type extension (RFC 7250 §3).
++type ServerCertificateType struct{ certificateTypes }
++
++// TypeValue returns the extension TypeValue.
++func (ServerCertificateType) TypeValue() TypeValue { return ServerCertificateTypeTypeValue }
++
++// Marshal encodes the extension.
++func (c *ServerCertificateType) Marshal() ([]byte, error) { return c.marshal(c.TypeValue()) }
++
++// Unmarshal populates the extension from encoded data.
++func (c *ServerCertificateType) Unmarshal(data []byte) error { return c.unmarshal(c.TypeValue(), data) }
++
++// NewClientCertificateType returns the ClientHello (list) or, with
++// selected, the ServerHello (single type) form.
++func NewClientCertificateType(selected bool, types ...CertificateType) *ClientCertificateType {
++	return &ClientCertificateType{certificateTypes{Types: types, Selected: selected}}
++}
++
++// NewServerCertificateType returns the ClientHello (list) or, with
++// selected, the ServerHello (single type) form.
++func NewServerCertificateType(selected bool, types ...CertificateType) *ServerCertificateType {
++	return &ServerCertificateType{certificateTypes{Types: types, Selected: selected}}
++}
+diff --color -ruN -x g a/pkg/protocol/extension/errors.go b/pkg/protocol/extension/errors.go
+--- a/pkg/protocol/extension/errors.go
++++ b/pkg/protocol/extension/errors.go
+@@ -20,6 +20,9 @@
+ 	errBufferTooSmall = &protocol.TemporaryError{
+ 		Err: errors.New("buffer is too small"), //nolint:err113
+ 	}
++	errInvalidCertificateTypes = &protocol.FatalError{
++		Err: errors.New("invalid certificate type list"), //nolint:err113
++	}
+ 	errInvalidExtensionType = &protocol.FatalError{
+ 		Err: errors.New("invalid extension type"), //nolint:err113
+ 	}
+diff --color -ruN -x g a/pkg/protocol/extension/extension.go b/pkg/protocol/extension/extension.go
+--- a/pkg/protocol/extension/extension.go
++++ b/pkg/protocol/extension/extension.go
+@@ -103,6 +103,10 @@
+ 			err = unmarshalAndAppend(bufView, &KeyShare{})
+ 		case CookieTypeValue:
+ 			err = unmarshalAndAppend(bufView, &CookieExt{})
++		case ClientCertificateTypeTypeValue: // lwm2m patch: RFC 7250
++			err = unmarshalAndAppend(bufView, &ClientCertificateType{})
++		case ServerCertificateTypeTypeValue: // lwm2m patch: RFC 7250
++			err = unmarshalAndAppend(bufView, &ServerCertificateType{})
+ 		default:
+ 		}
+ 
+diff --color -ruN -x g a/pkg/protocol/handshake/message_certificate.go b/pkg/protocol/handshake/message_certificate.go
+--- a/pkg/protocol/handshake/message_certificate.go
++++ b/pkg/protocol/handshake/message_certificate.go
+@@ -13,6 +13,11 @@
+ // https://tools.ietf.org/html/rfc5246#section-7.4.2
+ type MessageCertificate struct {
+ 	Certificate [][]byte
++
++	// RawPublicKey selects the RFC 7250 §3 form (lwm2m patch): the body is
++	// a single ASN.1_subjectPublicKeyInfo<1..2^24-1>, Certificate[0],
++	// instead of a certificate_list.
++	RawPublicKey bool
+ }
+ 
+ // Type returns the Handshake Type.
+@@ -26,6 +31,15 @@
+ 
+ // Marshal encodes the Handshake.
+ func (m *MessageCertificate) Marshal() ([]byte, error) {
++	if m.RawPublicKey {
++		if len(m.Certificate) != 1 || len(m.Certificate[0]) == 0 {
++			return nil, errLengthMismatch
++		}
++		out := make([]byte, handshakeMessageCertificateLengthFieldSize, handshakeMessageCertificateLengthFieldSize+len(m.Certificate[0]))
++		util.PutBigEndianUint24(out, uint32(len(m.Certificate[0]))) //nolint:gosec // G115
++
++		return append(out, m.Certificate[0]...), nil
++	}
+ 	total := handshakeMessageCertificateLengthFieldSize
+ 
+ 	for _, cert := range m.Certificate {
+@@ -63,6 +77,18 @@
+ 		data,
+ 	)); certificateBodyLen+handshakeMessageCertificateLengthFieldSize != len(data) {
+ 		return errLengthMismatch
++	}
++
++	// lwm2m patch: a raw public key body (RFC 7250) is one DER
++	// SubjectPublicKeyInfo, so it starts with a SEQUENCE tag (0x30) where a
++	// certificate_list has the high byte of a 24-bit length. A list entry
++	// that large (>= 3 MiB) cannot occur in DTLS, so the forms are disjoint.
++	// The handshake checks the form against the negotiated certificate type.
++	if len(data) > handshakeMessageCertificateLengthFieldSize && data[handshakeMessageCertificateLengthFieldSize] == 0x30 {
++		m.Certificate = [][]byte{append([]byte{}, data[handshakeMessageCertificateLengthFieldSize:]...)}
++		m.RawPublicKey = true
++
++		return nil
+ 	}
+ 
+ 	offset := handshakeMessageCertificateLengthFieldSize
+diff --color -ruN -x g a/rpk.go b/rpk.go
+--- a/rpk.go
++++ b/rpk.go
+@@ -0,0 +1,138 @@
++// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
++// SPDX-License-Identifier: MIT
++
++// lwm2m patch: RFC 7250 raw public keys.
++
++package dtls
++
++import (
++	"crypto"
++	"crypto/tls"
++	"crypto/x509"
++	"slices"
++
++	"github.com/pion/dtls/v3/pkg/protocol/alert"
++	"github.com/pion/dtls/v3/pkg/protocol/extension"
++	"github.com/pion/dtls/v3/pkg/protocol/handshake"
++)
++
++// CertificateType is a TLS certificate type (RFC 7250).
++type CertificateType = extension.CertificateType
++
++// Certificate types.
++const (
++	CertificateTypeX509         = extension.CertificateTypeX509
++	CertificateTypeRawPublicKey = extension.CertificateTypeRawPublicKey
++)
++
++// selectCertificateType picks the first local type the peer offered. An
++// absent extension (offered == nil) means X.509 only (RFC 7250 §4.1).
++func selectCertificateType(local, offered []CertificateType) (CertificateType, bool) {
++	if offered == nil {
++		return CertificateTypeX509, len(local) == 0 || slices.Contains(local, CertificateTypeX509)
++	}
++	if len(local) == 0 {
++		local = []CertificateType{CertificateTypeX509}
++	}
++	for _, t := range local {
++		if slices.Contains(offered, t) {
++			return t, true
++		}
++	}
++
++	return 0, false
++}
++
++// certificateMessage builds the Certificate message for our credential.
++func certificateMessage(cert *tls.Certificate, t CertificateType) (*handshake.MessageCertificate, error) {
++	if t != CertificateTypeRawPublicKey {
++		return &handshake.MessageCertificate{Certificate: cert.Certificate}, nil
++	}
++	signer, ok := cert.PrivateKey.(crypto.Signer)
++	if !ok {
++		return nil, errInvalidPrivateKey
++	}
++	spki, err := x509.MarshalPKIXPublicKey(signer.Public())
++	if err != nil {
++		return nil, err
++	}
++
++	return &handshake.MessageCertificate{Certificate: [][]byte{spki}, RawPublicKey: true}, nil
++}
++
++// checkCertificateForm rejects a Certificate message whose form does not
++// match the negotiated type.
++func checkCertificateForm(m *handshake.MessageCertificate, t CertificateType) error {
++	if len(m.Certificate) == 0 {
++		return nil
++	}
++	if m.RawPublicKey != (t == CertificateTypeRawPublicKey) {
++		return errInvalidCertificate
++	}
++	if m.RawPublicKey {
++		if _, err := x509.ParsePKIXPublicKey(m.Certificate[0]); err != nil {
++			return errInvalidCertificate
++		}
++	}
++
++	return nil
++}
++
++// parsePeerCredential returns the peer's end-entity certificate, or for a
++// raw public key a Certificate carrying only the key.
++func parsePeerCredential(raw []byte) (*x509.Certificate, error) {
++	c, err := x509.ParseCertificate(raw)
++	if err == nil {
++		return c, nil
++	}
++	pub, perr := x509.ParsePKIXPublicKey(raw)
++	if perr != nil {
++		return nil, err
++	}
++
++	return &x509.Certificate{PublicKey: pub, RawSubjectPublicKeyInfo: raw}, nil
++}
++
++// appendCertificateTypeOffers adds the client's RFC 7250 offers.
++func appendCertificateTypeOffers(exts []extension.Extension, cfg *handshakeConfig) []extension.Extension {
++	if cfg.clientCertificateTypes != nil {
++		exts = append(exts, extension.NewClientCertificateType(false, cfg.clientCertificateTypes...))
++	}
++	if cfg.serverCertificateTypes != nil {
++		exts = append(exts, extension.NewServerCertificateType(false, cfg.serverCertificateTypes...))
++	}
++
++	return exts
++}
++
++// negotiateCertificateTypes selects the server's and the client's
++// certificate types for a certificate suite and returns the ServerHello
++// extensions announcing them (RFC 7250 §4.2).
++func negotiateCertificateTypes(state *State, cfg *handshakeConfig) ([]extension.Extension, *alert.Alert, error) {
++	state.localCertificateType, state.remoteCertificateType = CertificateTypeX509, CertificateTypeX509
++	if state.cipherSuite.AuthenticationType() != CipherSuiteAuthenticationTypeCertificate {
++		return nil, nil, nil
++	}
++	unsupported := &alert.Alert{Level: alert.Fatal, Description: alert.UnsupportedCertificate}
++	var exts []extension.Extension
++	t, ok := selectCertificateType(cfg.serverCertificateTypes, state.remoteOfferedServerCertType)
++	if !ok {
++		return nil, unsupported, errInvalidCertificate
++	}
++	state.localCertificateType = t
++	if state.remoteOfferedServerCertType != nil {
++		exts = append(exts, extension.NewServerCertificateType(true, t))
++	}
++	if cfg.clientAuth > NoClientCert {
++		t, ok = selectCertificateType(cfg.clientCertificateTypes, state.remoteOfferedClientCertType)
++		if !ok {
++			return nil, unsupported, errInvalidCertificate
++		}
++		state.remoteCertificateType = t
++		if state.remoteOfferedClientCertType != nil {
++			exts = append(exts, extension.NewClientCertificateType(true, t))
++		}
++	}
++
++	return exts, nil, nil
++}
+diff --color -ruN -x g a/session.go b/session.go
+--- a/session.go
++++ b/session.go
+@@ -9,6 +9,10 @@
+ 	ID []byte
+ 	// Secret store session master secret
+ 	Secret []byte //nolint:gosec // no real risk of exporting the secret.
++	// IdentityHint is the PSK identity the session was authenticated with
++	// (server side, lwm2m patch), restored on resumption so the resumed
++	// connection keeps its authenticated identity.
++	IdentityHint []byte
+ }
+ 
+ // SessionStore defines methods needed for session resumption.
+diff --color -ruN -x g a/state.go b/state.go
+--- a/state.go
++++ b/state.go
+@@ -68,6 +68,13 @@
+ 	localKeySignature          []byte                    // cached keySignature
+ 	peerCertificatesVerified   bool
+ 
++	// lwm2m patch, RFC 7250: the negotiated certificate types.
++	// remoteOffered* is what a client offered (nil: extension absent).
++	localCertificateType        CertificateType
++	remoteCertificateType       CertificateType
++	remoteOfferedClientCertType []CertificateType
++	remoteOfferedServerCertType []CertificateType
++
+ 	replayDetector []replaydetector.ReplayDetector
+ 
+ 	peerSupportedProtocols []string

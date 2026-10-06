@@ -4,7 +4,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -273,14 +272,6 @@ func (s *Server) dropClientState(r *Registration) {
 	s.obs.removeRegistration(r.ID)
 	s.queues.drop(r.ID)
 	s.formats.Delete(r.ID)
-}
-
-// ctx returns a context bounded by the request timeout.
-func (s *Server) ctx(parent context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := parent.Deadline(); ok {
-		return context.WithCancel(parent)
-	}
-	return context.WithTimeout(parent, s.cfg.RequestTimeout)
 }
 
 // Validator checks downlink payloads against a client's object model.

@@ -90,18 +90,11 @@ var encMode, _ = cbor.CoreDetEncOptions().EncMode() // deterministic: sorted key
 func Marshal(m *Message) ([]byte, error) { return encMode.Marshal(m) }
 
 // Unmarshal decodes a message. An Outer_Wrapper (T §8.6) whose msg-wrapper
-// is nil is unwrapped; a COSE-protected one is refused (not supported).
-func Unmarshal(b []byte) (*Message, error) {
-	var outer struct {
-		Wrapper cbor.RawMessage `cbor:"1,keyasint"`
-		Inner   cbor.RawMessage `cbor:"2,keyasint"`
-	}
-	if err := cbor.Unmarshal(b, &outer); err == nil && len(outer.Inner) > 0 && outer.Inner[0]>>5 == 5 { // key 2 is a map
-		if len(outer.Wrapper) > 0 && outer.Wrapper[0] != 0xf6 {
-			return nil, errors.New("mqttbinding: COSE-protected messages are not supported")
-		}
-		b = outer.Inner
-	}
+// is nil is unwrapped; a COSE-protected one needs the endpoint's /23 key
+// and is refused here (see unwrap).
+func Unmarshal(b []byte) (*Message, error) { return unwrap(b, nil) }
+
+func decode(b []byte) (*Message, error) {
 	var m Message
 	if err := cbor.Unmarshal(b, &m); err != nil {
 		return nil, err

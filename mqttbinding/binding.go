@@ -4,8 +4,8 @@
 // clients on {PREFIX}/lwm2m/rd/{ENDPOINT} (T §8.2, §8.3).
 //
 // The Bootstrap interface ("bs" topics) is not served: this module has no
-// Bootstrap-Server yet. COSE end-to-end protection (T §8.6) is not
-// supported; unprotected Outer_Wrappers are accepted.
+// Bootstrap-Server yet. COSE end-to-end protection (T §8.6, §8.8) is
+// per endpoint: see Config.COSE.
 package mqttbinding
 
 import (
@@ -38,6 +38,17 @@ type Config struct {
 	Username string
 	Password string
 	TLS      *tls.Config // for mqtts
+
+	// Session, when set, supplies the MQTT CONNECT parameters as a /24
+	// MQTT Server instance would (Core E.11) and overrides ClientID,
+	// Username and Password.
+	Session *MQTTServerParams
+
+	// COSE returns the /23 key of an endpoint whose /0 instance for this
+	// Server links a COSE instance, or nil. Such an endpoint MUST use COSE
+	// (T §8.8): its messages are sealed and opened with the key, and an
+	// unprotected request is refused.
+	COSE func(ep string) *COSEKey
 }
 
 // qos is used for every publish and subscription. T §8 sets none;
@@ -79,6 +90,11 @@ func New(srv *server.Server, cfg Config) (*Binding, error) {
 		SetUsername(cfg.Username).SetPassword(cfg.Password).SetTLSConfig(cfg.TLS).
 		SetOrderMatters(false). // handlers may block on downlink exchanges
 		SetAutoReconnect(true).SetConnectRetry(false)
+	if cfg.Session != nil {
+		if err := cfg.Session.apply(o); err != nil {
+			return nil, err
+		}
+	}
 	o.SetOnConnectHandler(func(c mqtt.Client) {
 		c.Subscribe(b.rdBase+"#", qos, b.onMessage) // T §8.3
 	})
@@ -109,11 +125,42 @@ func (b *Binding) Close() { b.cli.Disconnect(250) }
 func (b *Binding) Topic(ep string) string { return b.rdBase + ep }
 
 func (b *Binding) publish(ep string, m *Message) error {
-	data, err := Marshal(m)
+	var data []byte
+	var err error
+	if k := b.key(ep); k != nil {
+		data, err = seal(k, m)
+	} else {
+		data, err = Marshal(m)
+	}
 	if err != nil {
 		return err
 	}
 	return wait(b.cli.Publish(b.Topic(ep), qos, false, data))
+}
+
+func (b *Binding) key(ep string) *COSEKey {
+	if b.cfg.COSE == nil {
+		return nil
+	}
+	return b.cfg.COSE(ep)
+}
+
+// refuse answers an unprotected request from an endpoint that must use
+// COSE, in clear since the client did not protect it. Register gets 403
+// (registration not allowed, T Tbl 8.5-2); the other uplink operations
+// have no "forbidden" result, so 400. Responses and Notifies carry no
+// request to answer and are dropped.
+func (b *Binding) refuse(ep string, m *Message) {
+	if m.Operation == nil || *m.Operation == OpNotify || (*m.Operation >= OpRead && *m.Operation <= OpCancelObserve) {
+		return
+	}
+	r := uint64(400)
+	if *m.Operation == OpRegister {
+		r = 403
+	}
+	if data, err := Marshal(&Message{Token: m.Token, Result: u64(r)}); err == nil {
+		_ = wait(b.cli.Publish(b.Topic(ep), qos, false, data))
+	}
 }
 
 func (b *Binding) peer(ep string) *peer {
@@ -136,9 +183,13 @@ func (b *Binding) onMessage(_ mqtt.Client, pm mqtt.Message) {
 	if !ok || ep == "" {
 		return
 	}
-	m, err := Unmarshal(pm.Payload())
+	m, err := unwrap(pm.Payload(), b.key(ep))
+	if errors.Is(err, errUnprotected) {
+		b.refuse(ep, m)
+		return
+	}
 	if err != nil {
-		return // no token to answer with
+		return // no (authentic) token to answer with
 	}
 	if m.Result != nil {
 		b.mu.Lock()

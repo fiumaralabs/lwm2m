@@ -519,6 +519,9 @@ func (c *Client) handle(w mux.ResponseWriter, m *mux.Message) {
 }
 
 func respond(w mux.ResponseWriter, code codes.Code, cf *lwm2m.ContentFormat, body []byte, opts ...message.Option) {
+	if code == codes.Empty {
+		return // leave the response unset: go-coap sends a bare empty ACK
+	}
 	var rd io.ReadSeeker
 	if body != nil {
 		rd = bytes.NewReader(body)

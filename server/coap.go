@@ -3,10 +3,12 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -27,6 +29,8 @@ type coapConn interface {
 	NetConn() net.Conn
 	Context() context.Context
 }
+
+var errEmptyResponse = errors.New("server: client answered with an empty message")
 
 // coapPeer is the Peer of one CoAP session (binding U, or T for TCP).
 type coapPeer struct {
@@ -50,6 +54,11 @@ func (p *coapPeer) Exchange(ctx context.Context, req *Message) (*Message, error)
 		return nil, err
 	}
 	defer p.cc.ReleaseMessage(res)
+	if res.Code() == codes.Empty {
+		// An empty message carries no response; one with our token is
+		// malformed (RFC 7252 §4.1).
+		return nil, errEmptyResponse
+	}
 	return fromPool(res)
 }
 
@@ -121,6 +130,7 @@ type coapBinding struct {
 	peers  sync.Map // coapConn -> *coapPeer
 	mu     sync.Mutex
 	afters map[coapConn][]func()
+	oscore atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore_server.go)
 }
 
 func (b *coapBinding) peer(cc coapConn, binding string) *coapPeer {
@@ -160,6 +170,9 @@ func (s *Server) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
 	cc, ok := w.Conn().(coapConn)
 	if !ok {
 		return
+	}
+	if o := s.coap.oscore.Load(); o != nil && o.intercept(w, m, cc) {
+		return // OSCORE layer (T §5.4) handled it
 	}
 	msg, err := fromPool(m.Message)
 	if err != nil {

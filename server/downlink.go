@@ -82,11 +82,13 @@ func (s *Server) exchange(ctx context.Context, reg *Registration, rq request) (*
 	if err := validateTarget(rq); err != nil {
 		return nil, err
 	}
-	ctx, cancel := s.ctx(ctx)
-	defer cancel()
+	// Waiting for a sleeping client is bounded by the caller's ctx (QM-02);
+	// each transmission by RequestTimeout (RFC 7252 §4.8.2).
 	var resp *Response
 	err := s.queues.run(ctx, reg, func(cur *Registration) error {
-		r, err := s.transmit(ctx, cur, rq)
+		tctx, cancel := context.WithTimeout(ctx, s.cfg.RequestTimeout)
+		defer cancel()
+		r, err := s.transmit(tctx, cur, rq)
 		resp = r
 		return err
 	})
