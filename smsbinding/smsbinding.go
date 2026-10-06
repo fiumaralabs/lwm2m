@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/internal/coapwire"
+	"github.com/fiumaralabs/lwm2m/oscore"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -89,6 +90,14 @@ type Config struct {
 	// (T §5.3: NoSec only for debugging or for triggering).
 	Security Security
 	Debug    bool
+	// OSCORE, if set, protects LwM2M over SMS for endpoints with an OSCORE
+	// context (/0/x/17), as on UDP (T §5.4.1): with Security nil (SMS
+	// NoSec plus /0/x/17) OSCORE is the channel's only protection and
+	// unprotected requests are dropped unless Debug (T §5.3.1); with
+	// Security set the messages are protected by both, and an unprotected
+	// Register, Update or De-register for an OSCORE endpoint is refused.
+	// Triggers to a registered OSCORE endpoint are protected too.
+	OSCORE *server.OSCORE
 	// Allowed, if set, filters inbound SMS by originating MSISDN; others
 	// are silently ignored.
 	Allowed func(msisdn string) bool
@@ -141,14 +150,17 @@ func (b *Binding) Peer(msisdn string) (*coapwire.Conn, error) {
 		Addr:       addr,
 		AckTimeout: b.cfg.ResponseTimeout,
 		Send:       func(ctx context.Context, p []byte) error { return b.send(ctx, n, p) },
+		OSCORE:     b.cfg.OSCORE,
+		// SMS NoSec plus /0/x/17: the channel is protected with OSCORE (T §5.3.1).
+		RequireOSCORE: b.cfg.OSCORE != nil && b.cfg.Security == nil && !b.cfg.Debug,
 	})
 	b.conns[n] = c
 	return c, nil
 }
 
 func (b *Binding) send(ctx context.Context, msisdn string, coap []byte) error {
-	if b.cfg.Security == nil && !b.cfg.Debug {
-		return errors.New("smsbinding: NoSec SMS is trigger-only (set Debug)")
+	if b.cfg.Security == nil && !b.cfg.Debug && b.cfg.OSCORE == nil {
+		return errors.New("smsbinding: NoSec SMS is trigger-only (set Debug or OSCORE)")
 	}
 	m := SMS{Data: coap}
 	if b.cfg.Security != nil {
@@ -217,7 +229,7 @@ func (b *Binding) Deliver(ctx context.Context, m SMS) error {
 	}
 	data := m.Data
 	if b.cfg.Security == nil {
-		if !b.cfg.Debug {
+		if !b.cfg.Debug && b.cfg.OSCORE == nil {
 			return nil // NoSec: inbound CoAP over SMS is for debugging only (T §5.3)
 		}
 	} else if data, err = b.cfg.Security.Open(m); err != nil {
@@ -342,6 +354,11 @@ func (b *Binding) Trigger(ctx context.Context, msisdn string, instance uint16, b
 	if err != nil {
 		return err
 	}
+	if oc, ok := b.oscoreContext(n); ok {
+		if coap, err = protectCoAP(oc, coap); err != nil {
+			return err
+		}
+	}
 	if b.cfg.Security != nil {
 		m, err := b.cfg.Security.Seal(n, coap)
 		if err != nil {
@@ -357,6 +374,35 @@ func (b *Binding) Trigger(ctx context.Context, msisdn string, instance uint16, b
 	}
 	udh, data := WAPPush(coap)
 	return b.submit(ctx, SMS{MSISDN: n, UDH: udh, Data: data})
+}
+
+// oscoreContext returns the OSCORE context of the endpoint registered with
+// SMS number msisdn.
+// ponytail: linear scan of the registrations per trigger; index by SMS number if fleets are large.
+func (b *Binding) oscoreContext(msisdn string) (*oscore.Context, bool) {
+	if b.cfg.OSCORE == nil {
+		return nil, false
+	}
+	for _, reg := range b.cfg.Server.Store().All() {
+		if n, err := NormalizeMSISDN(reg.SMS); err == nil && n == msisdn {
+			if c, ok := b.cfg.OSCORE.Context(reg.Endpoint); ok {
+				return c, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// protectCoAP protects an encoded CoAP request with c (RFC 8613 §8.1).
+func protectCoAP(c *oscore.Context, b []byte) ([]byte, error) {
+	m, err := coapwire.UnmarshalCoAP(b)
+	if err != nil {
+		return nil, err
+	}
+	if m, _, err = c.ProtectRequest(m); err != nil {
+		return nil, err
+	}
+	return coapwire.MarshalCoAP(m)
 }
 
 // ShouldTrigger reports whether the server may wake reg with an SMS

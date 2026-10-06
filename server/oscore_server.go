@@ -109,31 +109,86 @@ func (o *OSCORE) intercept(w mux.ResponseWriter, m *mux.Message, cc coapConn) bo
 	if err != nil {
 		return true
 	}
+	peerOf := func(e *oscore.Entry) *oscorePeer { return o.peer(cc, e) }
 	if isResponseCode(m.Code()) {
-		o.notification(m, cc, in)
+		o.s.coap.defer_(cc, o.notification(in, peerOf))
 		return true
 	}
-	o.request(w, m, cc, in)
+	out, after := o.serve(in, peerOf)
+	o.s.coap.defer_(cc, after)
+	writeCoAP(w, out)
 	return true
+}
+
+// CoAPWire is a binding that moves whole CoAP messages outside go-coap,
+// e.g. SMS (T §5.3.1: SMS NoSec plus /0/x/17 = SMS protected by OSCORE).
+// Its Peer methods describe the transport session; ExchangeCoAP sends one
+// request, options included, and returns the response as received.
+type CoAPWire interface {
+	Peer
+	ExchangeCoAP(ctx context.Context, req message.Message) (message.Message, error)
+}
+
+// HandleCoAP is the OSCORE layer for a CoAPWire binding, as for UDP: a
+// protected request is verified (Echo freshness on first use, OSC-04),
+// served by the core with a Peer whose downlinks are protected, and reply
+// is the protected response; a protected notification is verified and
+// delivered (reply nil); an unprotected Register, Update or De-register
+// for an OSCORE endpoint gets an unprotected 4.01, and an unprotected
+// notification for an OSCORE observation is dropped. handled false: an
+// unprotected message OSCORE does not concern, for the binding's normal
+// path. The binding sends reply, then calls after (never nil).
+func (o *OSCORE) HandleCoAP(w CoAPWire, in message.Message) (reply *message.Message, after func(), handled bool) {
+	peerOf := func(e *oscore.Entry) *oscorePeer { return o.wirePeer(w, e) }
+	resp := isResponseCode(in.Code)
+	switch {
+	case in.Options.HasOption(oscore.OptionOSCORE):
+	case !o.guard(resp, in.Token, in.Options):
+		return nil, func() {}, false
+	case resp:
+		return nil, func() {}, true
+	default:
+		m := oscore.PlainError(codes.Unauthorized, "")
+		return &m, func() {}, true
+	}
+	if resp {
+		return nil, o.notification(in, peerOf), true
+	}
+	out, after := o.serve(in, peerOf)
+	return &out, after, true
 }
 
 // guardPlain answers 4.01 to an unprotected Register, Update or
 // De-register for an endpoint that has an OSCORE context, and drops
-// unprotected notifications for OSCORE observations: such a client must
-// use OSCORE (OSC-08), so the plain message is not from it (T Tbl 6.7-2).
+// unprotected notifications for OSCORE observations (see guard).
 func (o *OSCORE) guardPlain(w mux.ResponseWriter, m *mux.Message) bool {
-	if isResponseCode(m.Code()) {
-		o.mu.Lock()
-		_, protected := o.obs[string(m.Token())]
-		o.mu.Unlock()
-		return protected // an unprotected notification for an OSCORE observation is dropped
+	resp := isResponseCode(m.Code())
+	if !o.guard(resp, m.Token(), m.Options()) {
+		return false
 	}
-	p, _ := m.Options().Path()
+	if !resp {
+		plainError(w, codes.Unauthorized, "")
+	}
+	return true
+}
+
+// guard reports an unprotected message to refuse: a Register, Update or
+// De-register for an endpoint that has an OSCORE context, or a
+// notification for an OSCORE observation. Such a client must use OSCORE
+// (OSC-08), so the plain message is not from it (T Tbl 6.7-2).
+func (o *OSCORE) guard(resp bool, token []byte, opts message.Options) bool {
+	if resp {
+		o.mu.Lock()
+		_, protected := o.obs[string(token)]
+		o.mu.Unlock()
+		return protected
+	}
+	p, _ := opts.Path()
 	seg := strings.Split(strings.Trim(p, "/"), "/")
 	ep := ""
 	switch {
 	case len(seg) == 1 && seg[0] == "rd":
-		qs, _ := m.Options().Queries()
+		qs, _ := opts.Queries()
 		for _, q := range qs {
 			if v, ok := strings.CutPrefix(q, "ep="); ok {
 				ep = v
@@ -144,11 +199,7 @@ func (o *OSCORE) guardPlain(w mux.ResponseWriter, m *mux.Message) bool {
 			ep = reg.Endpoint
 		}
 	}
-	if ep == "" || !o.bound(ep) {
-		return false
-	}
-	plainError(w, codes.Unauthorized, "")
-	return true
+	return ep != "" && o.bound(ep)
 }
 
 // plainError sends an unprotected OSCORE error (RFC 8613 §8.2).
@@ -166,31 +217,29 @@ func writeCoAP(w mux.ResponseWriter, m message.Message) {
 	w.Message().ResetOptionsTo(m.Options)
 }
 
-// request verifies an OSCORE request (RFC 8613 §8.2) with freshness
+// serve verifies an OSCORE request (RFC 8613 §8.2) with freshness
 // (OSC-04), applies the endpoint binding, runs it through the LwM2M core
-// and protects the response (§8.3).
-func (o *OSCORE) request(w mux.ResponseWriter, m *mux.Message, cc coapConn, in message.Message) {
+// with the peer of its context and returns the protected response (§8.3)
+// and the core's after.
+func (o *OSCORE) serve(in message.Message, peerOf func(*oscore.Entry) *oscorePeer) (message.Message, func()) {
+	nop := func() {}
 	q, reply := o.Verify(in)
 	if q == nil {
-		writeCoAP(w, reply)
-		return
+		return reply, nop
 	}
-	msg, err := poolFromMessage(m.Message, q.Inner)
+	msg, err := MessageFromCoAP(q.Inner)
 	if err != nil {
-		plainError(w, codes.BadRequest, "")
-		return
+		return oscore.PlainError(codes.BadRequest, ""), nop
 	}
-	peer := o.peer(cc, q.Entry)
+	peer := peerOf(q.Entry)
 	if code := o.bind(msg, q.Entry, peer); code != 0 {
-		o.respond(w, q, message.Message{Code: code})
-		return
+		return protect(q, message.Message{Code: code}), nop
 	}
 	resp, after := o.s.HandleUplink(peer, msg)
-	o.s.coap.defer_(cc, after)
 	if resp == nil {
 		resp = status(codes.Changed)
 	}
-	o.respond(w, q, toCoAPMessage(resp))
+	return protect(q, toCoAPMessage(resp)), after
 }
 
 // bind enforces the endpoint ↔ Sender ID binding (OSC-05, SEC-15): a
@@ -221,42 +270,43 @@ func (o *OSCORE) bind(msg *Message, e *oscore.Entry, peer Peer) codes.Code {
 	return 0
 }
 
-func (o *OSCORE) respond(w mux.ResponseWriter, q *oscore.Request, rm message.Message) {
+func protect(q *oscore.Request, rm message.Message) message.Message {
 	prot, err := q.Protect(rm)
 	if err != nil {
-		plainError(w, codes.InternalServerError, "")
-		return
+		return oscore.PlainError(codes.InternalServerError, "")
 	}
-	writeCoAP(w, prot)
+	return prot
 }
 
 // notification verifies a protected notification (RFC 8613 §8.4, §7.4.1)
 // and hands it to the core. A notification that fails verification is
-// dropped; it does not cancel the observation (§8.4.2).
-func (o *OSCORE) notification(m *mux.Message, cc coapConn, in message.Message) {
-	tok := string(m.Token())
+// dropped; it does not cancel the observation (§8.4.2). It returns the
+// core's after.
+func (o *OSCORE) notification(in message.Message, peerOf func(*oscore.Entry) *oscorePeer) func() {
+	nop := func() {}
+	tok := string(in.Token)
 	o.mu.Lock()
 	b := o.obs[tok]
 	o.mu.Unlock()
 	if b == nil {
-		return
+		return nop
 	}
-	if !o.s.KnownObservation(m.Token()) {
+	if !o.s.KnownObservation(in.Token) {
 		o.mu.Lock()
 		delete(o.obs, tok)
 		o.mu.Unlock()
-		return
+		return nop
 	}
 	inner, err := b.e.Context().UnprotectResponse(in, b.x)
 	if err != nil {
-		return
+		return nop
 	}
-	msg, err := poolFromMessage(m.Message, inner)
+	msg, err := MessageFromCoAP(inner)
 	if err != nil {
-		return
+		return nop
 	}
-	_, after := o.s.HandleUplink(o.peer(cc, b.e), msg)
-	o.s.coap.defer_(cc, after)
+	_, after := o.s.HandleUplink(peerOf(b.e), msg)
+	return after
 }
 
 // bindObservation keeps the request binding of an Observe registration
@@ -274,8 +324,8 @@ func (o *OSCORE) bindObservation(tok []byte, e *oscore.Entry, x *oscore.Exchange
 }
 
 type oscorePeerKey struct {
-	cc coapConn
-	e  *oscore.Entry
+	conn any // coapConn or CoAPWire
+	e    *oscore.Entry
 }
 
 func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
@@ -283,7 +333,19 @@ func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
 	if p, ok := o.peers.Load(k); ok {
 		return p.(*oscorePeer)
 	}
-	p, loaded := o.peers.LoadOrStore(k, &oscorePeer{base: o.s.peerOf(cc), cc: cc, o: o, e: e})
+	do := func(ctx context.Context, prot message.Message) (message.Message, error) {
+		pm := cc.AcquireMessage(ctx)
+		defer cc.ReleaseMessage(pm)
+		prot.MessageID, prot.Type = -1, message.Confirmable
+		pm.SetMessage(prot)
+		res, err := cc.Do(pm)
+		if err != nil {
+			return message.Message{}, err
+		}
+		defer cc.ReleaseMessage(res)
+		return poolToMessage(res)
+	}
+	p, loaded := o.peers.LoadOrStore(k, &oscorePeer{base: o.s.peerOf(cc), do: do, o: o, e: e})
 	if !loaded {
 		go func() {
 			<-cc.Context().Done()
@@ -293,11 +355,18 @@ func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
 	return p.(*oscorePeer)
 }
 
-// oscorePeer is a CoAP session whose LwM2M traffic is OSCORE-protected
-// with one security context.
+// wirePeer is peer for a CoAPWire.
+// ponytail: wire peers live as long as the server; a replaced context leaves its old peer behind (one per Put).
+func (o *OSCORE) wirePeer(w CoAPWire, e *oscore.Entry) *oscorePeer {
+	p, _ := o.peers.LoadOrStore(oscorePeerKey{w, e}, &oscorePeer{base: w, do: w.ExchangeCoAP, o: o, e: e})
+	return p.(*oscorePeer)
+}
+
+// oscorePeer is a session whose LwM2M traffic is OSCORE-protected with
+// one security context.
 type oscorePeer struct {
 	base Peer
-	cc   coapConn
+	do   func(ctx context.Context, prot message.Message) (message.Message, error) // one protected exchange
 	o    *OSCORE
 	e    *oscore.Entry
 }
@@ -325,16 +394,7 @@ func (p *oscorePeer) Exchange(ctx context.Context, req *Message) (*Message, erro
 		if x.Observe() {
 			p.o.bindObservation(prot.Token, p.e, x)
 		}
-		pm := p.cc.AcquireMessage(ctx)
-		defer p.cc.ReleaseMessage(pm)
-		prot.MessageID, prot.Type = -1, message.Confirmable
-		pm.SetMessage(prot)
-		res, err := p.cc.Do(pm)
-		if err != nil {
-			return message.Message{}, err
-		}
-		defer p.cc.ReleaseMessage(res)
-		return poolToMessage(res)
+		return p.do(ctx, prot)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("server: OSCORE: %w", err)

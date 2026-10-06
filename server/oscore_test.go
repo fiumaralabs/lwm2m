@@ -64,7 +64,7 @@ func oscoreCode(t *testing.T, r *testclient.OSCOREResponse, err error, want stri
 	}
 }
 
-// Proves: OSC-01, OSC-04, OSC-06, REG-06
+// Proves: OSC-01, OSC-04, OSC-06, OSC-08, REG-06
 // OSCORE protects client↔Server traffic over plain UDP (Security Mode 3
 // plus OSCORE = OSCORE only). The first Register on a new context is
 // refused with a protected 4.01 carrying only Echo (Tbl 6.7-2, RFC 8613
@@ -313,9 +313,10 @@ func TestOSCOREObserve(t *testing.T) {
 	}
 }
 
-// OSC-08 (DTLS + OSCORE clause only; the SMS clause is unimplemented, see spec/coverage-pending.txt)
+// Proves: OSC-08
 // OSCORE over DTLS (Security Mode 0 plus OSCORE = both): the registration
-// carries the DTLS identity and still needs OSCORE.
+// carries the DTLS identity and still needs OSCORE. (OSCORE only over UDP:
+// TestOSCORERegisterEchoAndDM; over SMS: smsbinding TestOSCOREOverSMS*.)
 func TestOSCOREOverDTLS(t *testing.T) {
 	h := newHarness(t)
 	o := h.srv.EnableOSCORE()
