@@ -38,6 +38,9 @@ type Config struct {
 	// RequestTimeout bounds one downlink exchange including retransmissions:
 	// EXCHANGE_LIFETIME is 247 s, MAX_TRANSMIT_WAIT 93 s (RFC 7252 §4.8.2).
 	RequestTimeout time.Duration
+	// ShortServerID is this server's SSID on its clients (/1/x/0), used to
+	// find its Server object instance. 0 means "the only instance".
+	ShortServerID uint16
 	// Authorize, if set, decides whether an authenticated endpoint may
 	// register; false answers 4.03 (REG-06).
 	Authorize func(ep string, id Identity) bool

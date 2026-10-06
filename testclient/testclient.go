@@ -75,20 +75,23 @@ type Client struct {
 	cfg  Config
 	conn *client.Conn
 
-	mu        sync.Mutex
-	objects   map[uint16]bool            // registered objects
-	instances map[lwm2m.Path]bool        // /o/i
-	values    map[lwm2m.Path]lwm2m.Value // /o/i/r or /o/i/r/ri
-	multiple  map[lwm2m.Path]bool        // multi-instance resources
-	attrs     map[lwm2m.Path][]string    // Write-Attributes queries
-	observers map[string]*observer       // by token
-	requests  []Request
-	executed  []Request
-	override  Override
-	location  string
-	seq       uint32
-	notifyMu  sync.Mutex        // one notification in flight at a time
-	resetCh   chan message.Type // Reset for the notification in flight
+	mu              sync.Mutex
+	objects         map[uint16]bool            // registered objects
+	instances       map[lwm2m.Path]bool        // /o/i
+	values          map[lwm2m.Path]lwm2m.Value // /o/i/r or /o/i/r/ri
+	multiple        map[lwm2m.Path]bool        // multi-instance resources
+	attrs           map[lwm2m.Path][]string    // Write-Attributes queries
+	observers       map[string]*observer       // by token
+	requests        []Request
+	executed        []Request
+	override        Override
+	location        string
+	seq             uint32
+	offline         bool
+	bindingOverride string
+	bootstrapHook   ExecHook
+	notifyMu        sync.Mutex        // one notification in flight at a time
+	resetCh         chan message.Type // Reset for the notification in flight
 }
 
 type observer struct {
@@ -96,6 +99,8 @@ type observer struct {
 	paths     []lwm2m.Path
 	composite bool
 	accept    *lwm2m.ContentFormat
+	query     []string  // 1.2 attributes in the Observe request
+	st        *obsState // attribute state (behaviour.go)
 }
 
 // New returns a client with an empty store. Add objects with Set or
@@ -544,7 +549,7 @@ func (c *Client) serve(r Request) (codes.Code, *lwm2m.ContentFormat, []byte, []m
 	case codes.PUT:
 		if r.Body == nil && len(r.Queries) > 0 {
 			c.mu.Lock()
-			c.attrs[p] = r.Queries
+			c.applyAttrs(p, r.Queries)
 			c.mu.Unlock()
 			return codes.Changed, nil, nil, nil
 		}
@@ -557,6 +562,7 @@ func (c *Client) serve(r Request) (codes.Code, *lwm2m.ContentFormat, []byte, []m
 			c.mu.Lock()
 			c.executed = append(c.executed, r)
 			c.mu.Unlock()
+			go c.onExecute(p, r)
 			return codes.Changed, nil, nil, nil
 		}
 		return c.write(p, r, false)
@@ -832,19 +838,23 @@ func encodeUint(v uint32) []byte {
 func (c *Client) observe(r Request, p lwm2m.Path) (codes.Code, *lwm2m.ContentFormat, []byte, []message.Option) {
 	if *r.Observe == 1 {
 		c.mu.Lock()
+		old := c.observers[string(r.Token)]
 		delete(c.observers, string(r.Token))
 		c.mu.Unlock()
+		c.stopObservation(old)
 		return c.read(p, r.Accept)
 	}
 	code, cf, body, opts := c.read(p, r.Accept)
 	if code != codes.Content {
 		return code, cf, body, opts
 	}
+	o := &observer{token: r.Token, paths: []lwm2m.Path{p}, accept: r.Accept, query: r.Queries}
 	c.mu.Lock()
-	c.observers[string(r.Token)] = &observer{token: r.Token, paths: []lwm2m.Path{p}, accept: r.Accept}
+	c.observers[string(r.Token)] = o
 	c.seq++
 	seq := c.seq
 	c.mu.Unlock()
+	c.startObservation(o)
 	return code, cf, body, append(opts, observeOpt(seq))
 }
 
@@ -869,7 +879,7 @@ func (c *Client) notify(p lwm2m.Path) {
 	}
 	c.mu.Unlock()
 	for _, o := range targets {
-		_, _ = c.Notify(context.Background(), o.token)
+		c.evaluate(o)
 	}
 }
 
