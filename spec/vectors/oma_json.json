@@ -1,0 +1,1723 @@
+[
+  {
+    "id": "json-zephyr-put-s8-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:165",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"0\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int8_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s8-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:166",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"0\",\"v\":127}]}",
+    "expected": [
+      {
+        "path": "/65535/0/0",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int8_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s8-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:167",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"0\",\"v\":-128}]}",
+    "expected": [
+      {
+        "path": "/65535/0/0",
+        "type": "integer",
+        "value": -128
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int8_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s16-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:207",
+    "direction": "encode",
+    "path": "/65535/0/1",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"1\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/1",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int16_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s16-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:208",
+    "direction": "encode",
+    "path": "/65535/0/1",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"1\",\"v\":32767}]}",
+    "expected": [
+      {
+        "path": "/65535/0/1",
+        "type": "integer",
+        "value": 32767
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int16_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s16-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:209",
+    "direction": "encode",
+    "path": "/65535/0/1",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"1\",\"v\":-32768}]}",
+    "expected": [
+      {
+        "path": "/65535/0/1",
+        "type": "integer",
+        "value": -32768
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int16_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s32-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:249",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"2\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int32_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:250",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"2\",\"v\":2147483647}]}",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int32_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:251",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"2\",\"v\":-2147483648}]}",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int32_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s64-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:291",
+    "direction": "encode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int64_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:292",
+    "direction": "encode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":9223372036854775807}]}",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int64_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:293",
+    "direction": "encode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":-9223372036854775808}]}",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single int64_t resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-string-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:330",
+    "direction": "encode",
+    "path": "/65535/0/4",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"4\",\"sv\":\"test_string\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single char[16] resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:363",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":0.0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 0.0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:364",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":0.123}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:365",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":-0.987}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:366",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":3.0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:367",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":-10.0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:368",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":2.333}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:369",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":-123.125}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single double resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-bool-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:409",
+    "direction": "encode",
+    "path": "/65535/0/6",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"6\",\"bv\":true}]}",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single bool resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:410",
+    "direction": "encode",
+    "path": "/65535/0/6",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"6\",\"bv\":false}]}",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single bool resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-objlnk-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:452",
+    "direction": "encode",
+    "path": "/65535/0/7",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"7\",\"ov\":\"0:0\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single struct lwm2m_objlnk resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:453",
+    "direction": "encode",
+    "path": "/65535/0/7",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"7\",\"ov\":\"1:1\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "1:1"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single struct lwm2m_objlnk resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-put-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:454",
+    "direction": "encode",
+    "path": "/65535/0/7",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"7\",\"ov\":\"65535:65535\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Read of a single struct lwm2m_objlnk resource; byte-exact (zassert_mem_equal)."
+  },
+  {
+    "id": "json-zephyr-get-s32-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:492",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"2\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:493",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"2\",\"v\":2147483647}]}",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:494",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"2\",\"v\":-2147483648}]}",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-s64-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:524",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:525",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":9223372036854775807}]}",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:526",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":-9223372036854775808}]}",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-string-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:566",
+    "direction": "decode",
+    "path": "/65535/0/4",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"4\",\"sv\":\"test_string\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-float-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:627",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":0.0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 0.0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:628",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":0.123}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:629",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":-0.987}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:630",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":3.0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:631",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":-10.0}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:632",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":2.333}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:633",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"5\",\"v\":-123.125}]}",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource. Float compared with epsilon 1e-9."
+  },
+  {
+    "id": "json-zephyr-get-bool-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:667",
+    "direction": "decode",
+    "path": "/65535/0/6",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"6\",\"bv\":true}]}",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:668",
+    "direction": "decode",
+    "path": "/65535/0/6",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"6\",\"bv\":false}]}",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-objlnk-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:698",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"7\",\"ov\":\"0:0\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:699",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"7\",\"ov\":\"1:1\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "1:1"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:700",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"7\",\"ov\":\"65535:65535\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Write (do_write_op_json) to a single resource."
+  },
+  {
+    "id": "json-zephyr-get-string-utf8",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:590",
+    "direction": "decode",
+    "path": "/65535/0/4",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"4\",\"sv\":\"👨‍👩🤡\"}]}",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "👨‍👩🤡"
+      }
+    ],
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. UTF-8 string (emoji with ZWJ) written to a 16-byte buffer."
+  },
+  {
+    "id": "json-zephyr-get-s64-overflow-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:529",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":9223372036854775808}]}",
+    "expected": "error",
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Integer outside int64 range must be rejected (-EINVAL)."
+  },
+  {
+    "id": "json-zephyr-get-s64-overflow-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:530",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/65535/0/\",\"e\":[{\"n\":\"3\",\"v\":-9223372036854775809}]}",
+    "expected": "error",
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Integer outside int64 range must be rejected (-EINVAL)."
+  },
+  {
+    "id": "json-zephyr-get-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_json/src/main.c:552",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 11543,
+    "text": "",
+    "expected": "error",
+    "notes": "Zephyr lwm2m_rw_json (OMA JSON). The test calls do_read_op_json(msg, COAP_CONTENT_FORMAT_APP_JSON=50), but that number is only echoed in the Content-Format option; the engine routes 11543 (and old 1543) to this codec. Empty payload -> -EINVAL. Same for s32/string/float/bool/objlnk (_nodata tests at lines 509, 610, 652, 683, 718)."
+  },
+  {
+    "id": "json-leshan-dec-device-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:569",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/3/0/\",\"e\":[{\"n\":\"0\",\"sv\":\"Open Mobile Alliance\"},{\"n\":\"1\",\"sv\":\"Lightweight M2M Client\"},{\"n\":\"2\",\"sv\":\"345000123\"},{\"n\":\"3\",\"sv\":\"1.0\"},{\"n\":\"6/0\",\"v\":1},{\"n\":\"6/1\",\"v\":5},{\"n\":\"7/0\",\"v\":3800},{\"n\":\"7/1\",\"v\":5000},{\"n\":\"8/0\",\"v\":125},{\"n\":\"8/1\",\"v\":900},{\"n\":\"9\",\"v\":100},{\"n\":\"10\",\"v\":15},{\"n\":\"11/0\",\"v\":0},{\"n\":\"13\",\"v\":1367491215},{\"n\":\"14\",\"sv\":\"+02:00\"},{\"n\":\"16\",\"sv\":\"U\"}]}",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models."
+  },
+  {
+    "id": "json-leshan-dec-device-instance-root-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:598",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/\",\"e\":[{\"n\":\"3/0/0\",\"sv\":\"Open Mobile Alliance\"},{\"n\":\"3/0/1\",\"sv\":\"Lightweight M2M Client\"},{\"n\":\"3/0/2\",\"sv\":\"345000123\"},{\"n\":\"3/0/3\",\"sv\":\"1.0\"},{\"n\":\"3/0/6/0\",\"v\":1},{\"n\":\"3/0/6/1\",\"v\":5},{\"n\":\"3/0/7/0\",\"v\":3800},{\"n\":\"3/0/7/1\",\"v\":5000},{\"n\":\"3/0/8/0\",\"v\":125},{\"n\":\"3/0/8/1\",\"v\":900},{\"n\":\"3/0/9\",\"v\":100},{\"n\":\"3/0/10\",\"v\":15},{\"n\":\"3/0/11/0\",\"v\":0},{\"n\":\"3/0/13\",\"v\":1367491215},{\"n\":\"3/0/14\",\"sv\":\"+02:00\"},{\"n\":\"3/0/16\",\"sv\":\"U\"}]}",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. bn is \"/\", names carry the full relative path."
+  },
+  {
+    "id": "json-leshan-dec-device-instance-no-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:627",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11543,
+    "text": "{\"e\":[{\"n\":\"/3/0/0\",\"sv\":\"Open Mobile Alliance\"},{\"n\":\"/3/0/1\",\"sv\":\"Lightweight M2M Client\"},{\"n\":\"/3/0/2\",\"sv\":\"345000123\"},{\"n\":\"/3/0/3\",\"sv\":\"1.0\"},{\"n\":\"/3/0/6/0\",\"v\":1},{\"n\":\"/3/0/6/1\",\"v\":5},{\"n\":\"/3/0/7/0\",\"v\":3800},{\"n\":\"/3/0/7/1\",\"v\":5000},{\"n\":\"/3/0/8/0\",\"v\":125},{\"n\":\"/3/0/8/1\",\"v\":900},{\"n\":\"/3/0/9\",\"v\":100},{\"n\":\"/3/0/10\",\"v\":15},{\"n\":\"/3/0/11/0\",\"v\":0},{\"n\":\"/3/0/13\",\"v\":1367491215},{\"n\":\"/3/0/14\",\"sv\":\"+02:00\"},{\"n\":\"/3/0/16\",\"sv\":\"U\"}]}",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. No bn, names are absolute paths."
+  },
+  {
+    "id": "json-leshan-dec-custom-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:655",
+    "direction": "decode",
+    "path": "/1024/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"1024/0/\", \"e\":[{\"n\":\"0\",\"sv\":\"a string\"},{\"n\":\"1\",\"v\":10.5},{\"n\":\"2\",\"bv\":true}]}",
+    "expected": [
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string"
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 10.5
+      },
+      {
+        "path": "/1024/0/2",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. Object 1024 is not in the model: types inferred from the JSON keys. bn has no leading slash; space after comma."
+  },
+  {
+    "id": "json-leshan-dec-timestamped-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:673",
+    "direction": "decode",
+    "path": "/1024/0/1",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/0/1\",\"e\":[{\"v\":22.9,\"t\":-30},{\"v\":22.4,\"t\":-5},{\"v\":24.1,\"t\":-50}],\"bt\":25462634}",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 25462629
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 25462604
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 25462584
+      }
+    ],
+    "notes": "decodeTimestampedData. Leshan returns timestamped nodes newest first; time = bt + t. Object 1024 is not in the model: Leshan's OMA JSON decoder turns every unknown \"v\" into float (23 -> 23.0d). Entries without n use bn as the full path; bt after e."
+  },
+  {
+    "id": "json-leshan-dec-timestamped-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:695",
+    "direction": "decode",
+    "path": "/1024/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/0/\",\"e\":[{\"n\":\"1\",\"v\":22.9,\"t\":-30},{\"n\":\"1\",\"v\":22.4,\"t\":-5},{\"n\":\"0\",\"sv\":\"a string\",\"t\":-5},{\"n\":\"1\",\"v\":24.1,\"t\":-50}],\"bt\":25462634}",
+    "expected": [
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string",
+        "time": 25462629
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 25462629
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 25462604
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 25462584
+      }
+    ],
+    "notes": "decodeTimestampedData. Leshan returns timestamped nodes newest first; time = bt + t. Object 1024 is not in the model: Leshan's OMA JSON decoder turns every unknown \"v\" into float (23 -> 23.0d)."
+  },
+  {
+    "id": "json-leshan-dec-timestamped-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:722",
+    "direction": "decode",
+    "path": "/1024",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/\",\"e\":[{\"n\":\"0/1\",\"v\":22.9,\"t\":-30},{\"n\":\"0/1\",\"v\":22.4,\"t\":-5},{\"n\":\"0/0\",\"sv\":\"a string\",\"t\":-5},{\"n\":\"1/1\",\"v\":23,\"t\":-5},{\"n\":\"0/1\",\"v\":24.1,\"t\":-50}],\"bt\":25462634}",
+    "expected": [
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string",
+        "time": 25462629
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 25462629
+      },
+      {
+        "path": "/1024/1/1",
+        "type": "float",
+        "value": 23.0,
+        "time": 25462629
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 25462604
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 25462584
+      }
+    ],
+    "notes": "decodeTimestampedData. Leshan returns timestamped nodes newest first; time = bt + t. Object 1024 is not in the model: Leshan's OMA JSON decoder turns every unknown \"v\" into float (23 -> 23.0d)."
+  },
+  {
+    "id": "json-leshan-dec-empty-object-braces",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:757",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11543,
+    "text": "{}",
+    "expected": "error",
+    "notes": "Completely empty JSON object (no e) is rejected."
+  },
+  {
+    "id": "json-leshan-dec-empty-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:770",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11543,
+    "text": "{\"e\":[]}",
+    "expected": [],
+    "notes": "Empty object /2 with no instances (flattens to no nodes)."
+  },
+  {
+    "id": "json-leshan-dec-empty-object-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:779",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11543,
+    "text": "{\"bn\":\"2\", \"e\":[]}",
+    "expected": [],
+    "notes": "Empty object /2 with no instances; bn without slashes."
+  },
+  {
+    "id": "json-leshan-dec-empty-instance-braces",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:792",
+    "direction": "decode",
+    "path": "/2/0",
+    "content_format": 11543,
+    "text": "{}",
+    "expected": "error",
+    "notes": "Completely empty JSON object (no e) is rejected."
+  },
+  {
+    "id": "json-leshan-dec-empty-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:805",
+    "direction": "decode",
+    "path": "/2/0",
+    "content_format": 11543,
+    "text": "{\"e\":[]}",
+    "expected": [
+      {
+        "path": "/2/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "Empty instance."
+  },
+  {
+    "id": "json-leshan-dec-empty-instance-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:814",
+    "direction": "decode",
+    "path": "/2/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"2/0\", \"e\":[]}",
+    "expected": [
+      {
+        "path": "/2/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "Empty instance; bn without trailing slash."
+  },
+  {
+    "id": "json-leshan-dec-empty-single-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:825",
+    "direction": "decode",
+    "path": "/2/0/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"2/0/0\", \"e\":[]}",
+    "expected": "error",
+    "notes": "A single resource cannot be empty."
+  },
+  {
+    "id": "json-leshan-dec-empty-multi-resource-braces",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:837",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11543,
+    "text": "{}",
+    "expected": "error",
+    "notes": "Completely empty JSON object (no e) is rejected."
+  },
+  {
+    "id": "json-leshan-dec-empty-multi-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:850",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11543,
+    "text": "{\"e\":[]}",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty multi-instance resource."
+  },
+  {
+    "id": "json-leshan-dec-empty-multi-resource-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:860",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11543,
+    "text": "{\"bn\":\"3/0/6\", \"e\":[]}",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty multi-instance resource; bn without trailing slash."
+  },
+  {
+    "id": "json-leshan-dec-missing-value",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:873",
+    "direction": "decode",
+    "path": "/2/0/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"2/0/\",\"e\":[{\"n\":\"0\"}]}",
+    "expected": "error",
+    "notes": "Entry without any value field is rejected."
+  },
+  {
+    "id": "json-leshan-dec-duplicate-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:887",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"3/0/\",\"e\":[{\"n\":\"1\",\"sv\":\"client1\"},{\"n\":\"1\",\"sv\":\"client2\"}]}",
+    "expected": "error",
+    "notes": "Two entries for the same resource id are rejected."
+  },
+  {
+    "id": "json-leshan-dec-duplicate-resource-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:900",
+    "direction": "decode",
+    "path": "/3/0/11",
+    "content_format": 11543,
+    "text": "{\"bn\":\"3/0/11/\",\"e\":[{\"n\":\"1\",\"v\":2},{\"n\":\"1\",\"v\":0}]}",
+    "expected": "error",
+    "notes": "Two entries for the same resource instance id are rejected."
+  },
+  {
+    "id": "json-leshan-dec-bn-cut-mid-id",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:913",
+    "direction": "decode",
+    "path": "/3/0/11",
+    "content_format": 11543,
+    "text": "{\"bn\":\"3/0/1\",\"e\":[{\"n\":\"1/0\",\"v\":0},{\"n\":\"1/1\",\"v\":0}]}",
+    "expected": [
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/11/1",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "bn + n is plain string concatenation: \"3/0/1\" + \"1/0\" = 3/0/11/0."
+  },
+  {
+    "id": "json-leshan-enc-device-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:218",
+    "direction": "encode",
+    "path": "/3/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/3/0/\",\"e\":[{\"n\":\"0\",\"sv\":\"Open Mobile Alliance\"},{\"n\":\"1\",\"sv\":\"Lightweight M2M Client\"},{\"n\":\"2\",\"sv\":\"345000123\"},{\"n\":\"3\",\"sv\":\"1.0\"},{\"n\":\"6/0\",\"v\":1},{\"n\":\"6/1\",\"v\":5},{\"n\":\"7/0\",\"v\":3800},{\"n\":\"7/1\",\"v\":5000},{\"n\":\"8/0\",\"v\":125},{\"n\":\"8/1\",\"v\":900},{\"n\":\"9\",\"v\":100},{\"n\":\"10\",\"v\":15},{\"n\":\"11/0\",\"v\":0},{\"n\":\"13\",\"v\":1367491215},{\"n\":\"14\",\"sv\":\"+02:00\"},{\"n\":\"16\",\"sv\":\"U\"}]}",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). Same output for every rootPath. Resources sorted by id, time encoded as integer \"v\"."
+  },
+  {
+    "id": "json-leshan-enc-timestamped-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:247",
+    "direction": "encode",
+    "path": "/1024/0/1",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/0/1\",\"e\":[{\"v\":22.9,\"t\":500},{\"v\":22.4,\"t\":510},{\"v\":24.1,\"t\":520}]}",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 500
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 510
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 520
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). Same output for every rootPath. encodeTimestampedData: absolute t per entry, no bt, no n."
+  },
+  {
+    "id": "json-leshan-enc-timestamped-resource-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:267",
+    "direction": "encode",
+    "path": "/1024/0/1/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/0/1/0\",\"e\":[{\"v\":22.9,\"t\":500},{\"v\":22.4,\"t\":510},{\"v\":24.1,\"t\":520}]}",
+    "expected": [
+      {
+        "path": "/1024/0/1/0",
+        "type": "float",
+        "value": 22.9,
+        "time": 500
+      },
+      {
+        "path": "/1024/0/1/0",
+        "type": "float",
+        "value": 22.4,
+        "time": 510
+      },
+      {
+        "path": "/1024/0/1/0",
+        "type": "float",
+        "value": 24.1,
+        "time": 520
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). Same output for every rootPath. encodeTimestampedData of resource instances."
+  },
+  {
+    "id": "json-leshan-enc-timestamped-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:287",
+    "direction": "encode",
+    "path": "/1024/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/0/\",\"e\":[{\"n\":\"1\",\"v\":22.9,\"t\":110},{\"n\":\"0\",\"sv\":\"a string\",\"t\":120},{\"n\":\"1\",\"v\":22.4,\"t\":120},{\"n\":\"1\",\"v\":24.1,\"t\":130}]}",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 110
+      },
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string",
+        "time": 120
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 120
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 130
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). Same output for every rootPath. encodeTimestampedData of instances; resources sorted by id within a timestamp."
+  },
+  {
+    "id": "json-leshan-enc-timestamped-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:314",
+    "direction": "encode",
+    "path": "/1024",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/1024/\",\"e\":[{\"n\":\"0/1\",\"v\":22.9,\"t\":210},{\"n\":\"0/0\",\"sv\":\"a string\",\"t\":220},{\"n\":\"0/1\",\"v\":22.4,\"t\":220},{\"n\":\"1/1\",\"v\":23.0,\"t\":220},{\"n\":\"0/1\",\"v\":24.1,\"t\":230}]}",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 210
+      },
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string",
+        "time": 220
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 220
+      },
+      {
+        "path": "/1024/1/1",
+        "type": "float",
+        "value": 23.0,
+        "time": 220
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 230
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). Same output for every rootPath. The test builds LwM2mObject(1204, ...) but passes path /1024; the encoder uses the path. Float 23 is written as 23.0."
+  },
+  {
+    "id": "json-leshan-raw-device",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/json/JsonDeserializerTest.java:33",
+    "direction": "both",
+    "content_format": 11543,
+    "text": "{\"e\":[{\"n\":\"0\",\"sv\":\"Open Mobile Alliance\"},{\"n\":\"1\",\"sv\":\"Lightweight M2M Client\"},{\"n\":\"2\",\"sv\":\"345000123\"},{\"n\":\"3\",\"sv\":\"1.0\"},{\"n\":\"6/0\",\"v\":1},{\"n\":\"6/1\",\"v\":5},{\"n\":\"7/0\",\"v\":3800},{\"n\":\"7/1\",\"v\":5000},{\"n\":\"8/0\",\"v\":125},{\"n\":\"8/1\",\"v\":900},{\"n\":\"9\",\"v\":100},{\"n\":\"10\",\"v\":15},{\"n\":\"11/0\",\"v\":0},{\"n\":\"13\",\"v\":1367491215},{\"n\":\"14\",\"sv\":\"+02:00\"},{\"n\":\"15\",\"sv\":\"U\"}]}",
+    "expected": {
+      "json": {
+        "e": [
+          {
+            "n": "0",
+            "sv": "Open Mobile Alliance"
+          },
+          {
+            "n": "1",
+            "sv": "Lightweight M2M Client"
+          },
+          {
+            "n": "2",
+            "sv": "345000123"
+          },
+          {
+            "n": "3",
+            "sv": "1.0"
+          },
+          {
+            "n": "6/0",
+            "v": 1
+          },
+          {
+            "n": "6/1",
+            "v": 5
+          },
+          {
+            "n": "7/0",
+            "v": 3800
+          },
+          {
+            "n": "7/1",
+            "v": 5000
+          },
+          {
+            "n": "8/0",
+            "v": 125
+          },
+          {
+            "n": "8/1",
+            "v": 900
+          },
+          {
+            "n": "9",
+            "v": 100
+          },
+          {
+            "n": "10",
+            "v": 15
+          },
+          {
+            "n": "11/0",
+            "v": 0
+          },
+          {
+            "n": "13",
+            "v": 1367491215
+          },
+          {
+            "n": "14",
+            "sv": "+02:00"
+          },
+          {
+            "n": "15",
+            "sv": "U"
+          }
+        ]
+      }
+    },
+    "notes": "JSON-level only (LwM2mJsonJacksonEncoderDecoder): decode then re-encode must give the identical string; no model or request path involved, so expected is the raw root object. No bn."
+  },
+  {
+    "id": "json-leshan-raw-temperature",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/json/JsonDeserializerTest.java:63",
+    "direction": "both",
+    "content_format": 11543,
+    "text": "{\"e\":[{\"n\":\"1/2\",\"v\":22.4,\"t\":-5},{\"n\":\"1/2\",\"v\":22.9,\"t\":-30},{\"n\":\"1/2\",\"v\":24.1,\"t\":-50}],\"bt\":25462634}",
+    "expected": {
+      "json": {
+        "e": [
+          {
+            "n": "1/2",
+            "v": 22.4,
+            "t": -5
+          },
+          {
+            "n": "1/2",
+            "v": 22.9,
+            "t": -30
+          },
+          {
+            "n": "1/2",
+            "v": 24.1,
+            "t": -50
+          }
+        ],
+        "bt": 25462634
+      }
+    },
+    "notes": "JSON-level only (LwM2mJsonJacksonEncoderDecoder): decode then re-encode must give the identical string; no model or request path involved, so expected is the raw root object. Relative t with bt serialized after e."
+  },
+  {
+    "id": "json-leshan-raw-objlnk",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/json/JsonDeserializerTest.java:82",
+    "direction": "both",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/\",\"e\":[{\"n\":\"A/0/0/0\",\"ov\":\"B:0\"},{\"n\":\"A/0/0/1\",\"ov\":\"B:1\"},{\"n\":\"A/0/1\",\"sv\":\"8613800755500\"},{\"n\":\"B/0/0\",\"sv\":\"myService1\"},{\"n\":\"B/0/1\",\"sv\":\"Internet.15.234\"},{\"n\":\"B/0/2\",\"ov\":\"C:0\"},{\"n\":\"B/1/0\",\"sv\":\"myService2\"},{\"n\":\"B/1/1\",\"sv\":\"Internet.15.235\"},{\"n\":\"B/1/2\",\"ov\":\"FFFF:FFFF\"},{\"n\":\"C/0/0\",\"sv\":\"85.76.76.84\"},{\"n\":\"C/0/1\",\"sv\":\"85.76.255.255\"}]}",
+    "expected": {
+      "json": {
+        "bn": "/",
+        "e": [
+          {
+            "n": "A/0/0/0",
+            "ov": "B:0"
+          },
+          {
+            "n": "A/0/0/1",
+            "ov": "B:1"
+          },
+          {
+            "n": "A/0/1",
+            "sv": "8613800755500"
+          },
+          {
+            "n": "B/0/0",
+            "sv": "myService1"
+          },
+          {
+            "n": "B/0/1",
+            "sv": "Internet.15.234"
+          },
+          {
+            "n": "B/0/2",
+            "ov": "C:0"
+          },
+          {
+            "n": "B/1/0",
+            "sv": "myService2"
+          },
+          {
+            "n": "B/1/1",
+            "sv": "Internet.15.235"
+          },
+          {
+            "n": "B/1/2",
+            "ov": "FFFF:FFFF"
+          },
+          {
+            "n": "C/0/0",
+            "sv": "85.76.76.84"
+          },
+          {
+            "n": "C/0/1",
+            "sv": "85.76.255.255"
+          }
+        ]
+      }
+    },
+    "notes": "JSON-level only (LwM2mJsonJacksonEncoderDecoder): decode then re-encode must give the identical string; no model or request path involved, so expected is the raw root object. Spec example with placeholder ids A/B/C and hex objlnk \"FFFF:FFFF\": not valid LwM2M paths/values."
+  }
+]

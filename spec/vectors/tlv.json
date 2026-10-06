@@ -1,0 +1,1770 @@
+[
+  {
+    "id": "tlv-zephyr-put-s8-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:126",
+    "direction": "encode",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa00",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s8), not a model.. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-put-s8-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:126",
+    "direction": "encode",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa7f",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s8), not a model.. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-put-s8-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:126",
+    "direction": "encode",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e1aabb80",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "integer",
+        "value": -128
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s8), not a model.. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-put-s16-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:192",
+    "direction": "encode",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa00",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s16), not a model.. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-put-s16-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:192",
+    "direction": "encode",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c2aa7fff",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 32767
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s16), not a model.. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-put-s16-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:192",
+    "direction": "encode",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e2aabb8000",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "integer",
+        "value": -32768
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s16), not a model.. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:262",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa00",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s32), not a model.; also decoded by get_s32 at main.c:725. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:262",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c4aa7fffffff",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s32), not a model.; also decoded by get_s32 at main.c:725. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-s32-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:262",
+    "direction": "both",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e4aabb80000000",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s32), not a model.; also decoded by get_s32 at main.c:725. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:342",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa00",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s64), not a model.; also decoded by get_s64 at main.c:796. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:342",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa087fffffffffffffff",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s64), not a model.; also decoded by get_s64 at main.c:796. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-s64-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:342",
+    "direction": "both",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e8aabb088000000000000000",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_s64), not a model.; also decoded by get_s64 at main.c:796. Encoder picks the smallest of 1/2/4/8 bytes for the value, regardless of the C type width."
+  },
+  {
+    "id": "tlv-zephyr-putget-string",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:381",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa0b746573745f737472696e67",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_string/get_string), not a model.; decode also at main.c:831."
+  },
+  {
+    "id": "tlv-zephyr-get-string-utf8",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:873",
+    "direction": "decode",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa0cf09f91a8f09f91a9f09fa4a1",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "string",
+        "value": "👨👩🤡"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (get_string), not a model.. 4-byte UTF-8 sequences, 12 bytes."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa080000000000000000",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "float",
+        "value": 0.0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa083fbf7ced916872b0",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa08bfef95810624dd2f",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa084008000000000000",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa08c024000000000000",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa084002a9fbe76c8b44",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-putget-float-7",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:488",
+    "direction": "both",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e8aabb08c05ec80000000000",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_float/get_float), not a model.; decode at main.c:974. Zephyr always writes 8-byte doubles. The test ignores the last byte on encode and compares decode within 1e-9; bytes here equal the exact IEEE-754 double."
+  },
+  {
+    "id": "tlv-zephyr-put-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:556",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa01",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_bool/get_bool), not a model.; decode at main.c:1022."
+  },
+  {
+    "id": "tlv-zephyr-put-bool-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:556",
+    "direction": "encode",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e1aabb00",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_bool), not a model."
+  },
+  {
+    "id": "tlv-zephyr-get-bool-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:1022",
+    "direction": "decode",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c1aa00",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (get_bool), not a model."
+  },
+  {
+    "id": "tlv-zephyr-putget-opaque",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:595",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c8aa0b746573745f6f7061717565",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "opaque",
+        "value": "746573745f6f7061717565"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_opaque/get_opaque), not a model.; decode at main.c:1060."
+  },
+  {
+    "id": "tlv-zephyr-putget-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:658",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c4aa00000000",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_objlnk/get_objlnk), not a model.; decode at main.c:1120."
+  },
+  {
+    "id": "tlv-zephyr-putget-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:658",
+    "direction": "both",
+    "path": "/0/0/170",
+    "content_format": 11542,
+    "bytes_hex": "c4aa00010002",
+    "expected": [
+      {
+        "path": "/0/0/170",
+        "type": "objlnk",
+        "value": "1:2"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_objlnk/get_objlnk), not a model.; decode at main.c:1120."
+  },
+  {
+    "id": "tlv-zephyr-putget-objlnk-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_oma_tlv/src/main.c:658",
+    "direction": "both",
+    "path": "/0/0/43707",
+    "content_format": 11542,
+    "bytes_hex": "e4aabbffffffff",
+    "expected": [
+      {
+        "path": "/0/0/43707",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Zephyr test_path is zeroed (object 0, instance 0); resource id 0xAA or 0xAABB. Type is fixed by the reader/writer call (put_objlnk/get_objlnk), not a model.; decode at main.c:1120."
+  },
+  {
+    "id": "tlv-leshan-device-instance-resources",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:347",
+    "direction": "both",
+    "path": "/3/0",
+    "content_format": 11542,
+    "bytes_hex": "c800144f70656e204d6f62696c6520416c6c69616e6365c801164c69676874776569676874204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c11055",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "LwM2M spec 4.3.1 example: /3/0 as an array of resource TLVs. Decoded at /3/0 (DecoderTest:347); same bytes encoded from /3/0 (EncoderTest:184)."
+  },
+  {
+    "id": "tlv-leshan-device-instance-resources-at-object-path",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:355",
+    "direction": "decode",
+    "path": "/3",
+    "content_format": 11542,
+    "bytes_hex": "c800144f70656e204d6f62696c6520416c6c69616e6365c801164c69676874776569676874204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c11055",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Unwrapped resource TLVs decoded at object path /3 with an object instance requested: instance id defaults to 0."
+  },
+  {
+    "id": "tlv-leshan-device-instance-wrapped-decode",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:364",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11542,
+    "bytes_hex": "080079c800144f70656e204d6f62696c6520416c6c69616e6365c801164c69676874776569676874204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c11055",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "LwM2M spec 4.3.2 A): one object instance TLV wrapping the resources, decoded at /3/0."
+  },
+  {
+    "id": "tlv-leshan-device-instance-wrapped-encode",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:200",
+    "direction": "encode",
+    "path": "/3",
+    "content_format": 11542,
+    "bytes_hex": "080079c800144f70656e204d6f62696c6520416c6c69616e6365c801164c69676874776569676874204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c11055",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Encoding instance 0 (or object /3 with one instance, EncoderTest:208) at object path /3 wraps resources in an object instance TLV. Multi-instance resources are written as 0x86/0x88 multiple-resource TLVs; integers use the smallest of 1/2/4/8 bytes; time 1367491215 uses 4 bytes."
+  },
+  {
+    "id": "tlv-leshan-server-object-1-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:372",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 11542,
+    "bytes_hex": "08000fc10001c40100015180c10601c10755",
+    "expected": [
+      {
+        "path": "/1/0/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/6",
+        "type": "boolean",
+        "value": true
+      },
+      {
+        "path": "/1/0/7",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "LwM2M spec 4.3.2 C): Server object, one object instance TLV."
+  },
+  {
+    "id": "tlv-leshan-acl-object-2-instances",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:379",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11542,
+    "bytes_hex": "08000ec10001c101008302417f07c1037f080212c10003c101008702417f0761013601c1037f",
+    "expected": [
+      {
+        "path": "/2/0/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/0/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/0/2/127",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/0/3",
+        "type": "integer",
+        "value": 127
+      },
+      {
+        "path": "/2/2/0",
+        "type": "integer",
+        "value": 3
+      },
+      {
+        "path": "/2/2/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/2/2/127",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/2/2/310",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/2/3",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "LwM2M spec 4.3.2 B): ACL object, instances 0 and 2; resource instance 310 uses a 16-bit id (0x61)."
+  },
+  {
+    "id": "tlv-leshan-obj65-objlnk-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:410",
+    "direction": "decode",
+    "path": "/65/0",
+    "content_format": 11542,
+    "bytes_hex": "88000c440000420000440100420001c8010d38363133383030373535353030c40212345678",
+    "expected": [
+      {
+        "path": "/65/0/0/0",
+        "type": "objlnk",
+        "value": "66:0"
+      },
+      {
+        "path": "/65/0/0/1",
+        "type": "objlnk",
+        "value": "66:1"
+      },
+      {
+        "path": "/65/0/1",
+        "type": "string",
+        "value": "8613800755500"
+      },
+      {
+        "path": "/65/0/2",
+        "type": "integer",
+        "value": 305419896
+      }
+    ],
+    "notes": "LwM2M spec 4.3.3 1). Test-defined object 65 (DecoderTest:105): 0 multi objlnk, 1 string, 2 integer."
+  },
+  {
+    "id": "tlv-leshan-obj66-objlnk-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:417",
+    "direction": "decode",
+    "path": "/66",
+    "content_format": 11542,
+    "bytes_hex": "080026c8000b6d79536572766963652031c8010f496e7465726e65742e31352e323334c40200430000080126c8000b6d79536572766963652032c8010f496e7465726e65742e31352e323335c402ffffffff",
+    "expected": [
+      {
+        "path": "/66/0/0",
+        "type": "string",
+        "value": "myService 1"
+      },
+      {
+        "path": "/66/0/1",
+        "type": "string",
+        "value": "Internet.15.234"
+      },
+      {
+        "path": "/66/0/2",
+        "type": "objlnk",
+        "value": "67:0"
+      },
+      {
+        "path": "/66/1/0",
+        "type": "string",
+        "value": "myService 2"
+      },
+      {
+        "path": "/66/1/1",
+        "type": "string",
+        "value": "Internet.15.235"
+      },
+      {
+        "path": "/66/1/2",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "LwM2M spec 4.3.3 2). Test-defined object 66 (DecoderTest:113): 0 string, 1 string, 2 objlnk. The test asserts only part of instance 1; the rest follows from the bytes and model."
+  },
+  {
+    "id": "tlv-leshan-obj3442-corelnk",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:562",
+    "direction": "decode",
+    "path": "/3442/0",
+    "content_format": 11542,
+    "bytes_hex": "080072c8b46f3c2f3e3b72743d226f6d612e6c776d326d223b63743d223630203131302031313220313534322031353433203131353432203131353433222c3c2f313e3b7665723d312e312c3c2f312f303e2c3c2f323e2c3c2f333e3b7665723d312e312c3c2f332f303e2c3c2f333434322f303e",
+    "expected": [
+      {
+        "path": "/3442/0/180",
+        "type": "corelnk",
+        "value": "</>;rt=\"oma.lwm2m\";ct=\"60 110 112 1542 1543 11542 11543\",</1>;ver=1.1,</1/0>,</2>,</3>;ver=1.1,</3/0>,</3442/0>"
+      }
+    ],
+    "notes": "Test object 3442 resource 180 is Corelnk; value is UTF-8 link-format. Test parses it into 7 links."
+  },
+  {
+    "id": "tlv-leshan-manufacturer-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:334",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 11542,
+    "bytes_hex": "c8000e4d794d616e756661637475726572",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "MyManufacturer"
+      }
+    ],
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. "
+  },
+  {
+    "id": "tlv-leshan-error-duplicate-instance-id",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:386",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11542,
+    "bytes_hex": "00010001",
+    "expected": "error",
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. Two empty object instance TLVs with the same id 1."
+  },
+  {
+    "id": "tlv-leshan-error-duplicate-resource-id",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:398",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11542,
+    "bytes_hex": "c001c001",
+    "expected": "error",
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. Two empty resource TLVs with the same id 1."
+  },
+  {
+    "id": "tlv-leshan-unknown-object-missing-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:466",
+    "direction": "decode",
+    "path": "/10234",
+    "content_format": 11542,
+    "bytes_hex": "c60176616c756531c60276616c756531",
+    "expected": [
+      {
+        "path": "/10234/0/1",
+        "type": "opaque",
+        "value": "76616c756531"
+      },
+      {
+        "path": "/10234/0/2",
+        "type": "opaque",
+        "value": "76616c756531"
+      }
+    ],
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. Object 10234 has no model: resources decode as opaque, and unwrapped resources at an object path go into instance 0."
+  },
+  {
+    "id": "tlv-leshan-resource-in-instance-tlv",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:479",
+    "direction": "decode",
+    "path": "/3/0/1",
+    "content_format": 11542,
+    "bytes_hex": "080008c601636c69656e74",
+    "expected": [
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "client"
+      }
+    ],
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. Single resource wrapped in an object instance TLV whose id matches the path (0); accepted."
+  },
+  {
+    "id": "tlv-leshan-error-resource-in-wrong-instance-tlv",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:492",
+    "direction": "decode",
+    "path": "/3/0/1",
+    "content_format": 11542,
+    "bytes_hex": "080108c601636c69656e74",
+    "expected": "error",
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. Object instance TLV id 1 does not match path instance 0."
+  },
+  {
+    "id": "tlv-leshan-error-duplicate-resource-instance-id",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:550",
+    "direction": "decode",
+    "path": "/3/0/22",
+    "content_format": 11542,
+    "bytes_hex": "88160c440000640001440000650002",
+    "expected": "error",
+    "notes": "Bytes built in the test with Leshan TlvEncoder from Tlv structs; hex computed with the same rules. Multiple resource 22 with two resource instance TLVs both id 0."
+  },
+  {
+    "id": "tlv-leshan-power-source-resource-instances",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:424",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11542,
+    "bytes_hex": "410001410105",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "Bare resource instance TLVs (no multiple-resource wrapper) at a resource path; Java bytes {65,0,1,65,1,5}."
+  },
+  {
+    "id": "tlv-leshan-power-source-multiple-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:437",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11542,
+    "bytes_hex": "8606410001410105",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "Multiple-resource TLV wrapping the instances; Java bytes {-122,6,...}. Test comment: probably not spec-compliant for a resource read, but servers should accept it."
+  },
+  {
+    "id": "tlv-leshan-empty-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:504",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": [],
+    "notes": "Empty payload at object path: object with no instances."
+  },
+  {
+    "id": "tlv-leshan-empty-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:515",
+    "direction": "decode",
+    "path": "/2/0",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/2/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "Empty payload at instance path."
+  },
+  {
+    "id": "tlv-leshan-error-empty-single-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:527",
+    "direction": "decode",
+    "path": "/2/0/0",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Empty payload at a single-instance resource path is rejected."
+  },
+  {
+    "id": "tlv-leshan-empty-multi-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:537",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty payload at a multi-instance resource path."
+  },
+  {
+    "id": "tlv-leshan-null-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1004",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": [],
+    "notes": "decode_null_object, parameterized over SENML_JSON/SENML_CBOR/TLV; TLV case."
+  },
+  {
+    "id": "tlv-leshan-null-object-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1015",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/3/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "decode_null_object_instance, TLV case."
+  },
+  {
+    "id": "tlv-leshan-null-multi-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1027",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 11542,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/3/0/7",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "decode_null_multi_resource, TLV case."
+  },
+  {
+    "id": "tlv-leshan-raw-device-roundtrip",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvDecoderTest.java:40",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "c800144f70656e204d6f62696c6520416c6c69616e6365c801164c69676874776569676874204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c10f55",
+    "expected": {
+      "tlv": [
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 0,
+          "value_hex": "4f70656e204d6f62696c6520416c6c69616e6365"
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 1,
+          "value_hex": "4c69676874776569676874204d324d20436c69656e74"
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 2,
+          "value_hex": "333435303030313233"
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 3,
+          "value_hex": "312e30"
+        },
+        {
+          "type": "MULTIPLE_RESOURCE",
+          "id": 6,
+          "children": [
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 0,
+              "value_hex": "01"
+            },
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 1,
+              "value_hex": "05"
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_RESOURCE",
+          "id": 7,
+          "children": [
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 0,
+              "value_hex": "0ed8"
+            },
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 1,
+              "value_hex": "1388"
+            }
+          ]
+        },
+        {
+          "type": "MULTIPLE_RESOURCE",
+          "id": 8,
+          "children": [
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 0,
+              "value_hex": "7d"
+            },
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 1,
+              "value_hex": "0384"
+            }
+          ]
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 9,
+          "value_hex": "64"
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 10,
+          "value_hex": "0f"
+        },
+        {
+          "type": "MULTIPLE_RESOURCE",
+          "id": 11,
+          "children": [
+            {
+              "type": "RESOURCE_INSTANCE",
+              "id": 0,
+              "value_hex": "00"
+            }
+          ]
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 13,
+          "value_hex": "5182428f"
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 14,
+          "value_hex": "2b30323a3030"
+        },
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 15,
+          "value_hex": "55"
+        }
+      ]
+    },
+    "notes": "Raw TLV layer (no LwM2M path/model): expected is {\"tlv\": [...]} tree of TLV records. Decode then re-encode must give identical bytes. Note last TLV is id 15 (0x0f), unlike the node-codec device vectors (id 16)."
+  },
+  {
+    "id": "tlv-leshan-raw-error-broken",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvDecoderTest.java:53",
+    "direction": "decode",
+    "content_format": 11542,
+    "bytes_hex": "0011223344556677889900",
+    "expected": "error",
+    "notes": "Raw TLV layer (no LwM2M path/model): expected is {\"tlv\": [...]} tree of TLV records. Malformed nested TLVs; TlvDecoder.decode throws. Same bytes also tested from a direct ByteBuffer (TlvDecoderTest.java:66)."
+  },
+  {
+    "id": "tlv-leshan-raw-error-truncated-value",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvDecoderTest.java:102",
+    "direction": "decode",
+    "content_format": 11542,
+    "bytes_hex": "c800c8",
+    "expected": "error",
+    "notes": "Raw TLV layer (no LwM2M path/model): expected is {\"tlv\": [...]} tree of TLV records. Resource TLV declares 8-bit length 200 but no value bytes follow."
+  },
+  {
+    "id": "tlv-leshan-raw-encode-resource-16bit-id",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:136",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "e101f464",
+    "expected": {
+      "tlv": [
+        {
+          "type": "RESOURCE_VALUE",
+          "id": 500,
+          "value_hex": "64"
+        }
+      ]
+    },
+    "notes": "Raw TLV layer (no LwM2M path/model): expected is {\"tlv\": [...]} tree of TLV records. Test only asserts encode/decode round-trip; hex computed with TlvEncoder rules (id 500 needs 16-bit id, integer 100 is 1 byte)."
+  },
+  {
+    "id": "tlv-leshan-value-integer-1234",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:31",
+    "direction": "encode",
+    "content_format": 11542,
+    "bytes_hex": "04d2",
+    "expected": {
+      "tlv_value": {
+        "type": "integer",
+        "value": 1234
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. 1234 needs 2 bytes."
+  },
+  {
+    "id": "tlv-leshan-value-integer-1245823",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:41",
+    "direction": "encode",
+    "content_format": 11542,
+    "bytes_hex": "0013027f",
+    "expected": {
+      "tlv_value": {
+        "type": "integer",
+        "value": 1245823
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. 1245823 needs 4 bytes (no 3-byte form)."
+  },
+  {
+    "id": "tlv-leshan-value-boolean-true",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:128",
+    "direction": "encode",
+    "content_format": 11542,
+    "bytes_hex": "01",
+    "expected": {
+      "tlv_value": {
+        "type": "boolean",
+        "value": true
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}."
+  },
+  {
+    "id": "tlv-leshan-value-time-1b-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:89",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "7f",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 127
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (1 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-1b-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:90",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "80",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -128
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (1 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-1b-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:91",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "00",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 0
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (1 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-1b-4",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:92",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "64",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 100
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (1 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-1b-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:93",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "9c",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -100
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (1 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-2b-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:98",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "0080",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 128
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (2 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-2b-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:99",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "ff7f",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -129
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (2 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-2b-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:100",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "7fff",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 32767
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (2 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-2b-4",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:101",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "8000",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -32768
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (2 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-2b-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:102",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "7d00",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 32000
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (2 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-2b-6",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:103",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "8300",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -32000
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (2 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-4b-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:108",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "00008000",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 32768
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (4 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-4b-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:109",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "ffff7fff",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -32769
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (4 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-4b-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:110",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "7fffffff",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 2147483647
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (4 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-4b-4",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:111",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "80000000",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -2147483648
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (4 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-4b-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:112",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "7fffff9b",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 2147483547
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (4 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-4b-6",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:113",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "80000064",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -2147483548
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (4 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-8b-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:118",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "0000000080000000",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": 2147483648
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (8 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-8b-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:119",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "ffffffff7fffffff",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": -2147483649
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (8 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-8b-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:120",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "0020c49ba5e353f7",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": "9223372036854775"
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (8 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-8b-4",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:121",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "ffdf3b645a1cac09",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": "-9223372036854775"
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (8 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-8b-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:122",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "0020c49ba5e35393",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": "9223372036854675"
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (8 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-time-8b-6",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvEncoderTest.java:123",
+    "direction": "both",
+    "content_format": 11542,
+    "bytes_hex": "ffdf3b645a1cac6d",
+    "expected": {
+      "tlv_value": {
+        "type": "time",
+        "value": "-9223372036854675"
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Time encodes as the smallest of 1/2/4/8-byte signed integers (8 here); decodeDate round-trips it."
+  },
+  {
+    "id": "tlv-leshan-value-objlnk-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvDecoderTest.java:82",
+    "direction": "decode",
+    "content_format": 11542,
+    "bytes_hex": "12345678",
+    "expected": {
+      "tlv_value": {
+        "type": "objlnk",
+        "value": "4660:22136"
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}."
+  },
+  {
+    "id": "tlv-leshan-value-objlnk-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvDecoderTest.java:88",
+    "direction": "decode",
+    "content_format": 11542,
+    "bytes_hex": "ffffffff",
+    "expected": {
+      "tlv_value": {
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    },
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Ids are unsigned 16-bit."
+  },
+  {
+    "id": "tlv-leshan-value-error-objlnk-3-bytes",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/tlv/TlvDecoderTest.java:96",
+    "direction": "decode",
+    "content_format": 11542,
+    "bytes_hex": "010203",
+    "expected": "error",
+    "notes": "Value-only encoding (no TLV header): bytes_hex is just the TLV value field, expected is {\"tlv_value\": node-type/value}. Decoding these bytes as an objlnk value must fail: 4 bytes required."
+  }
+]

@@ -1,0 +1,1125 @@
+[
+  {
+    "id": "senml-cbor-zephyr-put-s8-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:188",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061300200",
+    "expected": [
+      {
+        "path": "/65535/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s8-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:203",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613002187f",
+    "expected": [
+      {
+        "path": "/65535/0/0",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s8-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:219",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613002387f",
+    "expected": [
+      {
+        "path": "/65535/0/0",
+        "type": "integer",
+        "value": -128
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s16-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:276",
+    "direction": "encode",
+    "path": "/65535/0/1",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061310200",
+    "expected": [
+      {
+        "path": "/65535/0/1",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s16-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:291",
+    "direction": "encode",
+    "path": "/65535/0/1",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613102197fff",
+    "expected": [
+      {
+        "path": "/65535/0/1",
+        "type": "integer",
+        "value": 32767
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s16-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:307",
+    "direction": "encode",
+    "path": "/65535/0/1",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613102397fff",
+    "expected": [
+      {
+        "path": "/65535/0/1",
+        "type": "integer",
+        "value": -32768
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:364",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061320200",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:379",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006132021a7fffffff",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s32-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:395",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006132023a7fffffff",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:452",
+    "direction": "encode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061330201",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:467",
+    "direction": "encode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006133023b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-s64-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:483",
+    "direction": "encode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006133021b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-string-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:535",
+    "direction": "encode",
+    "path": "/65535/0/4",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006134036b746573745f737472696e67",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:583",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fb3fbf7ced916872b0",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:599",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fbbfef95810624dd2f",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:615",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fb4008000000000000",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:631",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fbc024000000000000",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:647",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fb4002a9fbe76c8b44",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:663",
+    "direction": "encode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fbc05ec80000000000",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:718",
+    "direction": "encode",
+    "path": "/65535/0/6",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613604f5",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-bool-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:733",
+    "direction": "encode",
+    "path": "/65535/0/6",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613604f4",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr Read of a single resource: [{-2(bn):\"/65535/0/\", 0(n):\"<res>\", <value key>: ...}], shortest int encoding."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:790",
+    "direction": "encode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613763766c6f63303a30",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Zephyr encodes objlnk under the text-string key \"vlo\" (not an int label) with a text value."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:807",
+    "direction": "encode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613763766c6f63313a32",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "1:2"
+      }
+    ],
+    "notes": "Zephyr encodes objlnk under the text-string key \"vlo\" (not an int label) with a text value."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-objlnk-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:824",
+    "direction": "encode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613763766c6f6b36353533353a3635353335",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Zephyr encodes objlnk under the text-string key \"vlo\" (not an int label) with a text value."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-opaque-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:877",
+    "direction": "encode",
+    "path": "/65535/0/8",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006138084b746573745f6f7061717565",
+    "expected": [
+      {
+        "path": "/65535/0/8",
+        "type": "opaque",
+        "value": "746573745f6f7061717565"
+      }
+    ],
+    "notes": "Opaque uses key 8 (vd) with a CBOR byte string (major type 2)."
+  },
+  {
+    "id": "senml-cbor-zephyr-put-time-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:922",
+    "direction": "encode",
+    "path": "/65535/0/9",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006139021a45be7c70",
+    "expected": [
+      {
+        "path": "/65535/0/9",
+        "type": "time",
+        "value": 1170111600
+      }
+    ],
+    "notes": "Time resource encoded as plain integer under key 2 (v)."
+  },
+  {
+    "id": "senml-cbor-zephyr-send-timeseries-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:971",
+    "direction": "encode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "83a421692f36353533352f302f221a68fa2f04006132020aa300613206183c020ba3006132061878020c",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 10,
+        "time": 1761226500
+      },
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 11,
+        "time": 1761226560
+      },
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 12,
+        "time": 1761226620
+      }
+    ],
+    "notes": "Send (do_send_op_senml_cbor) of a cached time series. First record carries bn and bt (-3) = 1761226500; following records repeat n and use relative t (6) = 60, 120. No bn repeat."
+  },
+  {
+    "id": "senml-cbor-zephyr-send-timeseries-res-inst-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1029",
+    "direction": "encode",
+    "path": "/65535/0/10/0",
+    "content_format": 112,
+    "bytes_hex": "83a421692f36353533352f302f221a68fa2f04006431302f30020aa3006431302f3006183c020ba3006431302f30061878020c",
+    "expected": [
+      {
+        "path": "/65535/0/10/0",
+        "type": "integer",
+        "value": 10,
+        "time": 1761226500
+      },
+      {
+        "path": "/65535/0/10/0",
+        "type": "integer",
+        "value": 11,
+        "time": 1761226560
+      },
+      {
+        "path": "/65535/0/10/0",
+        "type": "integer",
+        "value": 12,
+        "time": 1761226620
+      }
+    ],
+    "notes": "Send of a cached time series on a resource instance: n = \"10/0\" (bn stays at instance level)."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1087",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061320200",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1102",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006132021a7fffffff",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-s32-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1118",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006132023a7fffffff",
+    "expected": [
+      {
+        "path": "/65535/0/2",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1165",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061330200",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1180",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006133023b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-s64-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1196",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006133021b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "/65535/0/3",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-string-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1241",
+    "direction": "decode",
+    "path": "/65535/0/4",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006134036b746573745f737472696e67",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "test_string"
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-string-utf8-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1274",
+    "direction": "decode",
+    "path": "/65535/0/4",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006134036ff09f91a8f09f91a9f09fa4a1e29c8b",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "👨👩🤡✋"
+      }
+    ],
+    "notes": "Multi-byte UTF-8 (4-byte emoji) text string."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1351",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fb3fbf7ced916872b0",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1367",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fbbfef95810624dd2f",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1383",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fb4008000000000000",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1399",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fbc024000000000000",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1415",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fb4002a9fbe76c8b44",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1431",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613502fbc05ec80000000000",
+    "expected": [
+      {
+        "path": "/65535/0/5",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr always encodes floats as 64-bit (0xfb), even when exactly representable in fewer bits."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1482",
+    "direction": "decode",
+    "path": "/65535/0/6",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613604f5",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": true
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-bool-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1497",
+    "direction": "decode",
+    "path": "/65535/0/6",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f00613604f4",
+    "expected": [
+      {
+        "path": "/65535/0/6",
+        "type": "boolean",
+        "value": false
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1543",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061370263303a30",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "QUIRK: value is a text string under key 2 (v, numeric per RFC 8428). Zephyr accepts it because the target resource is objlnk; a strict decoder may reject."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1559",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f0061370363313a32",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "1:2"
+      }
+    ],
+    "notes": "objlnk decoded from key 3 (vs) text string; Zephyr's encoder uses \"vlo\" instead."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-objlnk-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1575",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006137036b36353533353a3635353335",
+    "expected": [
+      {
+        "path": "/65535/0/7",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "objlnk decoded from key 3 (vs) text string."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-opaque-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1624",
+    "direction": "decode",
+    "path": "/65535/0/8",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006134036b746573745f6f7061717565",
+    "expected": [
+      {
+        "path": "/65535/0/4",
+        "type": "string",
+        "value": "test_opaque"
+      }
+    ],
+    "notes": "TEST QUIRK: test_get_opaque targets res 8 but the payload names res \"4\" with vs (key 3), so bytes decode to /65535/0/4 string. The test's opaque check passes only because test_put_opaque already filled the buffer. Expected reflects the bytes."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-time-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1676",
+    "direction": "decode",
+    "path": "/65535/0/9",
+    "content_format": 112,
+    "bytes_hex": "81a321692f36353533352f302f006139021a45be7c70",
+    "expected": [
+      {
+        "path": "/65535/0/9",
+        "type": "time",
+        "value": 1170111600
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1149",
+    "direction": "decode",
+    "path": "/65535/0/2",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1227",
+    "direction": "decode",
+    "path": "/65535/0/3",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1333",
+    "direction": "decode",
+    "path": "/65535/0/4",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1466",
+    "direction": "decode",
+    "path": "/65535/0/5",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1527",
+    "direction": "decode",
+    "path": "/65535/0/6",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res7",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1610",
+    "direction": "decode",
+    "path": "/65535/0/7",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res8",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1661",
+    "direction": "decode",
+    "path": "/65535/0/8",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-zephyr-get-nodata-res9",
+    "source": "zephyr/tests/net/lib/lwm2m/content_senml_cbor/src/main.c:1703",
+    "direction": "decode",
+    "path": "/65535/0/9",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "Zephyr write op with empty payload returns -EBADMSG. Contrast: Leshan decodes an empty payload as an empty node."
+  },
+  {
+    "id": "senml-cbor-leshan-device-object-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/senml/cbor/SenMLCborSerializerTest.java:47",
+    "direction": "both",
+    "path": "/3/0",
+    "content_format": 112,
+    "bytes_hex": "90a321652f332f302f00613003744f70656e204d6f62696c6520416c6c69616e6365a200613103764c69676874776569676874204d324d20436c69656e74a20061320369333435303030313233a20061330363312e30a20063362f300201a20063362f310205a20063372f3002190ed8a20063372f3102191388a20063382f3002187da20063382f3102190384a2006139021864a200623130020fa2006431312f300200a200623133021a5182428fa20062313403662b30323a3030a200623136036155",
+    "expected": {
+      "senml": [
+        {
+          "bn": "/3/0/",
+          "n": "0",
+          "vs": "Open Mobile Alliance"
+        },
+        {
+          "n": "1",
+          "vs": "Lightweight M2M Client"
+        },
+        {
+          "n": "2",
+          "vs": "345000123"
+        },
+        {
+          "n": "3",
+          "vs": "1.0"
+        },
+        {
+          "n": "6/0",
+          "v": 1
+        },
+        {
+          "n": "6/1",
+          "v": 5
+        },
+        {
+          "n": "7/0",
+          "v": 3800
+        },
+        {
+          "n": "7/1",
+          "v": 5000
+        },
+        {
+          "n": "8/0",
+          "v": 125
+        },
+        {
+          "n": "8/1",
+          "v": 900
+        },
+        {
+          "n": "9",
+          "v": 100
+        },
+        {
+          "n": "10",
+          "v": 15
+        },
+        {
+          "n": "11/0",
+          "v": 0
+        },
+        {
+          "n": "13",
+          "v": 1367491215
+        },
+        {
+          "n": "14",
+          "vs": "+02:00"
+        },
+        {
+          "n": "16",
+          "vs": "U"
+        }
+      ]
+    },
+    "notes": "SenML-level test (no model): raw records of a Device /3/0 read (literal at senml/cbor/AbstractSenMLTest.java:69; decode at line 53). Array header 0x90 (16 items). bn only on first record, n carries \"res/inst\" for multi-instance. 13 (Current Time) sent as plain int under v."
+  },
+  {
+    "id": "senml-cbor-leshan-senml-opaque-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/senml/cbor/SenMLCborSerializerTest.java:69",
+    "direction": "both",
+    "path": "/0/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a221662f302f302f330843abcdef",
+    "expected": {
+      "senml": [
+        {
+          "bn": "/0/0/3",
+          "vd": "abcdef"
+        }
+      ]
+    },
+    "notes": "SenML-level opaque round trip (decode at line 59). Full path in bn, no n."
+  },
+  {
+    "id": "senml-cbor-leshan-senml-half-float-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/senml/cbor/SenMLCborSerializerTest.java:79",
+    "direction": "decode",
+    "content_format": 112,
+    "bytes_hex": "81a202f95cb0216b2f333434322f302f313330",
+    "expected": {
+      "senml": [
+        {
+          "v": 300.0,
+          "bn": "/3442/0/130"
+        }
+      ]
+    },
+    "notes": "SenML-level: v is a half-precision float (0xf9 5cb0 = 300.0), and v precedes bn in the map. Decoders must accept f16 and any key order."
+  },
+  {
+    "id": "senml-cbor-leshan-encode-opaque-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:543",
+    "direction": "encode",
+    "path": "/0/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a221662f302f302f330843abcdef",
+    "expected": [
+      {
+        "path": "/0/0/3",
+        "type": "opaque",
+        "value": "abcdef"
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-leshan-decode-opaque-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1441",
+    "direction": "decode",
+    "path": "/0/0/3",
+    "content_format": 112,
+    "bytes_hex": "81a221662f302f302f330843abcdef",
+    "expected": [
+      {
+        "path": "/0/0/3",
+        "type": "opaque",
+        "value": "abcdef"
+      }
+    ]
+  },
+  {
+    "id": "senml-cbor-leshan-encode-timestamped-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:445",
+    "direction": "encode",
+    "content_format": 112,
+    "bytes_hex": "83a321662f302f302f3022c482001a1dcd6504036c53616d706c65537472696e67a321662f302f302f3122c482001a1dcd650504f4a321662f302f302f3222c482001a1dcd6506021901c8",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "string",
+        "value": "SampleString",
+        "time": 500000004
+      },
+      {
+        "path": "/0/0/1",
+        "type": "boolean",
+        "value": false,
+        "time": 500000005
+      },
+      {
+        "path": "/0/0/2",
+        "type": "integer",
+        "value": 456,
+        "time": 500000006
+      }
+    ],
+    "notes": "encodeTimestampedNodes. Each record repeats full path in bn (no n) and bt (-3) as CBOR tag 4 decimal fraction [0, mantissa] (c4 82 00 1a...), not a plain int."
+  },
+  {
+    "id": "senml-cbor-leshan-decode-empty-object-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1004",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": [],
+    "notes": "Empty payload decoded as object /1 with no instances (no node type for an empty object, so expected is [])."
+  },
+  {
+    "id": "senml-cbor-leshan-decode-empty-instance-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1015",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/3/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "Empty payload decoded as empty instance."
+  },
+  {
+    "id": "senml-cbor-leshan-decode-empty-multi-1",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1027",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/3/0/7",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty payload decoded as empty multi-instance resource."
+  },
+  {
+    "id": "senml-cbor-leshan-decode-empty-multi-2",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1461",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 112,
+    "bytes_hex": "",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty payload, any rootPath (OMA issue 494)."
+  },
+  {
+    "id": "senml-cbor-leshan-decode-empty-multi-3",
+    "source": "leshan/leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1470",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 112,
+    "bytes_hex": "80",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Empty CBOR array (0x80) decoded as empty multi-instance resource."
+  }
+]

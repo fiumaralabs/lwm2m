@@ -1,0 +1,905 @@
+[
+  {
+    "id": "cbor-zephyr-put-s8-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:83",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "01",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "put_s8: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s8-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:89",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "20",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "put_s8: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s8-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:95",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "187f",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "put_s8: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s8-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:102",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "387f",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -128
+      }
+    ],
+    "notes": "put_s8: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s16-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:141",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "01",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "put_s16: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s16-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:147",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "20",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "put_s16: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s16-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:153",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "197fff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 32767
+      }
+    ],
+    "notes": "put_s16: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s16-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:160",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "397fff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -32768
+      }
+    ],
+    "notes": "put_s16: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:199",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "01",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "put_s32: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:205",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "20",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "put_s32: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s32-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:211",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "1a7fffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "put_s32: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s32-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:218",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "3a7fffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "put_s32: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:257",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "01",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "put_s64: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:263",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "20",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "put_s64: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s64-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:269",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "1b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "put_s64: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-s64-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:277",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "3b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "put_s64: minimal-length CBOR int. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:321",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "fb3fbf7ced916872b0",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "put_float: always double (0xfb), even when exactly representable as half/single. Test skips comparing the last byte (platform rounding) and checks readback within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:328",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "fbbfef95810624dd2f",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "put_float: always double (0xfb), even when exactly representable as half/single. Test skips comparing the last byte (platform rounding) and checks readback within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:335",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "fb4008000000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "put_float: always double (0xfb), even when exactly representable as half/single. Test skips comparing the last byte (platform rounding) and checks readback within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:342",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "fbc024000000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "put_float: always double (0xfb), even when exactly representable as half/single. Test skips comparing the last byte (platform rounding) and checks readback within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:349",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "fb4002a9fbe76c8b44",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "put_float: always double (0xfb), even when exactly representable as half/single. Test skips comparing the last byte (platform rounding) and checks readback within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:356",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "fbc05ec80000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "put_float: always double (0xfb), even when exactly representable as half/single. Test skips comparing the last byte (platform rounding) and checks readback within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-string-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:407",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "6b746573745f737472696e67",
+    "expected": [
+      {
+        "path": "",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "put_string. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-string-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:415",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "7820746573745f737472696e675f746861745f69735f615f6269745f6c6f6e676572",
+    "expected": [
+      {
+        "path": "",
+        "type": "string",
+        "value": "test_string_that_is_a_bit_longer"
+      }
+    ],
+    "notes": "put_string, 1-byte length. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-time-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:463",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "c07819313937302d30312d30315430303a30303a30312d30303a3030",
+    "expected": [
+      {
+        "path": "",
+        "type": "time",
+        "value": 1
+      }
+    ],
+    "notes": "put_time: tag 0 (date/time text string, RFC 3339 with '-00:00' offset), NOT tag 1 epoch int. The '\\0' after the literal is outside the compared length. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:500",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "f5",
+    "expected": [
+      {
+        "path": "",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "put_bool. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-bool-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:506",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "f4",
+    "expected": [
+      {
+        "path": "",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "put_bool. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-opaque-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:542",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "4b746573745f6f7061717565",
+    "expected": [
+      {
+        "path": "",
+        "type": "opaque",
+        "value": "746573745f6f7061717565"
+      }
+    ],
+    "notes": "put_opaque: byte string. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-opaque-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:550",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "5820746573745f6f70617175655f746861745f69735f615f6269745f6c6f6e676572",
+    "expected": [
+      {
+        "path": "",
+        "type": "opaque",
+        "value": "746573745f6f70617175655f746861745f69735f615f6269745f6c6f6e676572"
+      }
+    ],
+    "notes": "put_opaque, 1-byte length. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:603",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "64303a3000",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "put_objlnk: text string WITH a trailing NUL byte included in the CBOR length (Zephyr calls put_string with strlen+1). Quirk; the decoder side (get_objlnk) uses no NUL. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:610",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "64313a3200",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "1:2"
+      }
+    ],
+    "notes": "put_objlnk: text string WITH a trailing NUL byte included in the CBOR length (Zephyr calls put_string with strlen+1). Quirk; the decoder side (get_objlnk) uses no NUL. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-put-objlnk-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:617",
+    "direction": "encode",
+    "content_format": 60,
+    "bytes_hex": "6c36353533353a363535333500",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "put_objlnk: text string WITH a trailing NUL byte included in the CBOR length (Zephyr calls put_string with strlen+1). Quirk; the decoder side (get_objlnk) uses no NUL. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:656",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "01",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "get_s32. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:662",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "20",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "get_s32. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s32-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:668",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "1a7fffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "get_s32. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s32-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:675",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "3a7fffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "get_s32. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:711",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "01",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": 1
+      }
+    ],
+    "notes": "get_s64. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:717",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "20",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": -1
+      }
+    ],
+    "notes": "get_s64. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s64-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:723",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "1b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "get_s64. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s64-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:731",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "3b7fffffffffffffff",
+    "expected": [
+      {
+        "path": "",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "get_s64. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:770",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fb0000000000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 0.0
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:777",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fb3fbf7ced916872b0",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:784",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fbbfef95810624dd2f",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:791",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fb4008000000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:798",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fbc024000000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:805",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fb4002a9fbe76c8b44",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-float-7",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:812",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "fbc05ec80000000000",
+    "expected": [
+      {
+        "path": "",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "get_float: test compares within 1e-9. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-string-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:854",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "6b746573745f737472696e67",
+    "expected": [
+      {
+        "path": "",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "get_string. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-string-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:862",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "7820746573745f737472696e675f746861745f69735f615f6269745f6c6f6e676572",
+    "expected": [
+      {
+        "path": "",
+        "type": "string",
+        "value": "test_string_that_is_a_bit_longer"
+      }
+    ],
+    "notes": "get_string. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:935",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "f5",
+    "expected": [
+      {
+        "path": "",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "get_bool. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-bool-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:941",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "f4",
+    "expected": [
+      {
+        "path": "",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "get_bool. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-opaque-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:976",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "4b746573745f6f7061717565",
+    "expected": [
+      {
+        "path": "",
+        "type": "opaque",
+        "value": "746573745f6f7061717565"
+      }
+    ],
+    "notes": "get_opaque. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-opaque-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:984",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "5820746573745f6f70617175655f746861745f69735f615f6269745f6c6f6e676572",
+    "expected": [
+      {
+        "path": "",
+        "type": "opaque",
+        "value": "746573745f6f70617175655f746861745f69735f615f6269745f6c6f6e676572"
+      }
+    ],
+    "notes": "get_opaque. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:1035",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "63303a30",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "get_objlnk: plain text string, no NUL. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:1042",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "63313a32",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "1:2"
+      }
+    ],
+    "notes": "get_objlnk: plain text string, no NUL. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-objlnk-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:1049",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "6b36353533353a3635353335",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "get_objlnk: plain text string, no NUL. test_path is zero-initialised and never set by the test (no target path), node path left empty."
+  },
+  {
+    "id": "cbor-zephyr-get-s32-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:695",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_s32 on an empty payload must fail (-EBADMSG)."
+  },
+  {
+    "id": "cbor-zephyr-get-s64-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:752",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_s64 on an empty payload must fail (-EBADMSG)."
+  },
+  {
+    "id": "cbor-zephyr-get-float-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:837",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_float on an empty payload must fail (-EBADMSG)."
+  },
+  {
+    "id": "cbor-zephyr-get-string-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:918",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_string on an empty payload must fail (-EBADMSG)."
+  },
+  {
+    "id": "cbor-zephyr-get-bool-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:960",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_bool on an empty payload must fail (-EBADMSG)."
+  },
+  {
+    "id": "cbor-zephyr-get-opaque-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:1017",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_opaque on an empty payload must fail (-EBADMSG)."
+  },
+  {
+    "id": "cbor-zephyr-get-objlnk-nodata",
+    "source": "zephyr/tests/net/lib/lwm2m/content_raw_cbor/src/main.c:1074",
+    "direction": "decode",
+    "content_format": 60,
+    "bytes_hex": "",
+    "expected": "error",
+    "notes": "get_objlnk on an empty payload must fail (-EBADMSG)."
+  }
+]

@@ -1,0 +1,937 @@
+[
+  {
+    "id": "attr-leshan-valid-pmin",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:36",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-pmin-30",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:37",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin=30",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin",
+          "value": 30
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-pmax",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:38",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmax"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-pmax-60",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:39",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax=60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmax",
+          "value": 60
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-dim-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:40",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim=2",
+    "expected": {
+      "attributes": [
+        {
+          "name": "dim",
+          "value": 2
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-epmin",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:41",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin",
+    "expected": {
+      "attributes": [
+        {
+          "name": "epmin"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-epmin-30",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:42",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin=30",
+    "expected": {
+      "attributes": [
+        {
+          "name": "epmin",
+          "value": 30
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-epmax",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:43",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax",
+    "expected": {
+      "attributes": [
+        {
+          "name": "epmax"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-epmax-60",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:44",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax=60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "epmax",
+          "value": 60
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset."
+  },
+  {
+    "id": "attr-leshan-valid-lt",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:45",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-lt-30",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:46",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=30",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt",
+          "value": 30
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-lt--30",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:47",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=-30",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt",
+          "value": -30
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-lt-30.55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:48",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=30.55",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt",
+          "value": 30.55
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-lt--30.55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:49",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=-30.55",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt",
+          "value": -30.55
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-gt",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:50",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt",
+    "expected": {
+      "attributes": [
+        {
+          "name": "gt"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-gt-60",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:51",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "gt",
+          "value": 60
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-gt--60",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:52",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=-60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "gt",
+          "value": -60
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-gt-60.55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:53",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=60.55",
+    "expected": {
+      "attributes": [
+        {
+          "name": "gt",
+          "value": 60.55
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-gt--60.55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:54",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=-60.55",
+    "expected": {
+      "attributes": [
+        {
+          "name": "gt",
+          "value": -60.55
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-st",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:55",
+    "direction": "decode",
+    "content_format": null,
+    "text": "st",
+    "expected": {
+      "attributes": [
+        {
+          "name": "st"
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-st-60",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:56",
+    "direction": "decode",
+    "content_format": null,
+    "text": "st=60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "st",
+          "value": 60
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-valid-st-60.55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:57",
+    "direction": "decode",
+    "content_format": null,
+    "text": "st=60.55",
+    "expected": {
+      "attributes": [
+        {
+          "name": "st",
+          "value": 60.55
+        }
+      ]
+    },
+    "notes": "DefaultLwM2mAttributeParser.parseUriQuery (Write-Attributes query). Valueless = unset. lt/gt/st are decimals (BigDecimal)."
+  },
+  {
+    "id": "attr-leshan-invalid-0",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:73",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:74",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin=1.9",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:75",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin=-1.8",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:76",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin=a",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:78",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-6",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:79",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax=-2",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-7",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:80",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax=2.7",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-8",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:81",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax=-2.6",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-9",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:82",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmax=bc",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-11",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:84",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected. dim has no valueless (unset) form."
+  },
+  {
+    "id": "attr-leshan-invalid-12",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:85",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-13",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:86",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim=-3",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-14",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:87",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim=3.5",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-15",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:88",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim=-3.4",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-16",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:89",
+    "direction": "decode",
+    "content_format": null,
+    "text": "dim=def",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-18",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:91",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-19",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:92",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin=-4",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-20",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:93",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin=4.3",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-21",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:94",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin=-4.2",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-22",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:95",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmin=ghij",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-24",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:97",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-25",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:98",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax=-5",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-26",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:99",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax=5.1",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-27",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:100",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax=-5.9",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-28",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:101",
+    "direction": "decode",
+    "content_format": null,
+    "text": "epmax=klmno",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-30",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:103",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-31",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:104",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=pqrts",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-32",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:105",
+    "direction": "decode",
+    "content_format": null,
+    "text": "lt=0abc",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-34",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:107",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-35",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:108",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=uvwxyz",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-36",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:109",
+    "direction": "decode",
+    "content_format": null,
+    "text": "gt=0.xyz",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-38",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:111",
+    "direction": "decode",
+    "content_format": null,
+    "text": "st=",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-39",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:112",
+    "direction": "decode",
+    "content_format": null,
+    "text": "st=-6",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-40",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:113",
+    "direction": "decode",
+    "content_format": null,
+    "text": "st=-6.8",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-42",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:115",
+    "direction": "decode",
+    "content_format": null,
+    "text": "&pmin&pmax=60&gt=2&",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-43",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:116",
+    "direction": "decode",
+    "content_format": null,
+    "text": "&pmin&pmax=60&gt=2",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-44",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:117",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin&pmax=60&gt=2&",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-45",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:118",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin&pmax=60&&gt=2",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-46",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:119",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin&pmax=60&&gt=2&&&",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-invalid-47",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:120",
+    "direction": "decode",
+    "content_format": null,
+    "text": "&&&pmin&pmax=60&&gt=2",
+    "expected": "error",
+    "notes": "parseUriQuery must throw InvalidAttributeException. Empty '&' segments are rejected."
+  },
+  {
+    "id": "attr-leshan-multi",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/attributes/DefaultLwM2mAttributeParserTest.java:135",
+    "direction": "decode",
+    "content_format": null,
+    "text": "pmin&pmax=60&gt=2",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin"
+        },
+        {
+          "name": "pmax",
+          "value": 60
+        },
+        {
+          "name": "gt",
+          "value": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "attr-leshan-set-query",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:50",
+    "direction": "both",
+    "content_format": null,
+    "text": "ver=1.1&pmin=5&pmax=60&epmin=30&epmax=45&lt=10&gt=20.1",
+    "expected": {
+      "attributes": [
+        {
+          "name": "ver",
+          "value": "1.1"
+        },
+        {
+          "name": "pmin",
+          "value": 5
+        },
+        {
+          "name": "pmax",
+          "value": 60
+        },
+        {
+          "name": "epmin",
+          "value": 30
+        },
+        {
+          "name": "epmax",
+          "value": 45
+        },
+        {
+          "name": "lt",
+          "value": 10
+        },
+        {
+          "name": "gt",
+          "value": 20.1
+        }
+      ]
+    },
+    "notes": "LwM2mAttributeSet.toString then parseUriQuery round-trips. ver is a version string; lt built from 10D serializes as '10'."
+  },
+  {
+    "id": "attr-leshan-set-no-sci",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:62",
+    "direction": "both",
+    "content_format": null,
+    "text": "lt=10000000000000000000&gt=0.0000000000009223372&st=10000000000000000000",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt",
+          "value": 10000000000000000000
+        },
+        {
+          "name": "gt",
+          "value": 9.223372e-13
+        },
+        {
+          "name": "st",
+          "value": 10000000000000000000
+        }
+      ]
+    },
+    "notes": "Serializer must not use scientific notation (exact text above); values are decimals."
+  },
+  {
+    "id": "attr-leshan-set-unset",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:74",
+    "direction": "both",
+    "content_format": null,
+    "text": "pmin&pmax&epmin&epmax",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin"
+        },
+        {
+          "name": "pmax"
+        },
+        {
+          "name": "epmin"
+        },
+        {
+          "name": "epmax"
+        }
+      ]
+    }
+  },
+  {
+    "id": "attr-leshan-set-tostring",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:128",
+    "direction": "encode",
+    "content_format": null,
+    "text": "ver=1.1&pmin=5&pmax=60&epmin=30&epmax=45",
+    "expected": {
+      "attributes": [
+        {
+          "name": "ver",
+          "value": "1.1"
+        },
+        {
+          "name": "pmin",
+          "value": 5
+        },
+        {
+          "name": "pmax",
+          "value": 60
+        },
+        {
+          "name": "epmin",
+          "value": 30
+        },
+        {
+          "name": "epmax",
+          "value": 45
+        }
+      ]
+    }
+  },
+  {
+    "id": "attr-leshan-set-duplicate",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:133",
+    "direction": "decode",
+    "content_format": null,
+    "text": "ver=1.1&pmin=5&pmin=60",
+    "expected": "error",
+    "notes": "Set built programmatically (text is its query form): duplicate pmin -> IllegalArgumentException."
+  },
+  {
+    "id": "attr-leshan-validate-resource-ok",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:146",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "pmin=5&pmax=60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin",
+          "value": 5
+        },
+        {
+          "name": "pmax",
+          "value": 60
+        }
+      ]
+    },
+    "notes": "Set built programmatically; validate(/3/0/9) passes: pmin/pmax valid on resource level."
+  },
+  {
+    "id": "attr-leshan-validate-ver-on-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/attributes/AttributeSetTest.java:158",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "ver=1.1&pmin=5&pmax=60",
+    "expected": "error",
+    "notes": "Set built programmatically; validate(/3/0/9) throws: ver is only valid on object level, not resource."
+  },
+  {
+    "id": "attr-leshan-writeattr-41",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/request/WriteAttributesRequestTest.java:41",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "pmin=50&pmax=49",
+    "expected": "error",
+    "notes": "Set built programmatically (text is its query form); new WriteAttributesRequest(3, 0, 9, set) throws InvalidRequestException (cross-attribute check). pmax must be greater than pmin."
+  },
+  {
+    "id": "attr-leshan-writeattr-56",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/request/WriteAttributesRequestTest.java:56",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "pmin=50&pmax=49",
+    "expected": "error",
+    "notes": "Set built programmatically (text is its query form); new WriteAttributesRequest(3, 0, 9, set) throws InvalidRequestException (cross-attribute check). Same set as line 41 (test named epmin>epmax but uses pmin/pmax)."
+  },
+  {
+    "id": "attr-leshan-writeattr-71",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/request/WriteAttributesRequestTest.java:71",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "lt=50&gt=49",
+    "expected": "error",
+    "notes": "Set built programmatically (text is its query form); new WriteAttributesRequest(3, 0, 9, set) throws InvalidRequestException (cross-attribute check). lt must be < gt."
+  },
+  {
+    "id": "attr-leshan-writeattr-86",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/request/WriteAttributesRequestTest.java:86",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "gt=50&lt=50",
+    "expected": "error",
+    "notes": "Set built programmatically (text is its query form); new WriteAttributesRequest(3, 0, 9, set) throws InvalidRequestException (cross-attribute check). gt == lt rejected."
+  },
+  {
+    "id": "attr-leshan-writeattr-102",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/request/WriteAttributesRequestTest.java:102",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "lt=10&st=2&gt=12",
+    "expected": "error",
+    "notes": "Set built programmatically (text is its query form); new WriteAttributesRequest(3, 0, 9, set) throws InvalidRequestException (cross-attribute check). lt + 2*st must be < gt (10 + 4 = 14 >= 12)."
+  }
+]

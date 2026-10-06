@@ -1,0 +1,855 @@
+[
+  {
+    "id": "text-zephyr-put-s8-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:73",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s8-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:73",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "127",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s8-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:73",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-128",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": -128
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s16-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:104",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s16-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:104",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "32767",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 32767
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s16-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:104",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-32768",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": -32768
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s32-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:135",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:135",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "2147483647",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:135",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-2147483648",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s64-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:167",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:167",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "9223372036854775807",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:167",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-9223372036854775808",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-string-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:196",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "test_string",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0.0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 0.0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0.123",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-0.987",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "3.0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-10.0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "2.333",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:227",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "-123.125",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-bool-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:260",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "1",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:260",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-objlnk-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:294",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "0:0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:294",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "1:1",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "objlnk",
+        "value": "1:1"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-put-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:294",
+    "direction": "encode",
+    "content_format": 0,
+    "text": "65535:65535",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s32-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:325",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s32-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:325",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "2147483647",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 2147483647
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s32-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:325",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "-2147483648",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": -2147483648
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s64-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:355",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": 0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s64-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:355",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "9223372036854775807",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": "9223372036854775807"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s64-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:355",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "-9223372036854775808",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": "-9223372036854775808"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s64-overflow-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:358",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "9223372036854775808",
+    "expected": "error",
+    "notes": "get_s64 returns -EINVAL on out-of-range value."
+  },
+  {
+    "id": "text-zephyr-get-s64-overflow-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:358",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "-9223372036854775809",
+    "expected": "error",
+    "notes": "get_s64 returns -EINVAL on out-of-range value."
+  },
+  {
+    "id": "text-zephyr-get-string-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:394",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "test_string",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "string",
+        "value": "test_string"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-float-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 0.0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-float-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0.123",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 0.123
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-float-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "-0.987",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": -0.987
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-float-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "3",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 3.0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-float-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "-10",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": -10.0
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-float-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "2.333",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 2.333
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-float-6",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:437",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "-123.125",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": -123.125
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder. Test compares with epsilon 1e-9."
+  },
+  {
+    "id": "text-zephyr-get-bool-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:471",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "1",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-bool-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:471",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-objlnk-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:500",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0:0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-objlnk-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:500",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "1:1",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "objlnk",
+        "value": "1:1"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-objlnk-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:500",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "65535:65535",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Zephyr test_path is zero-initialized; codec is path-agnostic, node path is a placeholder."
+  },
+  {
+    "id": "text-zephyr-get-s32-empty",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:346",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "",
+    "expected": "error",
+    "notes": "Empty payload decoded as integer: -ENODATA."
+  },
+  {
+    "id": "text-zephyr-get-s64-empty",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:387",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "",
+    "expected": "error",
+    "notes": "Empty payload decoded as integer: -ENODATA."
+  },
+  {
+    "id": "text-zephyr-get-float-empty",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:463",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "",
+    "expected": "error",
+    "notes": "Empty payload decoded as float: -ENODATA."
+  },
+  {
+    "id": "text-zephyr-get-bool-empty",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:492",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "",
+    "expected": "error",
+    "notes": "Empty payload decoded as boolean: -ENODATA."
+  },
+  {
+    "id": "text-zephyr-get-objlnk-empty",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:525",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "",
+    "expected": "error",
+    "notes": "Empty payload decoded as objlnk: -ENODATA."
+  },
+  {
+    "id": "text-zephyr-get-string-empty",
+    "source": "zephyr/tests/net/lib/lwm2m/content_plain_text/src/main.c:425",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "string",
+        "value": ""
+      }
+    ],
+    "notes": "Empty payload decodes to empty string (ret 0)."
+  },
+  {
+    "id": "text-leshan-encode-float",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:99",
+    "direction": "encode",
+    "path": "/323/0/15",
+    "content_format": 0,
+    "text": "56.4",
+    "expected": [
+      {
+        "path": "/323/0/15",
+        "type": "float",
+        "value": 56.4
+      }
+    ],
+    "notes": "Float resource node; object 323 not in default model."
+  },
+  {
+    "id": "text-leshan-encode-time",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:107",
+    "direction": "encode",
+    "path": "/3/0/13",
+    "content_format": 0,
+    "text": "1367491215",
+    "expected": [
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      }
+    ],
+    "notes": "Method lacks @Test/@TestAllRootPaths annotation in source, so it never runs."
+  },
+  {
+    "id": "text-leshan-encode-multiple-error",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:120",
+    "direction": "encode",
+    "path": "/3/0/6",
+    "content_format": 0,
+    "expected": "error",
+    "notes": "Multi-instance resource {0:1,1:5} cannot be encoded as text: CodecException. No payload."
+  },
+  {
+    "id": "text-leshan-encode-opaque-base64",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:128",
+    "direction": "encode",
+    "path": "/5/0/0",
+    "content_format": 0,
+    "text": "AQIDBAU=",
+    "expected": [
+      {
+        "path": "/5/0/0",
+        "type": "opaque",
+        "value": "0102030405"
+      }
+    ],
+    "notes": "Opaque resource in text is base64."
+  },
+  {
+    "id": "text-leshan-decode-string",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:282",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 0,
+    "text": "MyManufacturer",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "MyManufacturer"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "text-leshan-decode-integer",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:301",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": 0,
+    "text": "100",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      }
+    ],
+    "notes": "Battery level."
+  },
+  {
+    "id": "text-leshan-decode-opaque-base64",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:313",
+    "direction": "decode",
+    "path": "/5/0/0",
+    "content_format": 0,
+    "text": "AQIDBAU=",
+    "expected": [
+      {
+        "path": "/5/0/0",
+        "type": "opaque",
+        "value": "0102030405"
+      }
+    ],
+    "notes": "Firmware Package (opaque) from base64 text."
+  },
+  {
+    "id": "text-leshan-decode-invalid-base64",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:328",
+    "direction": "decode",
+    "path": "/5/0/0",
+    "content_format": 0,
+    "text": "!,-INVALID$_'",
+    "expected": "error",
+    "notes": "Invalid base64 for opaque resource: CodecException."
+  }
+]

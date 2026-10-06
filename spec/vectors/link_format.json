@@ -1,0 +1,2237 @@
+[
+  {
+    "id": "lf-zephyr-begin-discovery",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:127",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "",
+    "expected": {
+      "links": []
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_begin, mode DISCOVERY, request level object: writes nothing."
+  },
+  {
+    "id": "lf-zephyr-begin-bs-discovery",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:143",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=\"1.0\"",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0",
+              "quoted": true
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_begin, mode BOOTSTRAP_DISCOVERY."
+  },
+  {
+    "id": "lf-zephyr-begin-register",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:159",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;ct=11543",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "ct",
+              "value": "11543"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_begin, mode REGISTER: root link with ct=11543 (JSON), no rt=\"oma.lwm2m\"."
+  },
+  {
+    "id": "lf-zephyr-corelink-discovery-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:196",
+    "direction": "encode",
+    "path": "/65535",
+    "content_format": 40,
+    "text": "</65535>;ver=1.1",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.1"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode DISCOVERY, request level OBJECT, path level OBJECT, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-discovery-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:201",
+    "direction": "encode",
+    "path": "/65535/0",
+    "content_format": 40,
+    "text": "</65535/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode DISCOVERY, request level OBJECT, path level OBJECT_INST, one link written (is_first=true, no leading comma). Object-level Discover does not list attributes of instances/resources."
+  },
+  {
+    "id": "lf-zephyr-corelink-discovery-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:206",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 40,
+    "text": "</65535/0/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode DISCOVERY, request level OBJECT, path level RESOURCE, one link written (is_first=true, no leading comma). Object-level Discover does not list attributes of instances/resources."
+  },
+  {
+    "id": "lf-zephyr-corelink-discovery-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:211",
+    "direction": "encode",
+    "path": "/65535/0",
+    "content_format": 40,
+    "text": "</65535/0>;pmin=5",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "5"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode DISCOVERY, request level OBJECT_INST, path level OBJECT_INST, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-discovery-4",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:216",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 40,
+    "text": "</65535/0/0>;pmax=200",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0/0",
+          "attributes": [
+            {
+              "name": "pmax",
+              "value": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode DISCOVERY, request level OBJECT_INST, path level RESOURCE, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-discovery-5",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:221",
+    "direction": "encode",
+    "path": "/65535/0/0",
+    "content_format": 40,
+    "text": "</65535/0/0>;pmin=5;pmax=200",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0/0",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "5"
+            },
+            {
+              "name": "pmax",
+              "value": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode DISCOVERY, request level RESOURCE, path level RESOURCE, one link written (is_first=true, no leading comma). Resource-level Discover inherits pmin from the instance and adds the resource's own pmax."
+  },
+  {
+    "id": "lf-zephyr-corelink-bs-discovery-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:254",
+    "direction": "encode",
+    "path": "/65535",
+    "content_format": 40,
+    "text": "</65535>;ver=1.1",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.1"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode BS_DISCOVERY, request level NONE, path level OBJECT, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-bs-discovery-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:259",
+    "direction": "encode",
+    "path": "/65535/0",
+    "content_format": 40,
+    "text": "</65535/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode BS_DISCOVERY, request level NONE, path level OBJECT_INST, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-bs-discovery-2",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:264",
+    "direction": "encode",
+    "path": "/65535",
+    "content_format": 40,
+    "text": "</65535>;ver=1.1",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.1"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode BS_DISCOVERY, request level OBJECT, path level OBJECT, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-bs-discovery-3",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:269",
+    "direction": "encode",
+    "path": "/65535/0",
+    "content_format": 40,
+    "text": "</65535/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode BS_DISCOVERY, request level OBJECT, path level OBJECT_INST, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-register-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:336",
+    "direction": "encode",
+    "path": "/65535",
+    "content_format": 40,
+    "text": "</65535>;ver=1.1",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.1"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode REGISTER, request level NONE, path level OBJECT, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-register-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:341",
+    "direction": "encode",
+    "path": "/65535/0",
+    "content_format": 40,
+    "text": "</65535/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/65535/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode REGISTER, request level NONE, path level OBJECT_INST, one link written (is_first=true, no leading comma)."
+  },
+  {
+    "id": "lf-zephyr-corelink-bs-discovery-ssid-0",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:298",
+    "direction": "encode",
+    "path": "/0/0",
+    "content_format": 40,
+    "text": "</0/0>;ssid=101",
+    "expected": {
+      "links": [
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode BOOTSTRAP_DISCOVERY, request level NONE, path /0/0 (object instance level); ssid read from /0/0/10 resp. /1/0/0. No uri attribute is emitted."
+  },
+  {
+    "id": "lf-zephyr-corelink-bs-discovery-ssid-1",
+    "source": "zephyr/tests/net/lib/lwm2m/content_link_format/src/main.c:299",
+    "direction": "encode",
+    "path": "/1/0",
+    "content_format": 40,
+    "text": "</1/0>;ssid=101",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Setup: object 65535 (ver 1.1, non-core) instance 0 with resource 0 (S8); pmin=5 attached to instance /65535/0, pmax=200 attached to resource /65535/0/0; /0/0/10 and /1/0/0 set to 101 (ssid). put_corelink, mode BOOTSTRAP_DISCOVERY, request level NONE, path /1/0 (object instance level); ssid read from /0/0/10 resp. /1/0/0. No uri attribute is emitted."
+  },
+  {
+    "id": "lf-leshan-parse-uri-44",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:44",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</uri>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/uri",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Only the URI reference is asserted; percent-encoding is kept as-is."
+  },
+  {
+    "id": "lf-leshan-parse-uri-47",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:47",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</uri/>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/uri/",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Only the URI reference is asserted; percent-encoding is kept as-is."
+  },
+  {
+    "id": "lf-leshan-parse-uri-50",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:50",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</uri//>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/uri//",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Only the URI reference is asserted; percent-encoding is kept as-is."
+  },
+  {
+    "id": "lf-leshan-parse-uri-53",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:53",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</%20>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/%20",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Only the URI reference is asserted; percent-encoding is kept as-is."
+  },
+  {
+    "id": "lf-leshan-parse-uri-56",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:56",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</-._~a-zA-Z0-9:@!$&'()*+,;=>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/-._~a-zA-Z0-9:@!$&'()*+,;=",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Only the URI reference is asserted; percent-encoding is kept as-is. ',' and ';' inside <> belong to the URI."
+  },
+  {
+    "id": "lf-leshan-parse-lt-gt-values",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:62",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=<,</bar>;param2=>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": "<"
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": [
+            {
+              "name": "param2",
+              "value": ">"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "'<' and '>' accepted as unquoted ptoken values."
+  },
+  {
+    "id": "lf-leshan-parse-slash-value",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:74",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=/",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": "/"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-parse-escaped-82",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:82",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\",\",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": ",",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-83",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:83",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\" \\\\ \",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": " \\\\ ",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-84",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:84",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\" \\\" \\\" \",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": " \" \" ",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-85",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:85",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\" \\x \",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": " \\x ",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-86",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:86",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\" \\ą \",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": " \\ą ",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-87",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:87",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\";\",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": ";",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-88",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:88",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\"<\",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": "<",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-escaped-89",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:89",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\">\",</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": ">",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Parameterized (allow_escaped_characters, test at line 94). Leshan only unescapes \\\" ; other backslash sequences (\\\\, \\x, \\ą) are kept verbatim in the value. Payload is UTF-8."
+  },
+  {
+    "id": "lf-leshan-parse-quoted-equals",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:107",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\"=\"",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": "=",
+              "quoted": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-parse-ptoken",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:116",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=!#$%&'()*+-.:<=>?@[]^_`{|}~a1z9",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": "!#$%&'()*+-.:<=>?@[]^_`{|}~a1z9"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-parse-mixed",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:127",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=!#$%&'()*+-.:<=>?@[]^_`{|}~a1z9;param2=\"foo\";param3,</bar>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/foo",
+          "attributes": [
+            {
+              "name": "param",
+              "value": "!#$%&'()*+-.:<=>?@[]^_`{|}~a1z9"
+            },
+            {
+              "name": "param2",
+              "value": "foo",
+              "quoted": true
+            },
+            {
+              "name": "param3"
+            }
+          ]
+        },
+        {
+          "uri": "/bar",
+          "attributes": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-parse-some-attributes",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:142",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;rt=\"oma.lwm2m\";ct=100;qs=\"quoted_string\";us=unquoted_string,</1/101>,</1/102>,</2/0>,</2/1>;empty",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            },
+            {
+              "name": "ct",
+              "value": "100"
+            },
+            {
+              "name": "qs",
+              "value": "quoted_string",
+              "quoted": true
+            },
+            {
+              "name": "us",
+              "value": "unquoted_string"
+            }
+          ]
+        },
+        {
+          "uri": "/1/101",
+          "attributes": []
+        },
+        {
+          "uri": "/1/102",
+          "attributes": []
+        },
+        {
+          "uri": "/2/0",
+          "attributes": []
+        },
+        {
+          "uri": "/2/1",
+          "attributes": [
+            {
+              "name": "empty"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "ct=100 parsed as ContentFormatAttribute; rt as ResourceTypeAttribute."
+  },
+  {
+    "id": "lf-leshan-parse-quoted-ver",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:169",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</1>;ver=\"2.2\"",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.2",
+              "quoted": true
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Quoted ver is accepted and stays a QuotedStringAttribute."
+  },
+  {
+    "id": "lf-leshan-parse-unquoted-ver",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkParserTest.java:176",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</1>;ver=2.2",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.2"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-invalid-0",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:31",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "<file:///etc/hosts>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:32",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</hosts?query>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:33",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</hosts#hash>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:34",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</%>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-4",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:35",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</%a>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:36",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</%1g>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-6",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:37",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</fóó>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-7",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:38",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;pąrąm",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-8",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:39",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=ą",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-9",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:40",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\"bar",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-10",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:41",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</foo>;param=\"bar\\\"",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-11",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:42",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;=",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-12",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:43",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;param=",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-13",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:44",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>; param=123",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-14",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:45",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</> ;param=123",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-15",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:46",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;param =123",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-16",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:47",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;param= 123",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-17",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:48",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;param=123 ",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-18",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:49",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "<>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-19",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:50",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-20",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:51",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "<//>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-21",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:52",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "//>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-22",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:53",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>,",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-23",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:54",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>;",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-24",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:55",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>, </>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-25",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:56",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</> ,</>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-26",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:57",
+    "direction": "decode",
+    "content_format": 40,
+    "text": " </>,</>",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-invalid-27",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/LinkParserValidationTest.java:58",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</>,</> ",
+    "expected": "error",
+    "notes": "Parameterized parse_invalid_formats; payload is UTF-8 bytes."
+  },
+  {
+    "id": "lf-leshan-serialize-43",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkSerializerTest.java:43",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</1/0/1>,</2/1>,</3>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3",
+          "attributes": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-serialize-55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkSerializerTest.java:55",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</1/0/1>;number=12,</2/1>;string=\"stringval\",</3>;empty",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0/1",
+          "attributes": [
+            {
+              "name": "number",
+              "value": "12"
+            }
+          ]
+        },
+        {
+          "uri": "/2/1",
+          "attributes": [
+            {
+              "name": "string",
+              "value": "stringval",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/3",
+          "attributes": [
+            {
+              "name": "empty"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-serialize-64",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkSerializerTest.java:64",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;number=12",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "number",
+              "value": "12"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "lf-leshan-serialize-97",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkSerializerTest.java:97",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</1>;ver=2.2",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.2"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "UnquotedStringAttribute ver serialized without quotes."
+  },
+  {
+    "id": "lf-leshan-roundtrip-rt",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/DefaultLinkSerializerTest.java:85",
+    "direction": "both",
+    "content_format": 40,
+    "text": "</lwm2m>;rt=\"oma.lwm2m\",</lwm2m/1/101>,</lwm2m/1/102>,</lwm2m/2/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/lwm2m",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/lwm2m/1/101",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/1/102",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/2/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "parse then serialize gives the input."
+  },
+  {
+    "id": "lf-leshan-lwm2m-35",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/DefaultLwM2mLinkParserTest.java:35",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</3/0/11>;dim=255",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0/11",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "255"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "LwM2M-typed link parser (DefaultLwM2mLinkParser). dim must be 0-255."
+  },
+  {
+    "id": "lf-leshan-lwm2m-43",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/DefaultLwM2mLinkParserTest.java:43",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</3/0/11>;dim=256",
+    "expected": "error",
+    "notes": "LwM2M-typed link parser (DefaultLwM2mLinkParser). dim must be 0-255."
+  },
+  {
+    "id": "lf-leshan-lwm2m-47",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/DefaultLwM2mLinkParserTest.java:47",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</0/1>;ssid=1",
+    "expected": {
+      "links": [
+        {
+          "uri": "/0/1",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "1"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "LwM2M-typed link parser (DefaultLwM2mLinkParser). ssid must be 1-65534."
+  },
+  {
+    "id": "lf-leshan-lwm2m-55",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/DefaultLwM2mLinkParserTest.java:55",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</0/1>;ssid=0",
+    "expected": "error",
+    "notes": "LwM2M-typed link parser (DefaultLwM2mLinkParser). ssid must be 1-65534."
+  },
+  {
+    "id": "lf-leshan-lwm2m-62",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/DefaultLwM2mLinkParserTest.java:62",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</3/0/11>;pmin=200",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0/11",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "200"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "LwM2M-typed link parser (DefaultLwM2mLinkParser). "
+  },
+  {
+    "id": "lf-leshan-lwm2m-70",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/link/lwm2m/DefaultLwM2mLinkParserTest.java:70",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</3/0/11>;pmin",
+    "expected": "error",
+    "notes": "LwM2M-typed link parser (DefaultLwM2mLinkParser). Valueless pmin is rejected by the LwM2M link parser (it is allowed in a Write-Attributes query)."
+  },
+  {
+    "id": "lf-leshan-client-68",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:68",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</6>,</6/0>,</6/0/0>,</6/0/1>,</6/0/2>,</6/0/3>,</6/0/4>,</6/0/5>,</6/0/6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/6",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/5",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Discover object 6 (Location), 1 instance, root path null."
+  },
+  {
+    "id": "lf-leshan-client-81",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:81",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</rp/6>,</rp/6/0>,</rp/6/0/0>,</rp/6/0/1>,</rp/6/0/2>,</rp/6/0/3>,</rp/6/0/4>,</rp/6/0/5>,</rp/6/0/6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/rp/6",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/5",
+          "attributes": []
+        },
+        {
+          "uri": "/rp/6/0/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Discover object 6, root path \"/rp\"."
+  },
+  {
+    "id": "lf-leshan-client-94",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:94",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</6>,</6/0>,</6/0/0>,</6/0/1>,</6/0/2>,</6/0/3>,</6/0/4>,</6/0/5>,</6/0/6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/6",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/5",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Discover object 6, root path \"\"."
+  },
+  {
+    "id": "lf-leshan-client-106",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:106",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</6>,</6/0>,</6/0/0>,</6/0/1>,</6/0/2>,</6/0/3>,</6/0/4>,</6/0/5>,</6/0/6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/6",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/5",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Discover object 6, root path \"/\"."
+  },
+  {
+    "id": "lf-leshan-client-118",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:118",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</6>;ver=2.0,</6/0>,</6/0/0>,</6/0/1>,</6/0/2>,</6/0/3>,</6/0/4>,</6/0/5>,</6/0/6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/6",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/5",
+          "attributes": []
+        },
+        {
+          "uri": "/6/0/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Discover object 6 with model version 2.0: ver on the object link."
+  },
+  {
+    "id": "lf-leshan-client-131",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:131",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</r/t/6>,</r/t/6/0>,</r/t/6/0/0>,</r/t/6/0/1>,</r/t/6/0/2>,</r/t/6/0/3>,</r/t/6/0/4>,</r/t/6/0/5>,</r/t/6/0/6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/r/t/6",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/5",
+          "attributes": []
+        },
+        {
+          "uri": "/r/t/6/0/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Discover object 6, root path \"/r/t\"."
+  },
+  {
+    "id": "lf-leshan-client-147",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:147",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;rt=\"oma.lwm2m\",</6/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/6/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Register payload: object 6 v1.0 with instance 0."
+  },
+  {
+    "id": "lf-leshan-client-163",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:163",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;rt=\"oma.lwm2m\",</6>;ver=2.0,</6/0>,</6/1>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/6",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/6/1",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Register payload: object 6 v2.0 with instances 0 and 1."
+  },
+  {
+    "id": "lf-leshan-client-177",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:177",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;rt=\"oma.lwm2m\",</6>;ver=2.0",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/6",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Register payload: object 6 v2.0 with no instance."
+  },
+  {
+    "id": "lf-leshan-client-189",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:189",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;rt=\"oma.lwm2m\";ct=11542,</6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            },
+            {
+              "name": "ct",
+              "value": "11542"
+            }
+          ]
+        },
+        {
+          "uri": "/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Register payload, supported content formats [TLV]; compared as parsed links (semantic compare)."
+  },
+  {
+    "id": "lf-leshan-client-202",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:202",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;rt=\"oma.lwm2m\";ct=\"11542 11543 42\",</6>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            },
+            {
+              "name": "ct",
+              "value": "11542 11543 42",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/6",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Register payload, content formats [TLV, JSON, OPAQUE]: several ct values are one quoted space-separated list; compared as parsed links (semantic compare)."
+  },
+  {
+    "id": "lf-leshan-client-216",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:216",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover object 3 v1.0, instance 0."
+  },
+  {
+    "id": "lf-leshan-client-228",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:228",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</3>;ver=2.0",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/3",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover object 3 v2.0, no instance."
+  },
+  {
+    "id": "lf-leshan-client-241",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:241",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</3>;ver=2.0,</3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/3",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover object 3 v2.0, instance 0."
+  },
+  {
+    "id": "lf-leshan-client-254",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:254",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</1/0>;ssid=333",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "333"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover object 1, instance 0 Server(ssid 333, lifetime 120)."
+  },
+  {
+    "id": "lf-leshan-client-267",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:267",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</1>;ver=2.0,</1/0>;ssid=333",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "333"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover object 1 v2.0, instance 0 Server(333, 120)."
+  },
+  {
+    "id": "lf-leshan-client-284",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:284",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</0/0>;ssid=111;uri=\"coap://localhost:11\",</0/1>;uri=\"coap://localhost:1\",</0/2>;ssid=222;uri=\"coap://localhost:22\",</0/3>;ssid=333;uri=\"coap://localhost:33\"",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "111"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:11",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/1",
+          "attributes": [
+            {
+              "name": "uri",
+              "value": "coap://localhost:1",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "222"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:22",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/3",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "333"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:33",
+              "quoted": true
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover object 0: /0/0 noSec(coap://localhost:11, 111), /0/1 noSecBootstrap(coap://localhost:1), /0/2 noSec(:22, 222), /0/3 noSec(:33, 333). Bootstrap instance has no ssid."
+  },
+  {
+    "id": "lf-leshan-client-328",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:328",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</0/0>;ssid=111;uri=\"coap://localhost:11\",</0/1>;uri=\"coap://localhost:1\",</0/2>;ssid=222;uri=\"coap://localhost:22\",</0/3>;ssid=333;uri=\"coap://localhost:33\",</1>;ver=2.0,</1/0>;ssid=333,</2>;ver=2.0,</3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "111"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:11",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/1",
+          "attributes": [
+            {
+              "name": "uri",
+              "value": "coap://localhost:1",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "222"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:22",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/3",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "333"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:33",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "333"
+            }
+          ]
+        },
+        {
+          "uri": "/2",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover root: object 0 as above, object 1 v2.0 with Server(333,120), object 2 v2.0 without instances, object 3 v1.0 instance 0."
+  },
+  {
+    "id": "lf-leshan-client-374",
+    "source": "leshan/leshan-lwm2m-client/src/test/java/org/eclipse/leshan/client/util/LinkFormatHelperTest.java:374",
+    "direction": "encode",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.0,</0>;ver=1.2,</0/0>;ssid=111;uri=\"coap://localhost:11\",</0/1>;uri=\"coap://localhost:1\",</0/2>;ssid=222;uri=\"coap://localhost:22\",</1>;ver=2.0,</1/0>;ssid=333,</3/0>,</21>;ver=2.0,</21/10>;ssid=111;uri=\"coap://localhost:11\",</21/11>;uri=\"coap://localhost:1\"",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/0",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.2"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "111"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:11",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/1",
+          "attributes": [
+            {
+              "name": "uri",
+              "value": "coap://localhost:1",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "222"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:22",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "333"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/21",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.0"
+            }
+          ]
+        },
+        {
+          "uri": "/21/10",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "111"
+            },
+            {
+              "name": "uri",
+              "value": "coap://localhost:11",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/21/11",
+          "attributes": [
+            {
+              "name": "uri",
+              "value": "coap://localhost:1",
+              "quoted": true
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Leshan client LinkFormatHelper, LwM2M 1.0. Bootstrap-Discover root with OSCORE: object 0 v1.2 (/0/0 oscoreOnly(:11, ssid 111, oscore 10), /0/1 oscoreOnlyBootstrap(:1, oscore 11), /0/2 noSec(:22, 222)), object 1 v2.0 Server(333,120), object 3 instance 0, object 21 v2.0 instances 10 and 11; OSCORE instances get ssid/uri of the security instance referencing them."
+  }
+]

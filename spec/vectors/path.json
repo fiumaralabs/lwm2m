@@ -1,0 +1,366 @@
+[
+  {
+    "id": "path-leshan-0",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:37",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/",
+    "expected": {
+      "object": null,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-1",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:38",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/1",
+    "expected": {
+      "object": 1,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-2",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:39",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/1/1",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-3",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:40",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/1/1/1",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": 1,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-4",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:41",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/1/1/1/1",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": 1,
+      "resource_instance": 1
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-5",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:42",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/2",
+    "expected": {
+      "object": 2,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-6",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:43",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/2/1",
+    "expected": {
+      "object": 2,
+      "instance": 1,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-7",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:44",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/2/1/1",
+    "expected": {
+      "object": 2,
+      "instance": 1,
+      "resource": 1,
+      "resource_instance": null
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-leshan-8",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/LwM2mPathTest.java:45",
+    "direction": "decode",
+    "content_format": null,
+    "text": "/2/1/1/1",
+    "expected": {
+      "object": 2,
+      "instance": 1,
+      "resource": 1,
+      "resource_instance": 1
+    },
+    "notes": "new LwM2mPath(String); test asserts the parse is equal to itself and the list is in ascending compareTo order (each entry smaller than all later ones); fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-2",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:261",
+    "direction": "decode",
+    "content_format": null,
+    "text": "2",
+    "expected": {
+      "object": 2,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:262",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1",
+    "expected": {
+      "object": 1,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1-2",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:263",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1/2",
+    "expected": {
+      "object": 1,
+      "instance": 2,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1-1",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:264",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1/1",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1-1-10",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:265",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1/1/10",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": 10,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1-1-10-10",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:266",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1/1/10/10",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": 10,
+      "resource_instance": 10
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1-1-10-9",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:267",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1/1/10/9",
+    "expected": {
+      "object": 1,
+      "instance": 1,
+      "resource": 10,
+      "resource_instance": 9
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-1-2-10-11",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:268",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1/2/10/11",
+    "expected": {
+      "object": 1,
+      "instance": 2,
+      "resource": 10,
+      "resource_instance": 11
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-100",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:270",
+    "direction": "decode",
+    "content_format": null,
+    "text": "100",
+    "expected": {
+      "object": 100,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-41",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:272",
+    "direction": "decode",
+    "content_format": null,
+    "text": "41",
+    "expected": {
+      "object": 41,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-43-3",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:273",
+    "direction": "decode",
+    "content_format": null,
+    "text": "43/3",
+    "expected": {
+      "object": 43,
+      "instance": 3,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-45-2-2",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:274",
+    "direction": "decode",
+    "content_format": null,
+    "text": "45/2/2",
+    "expected": {
+      "object": 45,
+      "instance": 2,
+      "resource": 2,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-47-1-1-1",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:275",
+    "direction": "decode",
+    "content_format": null,
+    "text": "47/1/1/1",
+    "expected": {
+      "object": 47,
+      "instance": 1,
+      "resource": 1,
+      "resource_instance": 1
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-57-1-1-1",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:277",
+    "direction": "decode",
+    "content_format": null,
+    "text": "57/1/1/1",
+    "expected": {
+      "object": 57,
+      "instance": 1,
+      "resource": 1,
+      "resource_instance": 1
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-55-2-2",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:278",
+    "direction": "decode",
+    "content_format": null,
+    "text": "55/2/2",
+    "expected": {
+      "object": 55,
+      "instance": 2,
+      "resource": 2,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-53-3",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:279",
+    "direction": "decode",
+    "content_format": null,
+    "text": "53/3",
+    "expected": {
+      "object": 53,
+      "instance": 3,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  },
+  {
+    "id": "path-zephyr-51",
+    "source": "zephyr/tests/net/lib/lwm2m/observation/src/lwm2m_observation.c:280",
+    "direction": "decode",
+    "content_format": null,
+    "text": "51",
+    "expected": {
+      "object": 51,
+      "instance": null,
+      "resource": null,
+      "resource_instance": null
+    },
+    "notes": "LWM2M_PATH() macro string (no leading slash) fed to lwm2m_string_to_path(..., '/'); test asserts ret >= 0 and list order; fields are the literal reading."
+  }
+]

@@ -1,0 +1,1002 @@
+[
+  {
+    "id": "senml-leshan-dec-acl-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:927",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/2/3/\",\"n\":\"0\",\"v\":3},{\"n\":\"1\",\"v\":1},{\"n\":\"3\",\"v\":123},{\"bn\":\"/2/2/\",\"n\":\"0\",\"v\":4},{\"n\":\"1\",\"v\":2},{\"n\":\"3\",\"v\":124}]",
+    "expected": [
+      {
+        "path": "/2/3/0",
+        "type": "integer",
+        "value": 3
+      },
+      {
+        "path": "/2/3/1",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/3/3",
+        "type": "integer",
+        "value": 123
+      },
+      {
+        "path": "/2/2/0",
+        "type": "integer",
+        "value": 4
+      },
+      {
+        "path": "/2/2/1",
+        "type": "integer",
+        "value": 2
+      },
+      {
+        "path": "/2/2/3",
+        "type": "integer",
+        "value": 124
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Two instances, bn switches mid-pack; semantic compare (map by id)."
+  },
+  {
+    "id": "senml-leshan-dec-device-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:953",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/\",\"n\":\"0\",\"vs\":\"Open Mobile Alliance\"},{\"n\":\"1\",\"vs\":\"Lightweight M2M Client\"},{\"n\":\"2\",\"vs\":\"345000123\"},{\"n\":\"3\",\"vs\":\"1.0\"},{\"n\":\"6/0\",\"v\":1},{\"n\":\"6/1\",\"v\":5},{\"n\":\"7/0\",\"v\":3800},{\"n\":\"7/1\",\"v\":5000},{\"n\":\"8/0\",\"v\":125},{\"n\":\"8/1\",\"v\":900},{\"n\":\"9\",\"v\":100},{\"n\":\"10\",\"v\":15},{\"n\":\"11/0\",\"v\":0},{\"n\":\"13\",\"v\":1367491215},{\"n\":\"14\",\"vs\":\"+02:00\"},{\"n\":\"16\",\"vs\":\"U\"}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n."
+  },
+  {
+    "id": "senml-leshan-dec-null-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1004",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 110,
+    "text": "",
+    "expected": [],
+    "notes": "decode_null_object: empty payload for an object read gives an empty object (no nodes). rootPath null."
+  },
+  {
+    "id": "senml-leshan-dec-null-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1015",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 110,
+    "text": "",
+    "expected": [
+      {
+        "path": "/3/0",
+        "type": "instance",
+        "value": []
+      }
+    ],
+    "notes": "decode_null_object_instance: empty payload gives an empty instance. rootPath null."
+  },
+  {
+    "id": "senml-leshan-dec-null-multi-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1027",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 110,
+    "text": "",
+    "expected": [
+      {
+        "path": "/3/0/7",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "decode_null_multi_resource: empty payload gives an empty multi-instance resource. rootPath null."
+  },
+  {
+    "id": "senml-leshan-dec-single-string",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1039",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/0\",\"vs\":\"Open Mobile Alliance\"}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Full path in bn, no n."
+  },
+  {
+    "id": "senml-leshan-dec-single-float-n",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1050",
+    "direction": "decode",
+    "path": "/6/0/3",
+    "content_format": 110,
+    "text": "[{\"n\":\"/6/0/3\",\"v\":20.0}]",
+    "expected": [
+      {
+        "path": "/6/0/3",
+        "type": "float",
+        "value": 20.0
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Full path in n, no bn."
+  },
+  {
+    "id": "senml-leshan-dec-time-exponent",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1063",
+    "direction": "decode",
+    "path": "/3/0/13",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/13\",\"v\":1.638435E9}]",
+    "expected": [
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1638435000
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Time resource given in exponential notation."
+  },
+  {
+    "id": "senml-leshan-dec-multiple-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1078",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/7/\",\"n\":\"0\",\"v\":3800},{\"n\":\"1\",\"v\":5000}]",
+    "expected": [
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n."
+  },
+  {
+    "id": "senml-leshan-dec-ulong",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1094",
+    "direction": "decode",
+    "path": "/0/0/16",
+    "content_format": 110,
+    "text": "[{\"n\":\"/0/0/16\",\"v\":18446744073709551615}]",
+    "expected": [
+      {
+        "path": "/0/0/16",
+        "type": "unsigned",
+        "value": "18446744073709551615"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. u64::MAX. The test asserts a single (non-multi) resource at /0/0/16, although Leshan's 0.xml declares it Multiple Unsigned Integer."
+  },
+  {
+    "id": "senml-leshan-dec-long",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1109",
+    "direction": "decode",
+    "path": "/1/0/2",
+    "content_format": 110,
+    "text": "[{\"n\":\"/1/0/2\",\"v\":9223372036854775800}]",
+    "expected": [
+      {
+        "path": "/1/0/2",
+        "type": "integer",
+        "value": "9223372036854775800"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Must be parsed as an exact i64 (a double would round to 9223372036854775808)."
+  },
+  {
+    "id": "senml-leshan-dec-empty-multi-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1127",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 110,
+    "text": "",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Empty payload (empty byte array and empty string, lines 1127/1137) gives an empty multi-instance resource (OMA issue 494)."
+  },
+  {
+    "id": "senml-leshan-dec-empty-multi-resource-array",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1147",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 110,
+    "text": "[]",
+    "expected": [
+      {
+        "path": "/3/0/6",
+        "type": "multiple",
+        "value": []
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Empty SenML array."
+  },
+  {
+    "id": "senml-leshan-dec-timestamped-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1160",
+    "direction": "decode",
+    "path": "/1024/0/1",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/1024/0/1\",\"v\":22.9,\"bt\":268500000},{\"v\":22.4,\"t\":-5},{\"v\":24.1,\"t\":-50}],",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 268500000
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 268499995
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 268499950
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodeTimestampedData; time = bt + t. The literal really ends with a trailing comma after ']' and Leshan's Jackson decoder accepts it. Object 1024/3303 not in the model: type inferred from the number (fraction -> float, integer -> integer)."
+  },
+  {
+    "id": "senml-leshan-dec-timestamped-several-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1182",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\": \"/3303/0/5700\",\"bt\": 1699877805.766,\"v\": -128.8},{\"bn\": \"/6/0/0\",\"t\": 0.101,\"v\": -39.0}]",
+    "expected": [
+      {
+        "path": "/3303/0/5700",
+        "type": "float",
+        "value": -128.8,
+        "time": 1699877805.766
+      },
+      {
+        "path": "/6/0/0",
+        "type": "float",
+        "value": -39.0,
+        "time": 1699877805.867
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodeTimestampedNodes, no request path. bt carries over to the next record with a new bn; fractional seconds (ms precision). Whitespace after colons. Object 1024/3303 not in the model: type inferred from the number (fraction -> float, integer -> integer)."
+  },
+  {
+    "id": "senml-leshan-dec-timestamped-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1219",
+    "direction": "decode",
+    "path": "/1024/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/1024/0/\",\"bt\":268600000, \"n\":\"1\", \"v\":22.9},{\"n\":\"1\",\"v\":24.1,\"t\":-50},{\"bt\":268500000, \"n\":\"0\",\"vs\":\"a string\"},{\"n\":\"1\",\"v\":22.4}]",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 268600000
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 268599950
+      },
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string",
+        "time": 268500000
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 268500000
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodeTimestampedData; a second bt mid-pack resets the base time. Order newest first. Object 1024/3303 not in the model: type inferred from the number (fraction -> float, integer -> integer)."
+  },
+  {
+    "id": "senml-leshan-dec-timestamped-object",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1246",
+    "direction": "decode",
+    "path": "/1024",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/1024/\",\"bt\":268600000,\"n\":\"0/1\",\"v\":22.9},{\"n\":\"0/0\",\"vs\":\"a string\",\"t\":-50},{\"n\":\"1/1\",\"v\":23,\"t\":-50},{\"n\":\"0/1\",\"v\":24.1,\"t\":-5}]",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 268600000
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 268599995
+      },
+      {
+        "path": "/1024/0/0",
+        "type": "string",
+        "value": "a string",
+        "time": 268599950
+      },
+      {
+        "path": "/1024/1/1",
+        "type": "integer",
+        "value": 23,
+        "time": 268599950
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodeTimestampedData. Order newest first. 23 is asserted as Long here, unlike the OMA JSON decoder (23.0d). Object 1024/3303 not in the model: type inferred from the number (fraction -> float, integer -> integer)."
+  },
+  {
+    "id": "senml-leshan-dec-composite-resources",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1275",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/0\",\"vs\":\"Open Mobile Alliance\"},{\"bn\":\"/3/0/9\",\"v\":95},{\"bn\":\"/1/0/1\",\"v\":86400}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 95
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Composite read/write (decodeNodes) with requested paths [/3/0/0, /3/0/9, /1/0/1]; expected is the flattened map, semantic compare."
+  },
+  {
+    "id": "senml-leshan-dec-composite-mixed",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1299",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/0\",\"v\":45},{\"bn\":\"/4/0/1\",\"v\":30},{\"bn\":\"/4/0/2\",\"v\":100},{\"bn\":\"/6/0/\",\"n\":\"0\",\"v\":43.918998},{\"n\":\"1\",\"v\":2.351149},{\"n\":\"5\",\"v\":1610029880}]",
+    "expected": [
+      {
+        "path": "/4/0/0",
+        "type": "integer",
+        "value": 45
+      },
+      {
+        "path": "/4/0/1",
+        "type": "integer",
+        "value": 30
+      },
+      {
+        "path": "/4/0/2",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/6/0/0",
+        "type": "float",
+        "value": 43.918998
+      },
+      {
+        "path": "/6/0/1",
+        "type": "float",
+        "value": 2.351149
+      },
+      {
+        "path": "/6/0/5",
+        "type": "time",
+        "value": 1610029880
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Composite read/write (decodeNodes) with requested paths [/4/0/0, /4/0/1, /4/0/2, /6/0]; expected is the flattened map, semantic compare. /6/0 is returned as an instance node; flattened here. /4/0/1 is asserted as a single integer resource even though object 4 declares it Multiple."
+  },
+  {
+    "id": "senml-leshan-dec-composite-mixed-no-paths",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1331",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/0\",\"v\":45},{\"bn\":\"/4/0/1\",\"v\":30},{\"bn\":\"/4/0/2\",\"v\":100},{\"bn\":\"/6/0/\",\"n\":\"0\",\"v\":43.918998},{\"n\":\"1\",\"v\":2.351149},{\"n\":\"5\",\"v\":1610029880}]",
+    "expected": [
+      {
+        "path": "/4/0/0",
+        "type": "integer",
+        "value": 45
+      },
+      {
+        "path": "/4/0/1",
+        "type": "integer",
+        "value": 30
+      },
+      {
+        "path": "/4/0/2",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/6/0/0",
+        "type": "float",
+        "value": 43.918998
+      },
+      {
+        "path": "/6/0/1",
+        "type": "float",
+        "value": 2.351149
+      },
+      {
+        "path": "/6/0/5",
+        "type": "time",
+        "value": 1610029880
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodeNodes with paths=null (e.g. Send): one node per record, semantic compare. /4/0/1 is asserted as a single integer resource even though object 4 declares it Multiple."
+  },
+  {
+    "id": "senml-leshan-dec-paths-n",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1359",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"n\":\"/4/0/0\"},{\"n\":\"/4/0/1\"},{\"n\":\"/4/0/2\"}]",
+    "expected": {
+      "paths": [
+        "/4/0/0",
+        "/4/0/1",
+        "/4/0/2"
+      ]
+    },
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodePaths (Read-Composite / Observe-Composite request body): records carry names only; expected is {\"paths\": [...]} in order."
+  },
+  {
+    "id": "senml-leshan-dec-paths-bn",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1380",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/\", \"n\":\"0\"},{\"n\":\"1\"},{\"n\":\"2\"}]",
+    "expected": {
+      "paths": [
+        "/4/0/0",
+        "/4/0/1",
+        "/4/0/2"
+      ]
+    },
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodePaths (Read-Composite / Observe-Composite request body): records carry names only; expected is {\"paths\": [...]} in order."
+  },
+  {
+    "id": "senml-leshan-dec-paths-with-value",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1401",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/\", \"n\":\"0\"},{\"n\":\"1\", \"v\":200},{\"n\":\"2\"}]",
+    "expected": "error",
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodePaths (Read-Composite / Observe-Composite request body): records carry names only; expected is {\"paths\": [...]} in order. A record with a value is rejected."
+  },
+  {
+    "id": "senml-leshan-dec-paths-with-time",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1416",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/\", \"n\":\"0\"},{\"n\":\"1\", \"t\":20000000},{\"n\":\"2\"}]",
+    "expected": "error",
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodePaths (Read-Composite / Observe-Composite request body): records carry names only; expected is {\"paths\": [...]} in order. A record with a time is rejected."
+  },
+  {
+    "id": "senml-leshan-dec-opaque",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1429",
+    "direction": "decode",
+    "path": "/0/0/3",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/0/0/3\",\"vd\":\"q83v\"}]",
+    "expected": [
+      {
+        "path": "/0/0/3",
+        "type": "opaque",
+        "value": "abcdef"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. vd is base64url without padding: q83v = ab cd ef (the source comment saying ABCDE is wrong)."
+  },
+  {
+    "id": "senml-leshan-dec-multiple-timestamped-nodes",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeDecoderTest.java:1483",
+    "direction": "decode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/\",\"bt\":268600000,\"n\":\"0\",\"v\":1,\"t\":1},{\"n\":\"1\",\"v\":2,\"t\":2},{\"n\":\"1\",\"v\":3,\"t\":3},{\"bn\":\"/3/0/7/\",\"n\":\"0\",\"v\":3800}]",
+    "expected": [
+      {
+        "path": "/4/0/0",
+        "type": "integer",
+        "value": 1,
+        "time": 268600001
+      },
+      {
+        "path": "/4/0/1",
+        "type": "integer",
+        "value": 2,
+        "time": 268600002
+      },
+      {
+        "path": "/4/0/1",
+        "type": "integer",
+        "value": 3,
+        "time": 268600003
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800,
+        "time": 268600000
+      }
+    ],
+    "notes": "Leshan LwM2mNodeDecoderTest, types from Leshan object models. rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. decodeTimestampedNodes (Send), no request path; semantic compare. bt persists across the bn change, so the last record is at bt+0. Same path at two timestamps."
+  },
+  {
+    "id": "senml-leshan-enc-device-instance",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:347",
+    "direction": "encode",
+    "path": "/3/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/\",\"n\":\"0\",\"vs\":\"Open Mobile Alliance\"},{\"n\":\"1\",\"vs\":\"Lightweight M2M Client\"},{\"n\":\"2\",\"vs\":\"345000123\"},{\"n\":\"3\",\"vs\":\"1.0\"},{\"n\":\"6/0\",\"v\":1},{\"n\":\"6/1\",\"v\":5},{\"n\":\"7/0\",\"v\":3800},{\"n\":\"7/1\",\"v\":5000},{\"n\":\"8/0\",\"v\":125},{\"n\":\"8/1\",\"v\":900},{\"n\":\"9\",\"v\":100},{\"n\":\"10\",\"v\":15},{\"n\":\"11/0\",\"v\":0},{\"n\":\"13\",\"v\":1367491215},{\"n\":\"14\",\"vs\":\"+02:00\"},{\"n\":\"16\",\"vs\":\"U\"}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. bn only on the first record, resources sorted by id, time as integer \"v\"."
+  },
+  {
+    "id": "senml-leshan-enc-single-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:375",
+    "direction": "encode",
+    "path": "/3/0/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/0\",\"vs\":\"Open Mobile Alliance\"}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. Single resource: full path in bn, no n."
+  },
+  {
+    "id": "senml-leshan-enc-multiple-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:385",
+    "direction": "encode",
+    "path": "/3/0/7",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/7/\",\"n\":\"0\",\"v\":3800},{\"n\":\"1\",\"v\":5000}]",
+    "expected": [
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n."
+  },
+  {
+    "id": "senml-leshan-enc-timestamped-resource",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:398",
+    "direction": "encode",
+    "path": "/1024/0/1",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/1024/0/1\",\"bt\":268500000,\"v\":22.9},{\"bn\":\"/1024/0/1\",\"bt\":268500010,\"v\":22.4},{\"bn\":\"/1024/0/1\",\"bt\":268500020,\"v\":24.1}]",
+    "expected": [
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.9,
+        "time": 268500000
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 22.4,
+        "time": 268500010
+      },
+      {
+        "path": "/1024/0/1",
+        "type": "float",
+        "value": 24.1,
+        "time": 268500020
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. encodeTimestampedData: each timestamp repeats bn and uses bt (never t)."
+  },
+  {
+    "id": "senml-leshan-enc-timestamped-nodes",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:421",
+    "direction": "encode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/0/0/0\",\"bt\":500000001,\"vs\":\"TestString\"},{\"bn\":\"/0/1/\",\"bt\":500000002,\"n\":\"1\",\"vb\":true},{\"n\":\"2\",\"v\":123}]",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "string",
+        "value": "TestString",
+        "time": 500000001
+      },
+      {
+        "path": "/0/1/1",
+        "type": "boolean",
+        "value": true,
+        "time": 500000002
+      },
+      {
+        "path": "/0/1/2",
+        "type": "integer",
+        "value": 123,
+        "time": 500000002
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. encodeTimestampedNodes (Send payload, several paths): one bn+bt per timestamped node; the instance /0/1 is split into bn \"/0/1/\" + n."
+  },
+  {
+    "id": "senml-leshan-enc-composite-resources",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:463",
+    "direction": "encode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/0\",\"vs\":\"Open Mobile Alliance\"},{\"bn\":\"/3/0/9\",\"v\":95},{\"bn\":\"/1/0/1\",\"v\":86400}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 95
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. encodeNodes (Read-Composite response) in insertion order; each resource gets its full path in bn."
+  },
+  {
+    "id": "senml-leshan-enc-composite-mixed",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:485",
+    "direction": "encode",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/0\",\"v\":45},{\"bn\":\"/4/0/1\",\"v\":30},{\"bn\":\"/4/0/2\",\"v\":100},{\"bn\":\"/6/0/\",\"n\":\"0\",\"v\":43.918998},{\"n\":\"1\",\"v\":2.351149}]",
+    "expected": [
+      {
+        "path": "/4/0/0",
+        "type": "integer",
+        "value": 45
+      },
+      {
+        "path": "/4/0/1",
+        "type": "integer",
+        "value": 30
+      },
+      {
+        "path": "/4/0/2",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/6/0/0",
+        "type": "float",
+        "value": 43.918998
+      },
+      {
+        "path": "/6/0/1",
+        "type": "float",
+        "value": 2.351149
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. encodeNodes with resources and the instance /6/0 (encoded as bn \"/6/0/\" + n). /4/0/1 is asserted as a single integer resource even though object 4 declares it Multiple."
+  },
+  {
+    "id": "senml-leshan-enc-paths",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:511",
+    "direction": "encode",
+    "content_format": 110,
+    "text": "[{\"n\":\"/4/0/0\"},{\"n\":\"/4/0/1\"},{\"n\":\"/4/0/2\"}]",
+    "expected": {
+      "paths": [
+        "/4/0/0",
+        "/4/0/1",
+        "/4/0/2"
+      ]
+    },
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. encodePaths (Read-Composite request body): full path in n, no bn."
+  },
+  {
+    "id": "senml-leshan-enc-opaque",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/node/codec/LwM2mNodeEncoderTest.java:532",
+    "direction": "encode",
+    "path": "/0/0/3",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/0/0/3\",\"vd\":\"q83v\"}]",
+    "expected": [
+      {
+        "path": "/0/0/3",
+        "type": "opaque",
+        "value": "abcdef"
+      }
+    ],
+    "notes": "Leshan LwM2mNodeEncoderTest; byte-exact (assertEquals on the string). rootPath=null variant (%%ROOTPATH%% -> \"\"); the test also runs with /lwm2m, /lwm2m/rootpath which prefix every bn/n. vd is base64url without padding (q83v = abcdef)."
+  },
+  {
+    "id": "senml-leshan-raw-device",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/senml/cbor/AbstractSenMLTest.java:45",
+    "direction": "both",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/\",\"n\":\"0\",\"vs\":\"Open Mobile Alliance\"},{\"n\":\"1\",\"vs\":\"Lightweight M2M Client\"},{\"n\":\"2\",\"vs\":\"345000123\"},{\"n\":\"3\",\"vs\":\"1.0\"},{\"n\":\"6/0\",\"v\":1},{\"n\":\"6/1\",\"v\":5},{\"n\":\"7/0\",\"v\":3800},{\"n\":\"7/1\",\"v\":5000},{\"n\":\"8/0\",\"v\":125},{\"n\":\"8/1\",\"v\":900},{\"n\":\"9\",\"v\":100},{\"n\":\"10\",\"v\":15},{\"n\":\"11/0\",\"v\":0},{\"n\":\"13\",\"v\":1367491215},{\"n\":\"14\",\"vs\":\"+02:00\"},{\"n\":\"16\",\"vs\":\"U\"}]",
+    "expected": {
+      "senml": [
+        {
+          "bn": "/3/0/",
+          "n": "0",
+          "vs": "Open Mobile Alliance"
+        },
+        {
+          "n": "1",
+          "vs": "Lightweight M2M Client"
+        },
+        {
+          "n": "2",
+          "vs": "345000123"
+        },
+        {
+          "n": "3",
+          "vs": "1.0"
+        },
+        {
+          "n": "6/0",
+          "v": 1
+        },
+        {
+          "n": "6/1",
+          "v": 5
+        },
+        {
+          "n": "7/0",
+          "v": 3800
+        },
+        {
+          "n": "7/1",
+          "v": 5000
+        },
+        {
+          "n": "8/0",
+          "v": 125
+        },
+        {
+          "n": "8/1",
+          "v": 900
+        },
+        {
+          "n": "9",
+          "v": 100
+        },
+        {
+          "n": "10",
+          "v": 15
+        },
+        {
+          "n": "11/0",
+          "v": 0
+        },
+        {
+          "n": "13",
+          "v": 1367491215
+        },
+        {
+          "n": "14",
+          "vs": "+02:00"
+        },
+        {
+          "n": "16",
+          "vs": "U"
+        }
+      ]
+    },
+    "notes": "SenML-level (SenMLJsonJacksonEncoderDecoder), no LwM2M model: expected is the raw record list. Serialize is byte-exact (assertEquals on the string); deserialize compares records. Tests serialize_device_object (SenMLJsonSerDesTest.java:54) and deserialize_device_object (:46). Same text as senml-leshan-enc-device-instance."
+  },
+  {
+    "id": "senml-leshan-raw-opaque",
+    "source": "leshan/leshan-lwm2m-core/src/test/java/org/eclipse/leshan/core/senml/cbor/SenMLJsonSerDesTest.java:62",
+    "direction": "both",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/0/0/3\",\"vd\":\"q83v\"}]",
+    "expected": {
+      "senml": [
+        {
+          "bn": "/0/0/3",
+          "vd": "q83v"
+        }
+      ]
+    },
+    "notes": "SenML-level (SenMLJsonJacksonEncoderDecoder), no LwM2M model: expected is the raw record list. Serialize is byte-exact (assertEquals on the string); deserialize compares records. vd \"q83v\" is base64url of bytes abcdef. Serialize at line 74."
+  }
+]

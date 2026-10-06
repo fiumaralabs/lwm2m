@@ -1,0 +1,3607 @@
+[
+  {
+    "id": "spec-lwcbor-read-3-0-0-array-key",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.1",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 11544,
+    "bytes_hex": "a183030000744f70656e204d6f62696c6520416c6c69616e6365",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": "Diag {[3, 0, 0]: \"Open Mobile Alliance\"}. Spec states 26 bytes (verified). LwM2M CBOR vectors are decode-only: an encoder may legally pick another key grouping (array key vs nested maps)."
+  },
+  {
+    "id": "spec-lwcbor-read-3-0-0-nested-maps",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.1",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 11544,
+    "bytes_hex": "a103a100a100744f70656e204d6f62696c6520416c6c69616e6365",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": "Diag {3: {0: {0: \"Open Mobile Alliance\"}}}. Spec: \"the following payload is also valid\" (27 bytes). Decoders MUST accept both key styles."
+  },
+  {
+    "id": "spec-lwcbor-read-3-0-6",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.2",
+    "direction": "decode",
+    "path": "/3/0/6",
+    "content_format": 11544,
+    "bytes_hex": "a183030006a200010105",
+    "expected": [
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      }
+    ],
+    "notes": "Diag {[3, 0, 6]: {0: 1, 1: 5}}. 10 bytes. Multi-instance resource: the map value is keyed by resource-instance id."
+  },
+  {
+    "id": "spec-lwcbor-read-3-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.3",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11544,
+    "bytes_hex": "a1820300ad00744f70656e204d6f62696c6520416c6c69616e636501764c69676874776569676874204d324d20436c69656e7402693334353030303132330363312e3006a20001010507a200190ed80119138808a200187d011903840918640a0f0ba100000d1a5182428f0e662b30323a3030106155",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "118 bytes (verified). Time /3/0/13 is a plain CBOR uint (no tag). Key order as in spec (ascending)."
+  },
+  {
+    "id": "spec-lwcbor-read-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.4",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 11544,
+    "bytes_hex": "a101a200a7001865011a000151800219012c03191770051a0001518006f507615501a7001866011a000151800219025803191770051a0001518006f4076155",
+    "expected": [
+      {
+        "path": "/1/0/0",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/2",
+        "type": "integer",
+        "value": 300
+      },
+      {
+        "path": "/1/0/3",
+        "type": "integer",
+        "value": 6000
+      },
+      {
+        "path": "/1/0/5",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/6",
+        "type": "boolean",
+        "value": true
+      },
+      {
+        "path": "/1/0/7",
+        "type": "string",
+        "value": "U"
+      },
+      {
+        "path": "/1/1/0",
+        "type": "integer",
+        "value": 102
+      },
+      {
+        "path": "/1/1/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/1/2",
+        "type": "integer",
+        "value": 600
+      },
+      {
+        "path": "/1/1/3",
+        "type": "integer",
+        "value": 6000
+      },
+      {
+        "path": "/1/1/5",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/1/6",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/1/1/7",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "63 bytes (verified). Diag {1: {0: {...}, 1: {...}}}."
+  },
+  {
+    "id": "spec-lwcbor-composite-response",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.5",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a2820300a200744f70656e204d6f62696c6520416c6c69616e6365091864830100011a00015180",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      }
+    ],
+    "notes": "Read-Composite response; 39 bytes (verified). Mixed key depths at top level: [3,0] -> map, [1,0,1] -> value."
+  },
+  {
+    "id": "spec-lwcbor-create-2-instance-5",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.6",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11544,
+    "bytes_hex": "a1820205a4000501008202186600031865",
+    "expected": [
+      {
+        "path": "/2/5/0",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/2/5/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/5/2/102",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/5/3",
+        "type": "integer",
+        "value": 101
+      }
+    ],
+    "notes": "Create /2 with instance id 5; 17 bytes (verified). Inner key [2, 102] is a relative path (resource 2, instance 102) inside the instance map."
+  },
+  {
+    "id": "spec-lwcbor-create-2-no-instance-id",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.4.6",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 11544,
+    "bytes_hex": "a1820219ffffa4000501008202186600031865",
+    "expected": [
+      {
+        "path": "/2/65535/0",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/2/65535/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/65535/2/102",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/65535/3",
+        "type": "integer",
+        "value": 101
+      }
+    ],
+    "notes": "Instance id MAX_ID 65535 = \"no reference to an Object Instance\" (C §7.5.4): the client assigns the id. Only valid in Create. Paths here keep 65535 literally."
+  },
+  {
+    "id": "spec-lwcbor-gateway-prefix-composite",
+    "source": "OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A §10",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 11544,
+    "bytes_hex": "a283636430310300a20069436f6d70616e79204109186483636430320300a20069436f6d70616e792042091841",
+    "expected": [
+      {
+        "path": "/d01/3/0/0",
+        "type": "string",
+        "value": "Company A"
+      },
+      {
+        "path": "/d01/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/d02/3/0/0",
+        "type": "string",
+        "value": "Company B"
+      },
+      {
+        "path": "/d02/3/0/9",
+        "type": "integer",
+        "value": 65
+      }
+    ],
+    "notes": "Gateway TS §9 extends the LwM2M CBOR ID grammar: an array key may start with a text-string PREFIX. Node paths carry the gateway prefix (outside the README path model)."
+  },
+  {
+    "id": "spec-tlv-read-3-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.5.1",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11542,
+    "bytes_hex": "c800144f70656e204d6f62696c6520416c6c69616e6365c801164c696768747765696774204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c11055",
+    "expected": "error",
+    "notes": "SPEC ERRATUM, bytes copied exactly. Model Number is written \"Lightweigt M2M Client\" (21 bytes, missing \"h\") but its length byte says 0x16=22, so the payload is 120 bytes, not the stated 121, and a strict parser misframes (truncated TLV). Intended content = Device instance of Appendix F (same nodes as spec-lwcbor-read-3-0)."
+  },
+  {
+    "id": "spec-tlv-read-3",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.5.2 A",
+    "direction": "decode",
+    "path": "/3",
+    "content_format": 11542,
+    "bytes_hex": "080079c800144f70656e204d6f62696c6520416c6c69616e6365c801164c696768747765696774204d324d20436c69656e74c80209333435303030313233c303312e30860641000141010588070842000ed842011388870841007d42010384c10964c10a0f830b410000c40d5182428fc60e2b30323a3030c11055",
+    "expected": "error",
+    "notes": "SPEC ERRATUM, bytes copied exactly. Object Instance TLV 08 00 79 declares 121 bytes but only 120 follow (same missing \"h\" in Model Number). Stated total 124, actual 123."
+  },
+  {
+    "id": "spec-tlv-read-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.5.2 B",
+    "direction": "both",
+    "path": "/2",
+    "content_format": 11542,
+    "bytes_hex": "08000ec10001c101008302417f07c1037f080212c10003c101008702417f0761013601c1037f",
+    "expected": [
+      {
+        "path": "/2/0/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/0/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/0/2/127",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/0/3",
+        "type": "integer",
+        "value": 127
+      },
+      {
+        "path": "/2/2/0",
+        "type": "integer",
+        "value": 3
+      },
+      {
+        "path": "/2/2/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/2/2/127",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/2/2/310",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/2/3",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "38 bytes (verified). Spec table says instance 0 length \"0x0E (17 bytes)\": 0x0E=14 is right, \"17\" is a typo. ACL[310] uses a 16-bit identifier (type 0x61)."
+  },
+  {
+    "id": "spec-tlv-read-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.5.2 C",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 11542,
+    "bytes_hex": "08000dc10001c40100015180c10601c10755",
+    "expected": "error",
+    "notes": "SPEC ERRATUM, bytes copied exactly. Object Instance TLV 08 00 0D declares 13 bytes but its four resource TLVs take 15 (0x0F). Text says 18 bytes total, table says 16. Intended nodes: /1/0/0=1, /1/0/1=86400, /1/0/6=true, /1/0/7=\"U\"."
+  },
+  {
+    "id": "spec-tlv-read-65-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.5.3 Example 1",
+    "direction": "both",
+    "path": "/65/0",
+    "content_format": 11542,
+    "bytes_hex": "88000c440000420000440100420001c8010d38363133383030373535353030c40212345678",
+    "expected": [
+      {
+        "path": "/65/0/0/0",
+        "type": "objlnk",
+        "value": "66:0"
+      },
+      {
+        "path": "/65/0/0/1",
+        "type": "objlnk",
+        "value": "66:1"
+      },
+      {
+        "path": "/65/0/1",
+        "type": "string",
+        "value": "8613800755500"
+      },
+      {
+        "path": "/65/0/2",
+        "type": "integer",
+        "value": 305419896
+      }
+    ],
+    "notes": "37 bytes (verified). Hypothetical Object 65 of Figure C.-1: res 0 Objlnk multiple, res 1 String, res 2 Integer. Objlnk in TLV = 2x16-bit big-endian. No Object Instance TLV because the instance id is in the request path."
+  },
+  {
+    "id": "spec-tlv-read-66",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.5.3 Example 2",
+    "direction": "decode",
+    "path": "/66",
+    "content_format": 11542,
+    "bytes_hex": "080023c8000b6d79536572766963652031c8010f496e7465726e65742e31352e323334c40200430000080123c8000b6d79536572766963652032c8010f496e7465726e65742e31352e323335c402ffffffff",
+    "expected": "error",
+    "notes": "SPEC ERRATUM, bytes copied exactly. Each Object Instance TLV says length 0x23=35 but contains 38 bytes (14+18+6); stated total 76, actual 82. Intended nodes: /66/0/0=\"myService 1\", /66/0/1=\"Internet.15.234\", /66/0/2=67:0, /66/1/0=\"myService 2\", /66/1/1=\"Internet.15.235\", /66/1/2=65535:65535 (null link FFFF FFFF)."
+  },
+  {
+    "id": "spec-senml-cbor-read-3-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.7 and Appendix M",
+    "direction": "both",
+    "path": "/3/0",
+    "content_format": 112,
+    "bytes_hex": "90a321652f332f302f00613003744f70656e204d6f62696c6520416c6c69616e6365a200613103764c69676874776569676874204d324d20436c69656e74a20061320369333435303030313233a20061330363312e30a20063362f300201a20063362f310205a20063372f3002190ed8a20063372f3102191388a20063382f3002187da20063382f3102190384a2006139021864a200623130020fa2006431312f300200a200623133021a5182428fa20062313403662b30323a3030a200623136036155",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Same bytes in §7.5.7 (raw) and Appendix M (annotated), verified identical (196 bytes). bn \"/3/0/\" + relative n, integer labels per RFC 8428 §6. Time /3/0/13 as plain uint in v (label 2)."
+  },
+  {
+    "id": "spec-senml-json-read-3-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-2",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/\",\"n\":\"0\",\"vs\":\"Open Mobile Alliance\"},\n{\"n\":\"1\",\"vs\":\"Lightweight M2M Client\"},\n{\"n\":\"2\",\"vs\":\"345000123\"},\n{\"n\":\"3\",\"vs\":\"1.0\"},\n{\"n\":\"6/0\",\"v\":1},\n{\"n\":\"6/1\",\"v\":5},\n{\"n\":\"7/0\",\"v\":3800},\n{\"n\":\"7/1\",\"v\":5000},\n{\"n\":\"8/0\",\"v\":125},\n{\"n\":\"8/1\",\"v\":900},\n{\"n\":\"9\",\"v\":100},\n{\"n\":\"10\",\"v\":15},\n{\"n\":\"11/0\",\"v\":0},\n{\"n\":\"13\",\"v\":1367491215},\n{\"n\":\"14\",\"vs\":\"+02:00\"},\n{\"n\":\"16\",\"vs\":\"U\"}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Spec states 399 bytes for its own rendering; whitespace here is the HTML rendering, semantic compare."
+  },
+  {
+    "id": "spec-senml-json-historical-notify",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-3",
+    "direction": "decode",
+    "path": "/72/1/2",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/72/\",\"bt\":25462634,\"n\":\"1/2\",\"v\":22.4,\"t\":-5},\n{\"n\":\"1/2\",\"v\":22.9,\"t\":-30},\n{\"n\":\"1/2\",\"v\":24.1,\"t\":-50}]",
+    "expected": [
+      {
+        "path": "/72/1/2",
+        "type": "float",
+        "value": 22.4,
+        "time": 25462629
+      },
+      {
+        "path": "/72/1/2",
+        "type": "float",
+        "value": 22.9,
+        "time": 25462604
+      },
+      {
+        "path": "/72/1/2",
+        "type": "float",
+        "value": 24.1,
+        "time": 25462584
+      }
+    ],
+    "notes": "Historical notification (Notification Storing). Resolved time = bt + t (RFC 8428 §4.6). Hypothetical Object 72, resource 2 assumed Float."
+  },
+  {
+    "id": "spec-senml-json-read-65-0-hierarchy",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-4",
+    "direction": "decode",
+    "path": "/65/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/\",\"n\":\"65/0/0/0\",\"vlo\":\"66:0\"},\n{\"n\":\"65/0/0/1\",\"vlo\":\"66:1\"},\n{\"n\":\"65/0/1\",\"vs\":\"8613800755500\"},\n{\"n\":\"65/0/2\",\"v\":1},\n{\"n\":\"66/0/0\",\"vs\":\"myService1\"},\n{\"n\":\"66/0/1\",\"vs\":\"Internet.15.234\"},\n{\"n\":\"66/0/2\",\"vlo\":\"67:0\"},\n{\"n\":\"66/1/0\",\"vs\":\"myService2\"},\n{\"n\":\"66/1/1\",\"vs\":\"Internet.15.235\"},\n{\"n\":\"66/1/2\",\"vlo\":\"FFFF:FFFF\"},\n{\"n\":\"67/0/0\",\"vs\":\"85.76.76.84\"},\n{\"n\":\"67/0/1\",\"vs\":\"85.76.255.255\"}]",
+    "expected": [
+      {
+        "path": "/65/0/0/0",
+        "type": "objlnk",
+        "value": "66:0"
+      },
+      {
+        "path": "/65/0/0/1",
+        "type": "objlnk",
+        "value": "66:1"
+      },
+      {
+        "path": "/65/0/1",
+        "type": "string",
+        "value": "8613800755500"
+      },
+      {
+        "path": "/65/0/2",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/66/0/0",
+        "type": "string",
+        "value": "myService1"
+      },
+      {
+        "path": "/66/0/1",
+        "type": "string",
+        "value": "Internet.15.234"
+      },
+      {
+        "path": "/66/0/2",
+        "type": "objlnk",
+        "value": "67:0"
+      },
+      {
+        "path": "/66/1/0",
+        "type": "string",
+        "value": "myService2"
+      },
+      {
+        "path": "/66/1/1",
+        "type": "string",
+        "value": "Internet.15.235"
+      },
+      {
+        "path": "/66/1/2",
+        "type": "objlnk",
+        "value": "65535:65535"
+      },
+      {
+        "path": "/67/0/0",
+        "type": "string",
+        "value": "85.76.76.84"
+      },
+      {
+        "path": "/67/0/1",
+        "type": "string",
+        "value": "85.76.255.255"
+      }
+    ],
+    "notes": "Breadth-first hierarchy via bn \"/\". The null link is written \"FFFF:FFFF\" (hex) although Table C.-2 says two decimal 16-bit integers (\"65535:65535\"); a tolerant decoder maps it to 65535:65535. Values differ from the TLV example of the same objects (65/0/2 = 1 vs 0x12345678, \"myService1\" vs \"myService 1\")."
+  },
+  {
+    "id": "spec-senml-json-read-3-0-0-bn-only",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-5",
+    "direction": "decode",
+    "path": "/3/0/0",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/3/0/0\",\"vs\":\"Open Mobile Alliance\"}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": "Full path in bn, no n."
+  },
+  {
+    "id": "spec-senml-json-read-composite-request",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-6",
+    "direction": "decode",
+    "path": null,
+    "content_format": 110,
+    "text": "[{\"n\":\"/3/0/0\"},\n{\"n\":\"/3/0/9\"},\n{\"n\":\"/1/0/1\"}]",
+    "expected": {
+      "paths": [
+        "/3/0/0",
+        "/3/0/9",
+        "/1/0/1"
+      ]
+    },
+    "notes": "Read-Composite request body (no value fields). In 1.2 this is properly SenML-ETCH (ct 320); T Table 6.4.4.-1 also allows plain SenML 110."
+  },
+  {
+    "id": "spec-senml-json-read-composite-response",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-7",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 110,
+    "text": "[{\"n\":\"/3/0/0\", \"vs\":\"Open Mobile Alliance\"},\n{\"n\" :\"/3/0/9\", \"v\":95},\n{\"n\":\"/1/0/1\", \"v\":86400}]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 95
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      }
+    ],
+    "notes": "Note the space in {\"n\" :\"/3/0/9\" ...}: valid JSON whitespace."
+  },
+  {
+    "id": "spec-senml-json-read-composite-request-bn",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-8",
+    "direction": "decode",
+    "path": null,
+    "content_format": 110,
+    "text": "[{\"bn\":\"/4/0/\", \"n\":\"0\"},\n{\"n\":\"1\"},\n{\"n\":\"2\"},\n{\"bn\":\"/6/\", \"n\":\"0\"}]",
+    "expected": {
+      "paths": [
+        "/4/0/0",
+        "/4/0/1",
+        "/4/0/2",
+        "/6/0"
+      ]
+    },
+    "notes": "bn is reset mid-pack (\"/6/\") and n \"0\" resolves to /6/0 (an object instance)."
+  },
+  {
+    "id": "spec-senml-json-write-composite",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-9",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 110,
+    "text": "[{\"n\":\"/3311/0/5850\", \"vb\":false},\n{\"n\":\"/3311/1/5850\", \"vb\":false},\n{\"n\":\"/3311/2/5851\", \"v\":20},\n{\"n\":\"/3308/0/5900\", \"v\":18}]",
+    "expected": [
+      {
+        "path": "/3311/0/5850",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/3311/1/5850",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/3311/2/5851",
+        "type": "integer",
+        "value": 20
+      },
+      {
+        "path": "/3308/0/5900",
+        "type": "float",
+        "value": 18
+      }
+    ],
+    "notes": "Write-Composite (iPATCH) body. Types from the IPSO models: 5850 On/Off Boolean, 5851 Dimmer Integer, 5900 Set Point Value Float."
+  },
+  {
+    "id": "spec-senml-json-read-composite-root",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-10",
+    "direction": "decode",
+    "path": null,
+    "content_format": 110,
+    "text": "[{\"n\":\"/\"}]",
+    "expected": {
+      "paths": [
+        "/"
+      ]
+    },
+    "notes": "Read-Composite of everything."
+  },
+  {
+    "id": "spec-senml-json-read-composite-object",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-11",
+    "direction": "decode",
+    "path": null,
+    "content_format": 110,
+    "text": "[{\"n\":\"/1\"}]",
+    "expected": {
+      "paths": [
+        "/1"
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-senml-json-read-composite-instances",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6 Table 7.5.6.-12",
+    "direction": "decode",
+    "path": null,
+    "content_format": 110,
+    "text": "[{\"n\":\"/1/0\"},\n{\"n\":\"/1/2\"}]",
+    "expected": {
+      "paths": [
+        "/1/0",
+        "/1/2"
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-senml-json-bootstrap-read-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.4 Table 6.1.7.4.-2",
+    "direction": "decode",
+    "path": "/2",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/2/\",\"n\":\"0/0\",\"v\":1},\n{\"n\":\"0/1\",\"v\":0},\n{\"n\":\"0/2/127\",\"v\":7},\n{\"n\":\"0/3\",\"v\":127},\n{\"n\":\"2/0\",\"v\":3},\n{\"n\":\"2/1\",\"v\":0},\n{\"n\":\"2/2/127\",\"v\":7},\n{\"n\":\"2/2/310\",\"v\":7},\n{\"n\":\"2/3\",\"v\":127}]",
+    "expected": [
+      {
+        "path": "/2/0/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/0/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/0/2/127",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/0/3",
+        "type": "integer",
+        "value": 127
+      },
+      {
+        "path": "/2/2/0",
+        "type": "integer",
+        "value": 3
+      },
+      {
+        "path": "/2/2/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/2/2/127",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/2/2/310",
+        "type": "integer",
+        "value": 7
+      },
+      {
+        "path": "/2/2/3",
+        "type": "integer",
+        "value": 127
+      }
+    ],
+    "notes": "Bootstrap-Read /2. Spec says it is based on the TLV example of §7.5.5.2 B, but ACL[310] is 7 here and 1 in the TLV example."
+  },
+  {
+    "id": "spec-senml-json-bootstrap-pack",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.7 Table 6.1.7.7.-2",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/0/1/\", \"n\":\"0\",\"vs\":\"coaps://server1.example.com\"},\n{\"n\":\"1\",\"vb\":false},\n{\"n\":\"2\",\"v\":0},\n{\"n\":\"3\",\"vd\":\"YjMxM2NjMjItZjk2OS00MmVjLWFkNDI\"},\n{\"n\":\"4\",\"vd\":\"\"},\n{\"n\":\"5\",\"vd\":\"HKICjXGXx3jprvXvaQgr6g\"},\n{\"n\":\"10\",\"v\":101},\n{\"bn\":\"/0/2/\", \"n\":\"0\",\"vs\":\"coaps://server2.example.com\"},\n{\"n\":\"1\",\"vb\":false},\n{\"n\":\"2\",\"v\":1},\n{\"n\":\"3\",\"vd\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEoJ3LG8c55_Ga-prcsZRJaL-6c-_OwptQSG60TRspwZNEmXCjc2gwyyvV1-wF0r0fwHtt9eSLVM53pqcinDqRwg\"},\n{\"n\":\"4\",\"vd\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEgsdz83jTDCeDpI64Ebls9qkGlKhWTx5_bTZhUvEWmJUPb3xAzaWFM0-Dd1ChAvW_JVCM655V38DxKkVRmaTJYA\"},\n{\"n\":\"5\",\"vd\":\"MHcCAQEEIJ81LaFklXSOFG_LU3C46W0pLO1VZ6j65Voiu2fZFlG4oAoGCCqGSM49AwEHoUQDQgAEoJ3LG8c55_Ga-prcsZRJaL-6c-_OwptQSG60TRspwZNEmXCjc2gwyyvV1-wF0r0fwHtt9eSLVM53pqcinDqRwg\"},\n{\"n\":\"10\",\"v\":102},\n{\"bn\":\"/1/0/\", \"n\":\"0\",\"v\":101},\n{\"n\":\"1\",\"v\":86400},\n{\"n\":\"2\",\"v\":300},\n{\"n\":\"3\",\"v\":6000},\n{\"n\":\"5\",\"v\":86400},\n{\"n\":\"6\",\"vb\":true},\n{\"n\":\"7\",\"vs\":\"U\"},\n{\"bn\":\"/1/1/\", \"n\":\"0\",\"v\":102},\n{\"n\":\"1\",\"v\":86400},\n{\"n\":\"2\",\"v\":60},\n{\"n\":\"3\",\"v\":6000},\n{\"n\":\"5\",\"v\":86400},\n{\"n\":\"6\",\"vb\":false},\n{\"n\":\"7\",\"vs\":\"U\"},\n{\"bn\":\"/2/0/\", \"n\":\"0\",\"v\":1},\n{\"n\":\"1\",\"v\":0},\n{\"n\":\"2/101\",\"v\":15},\n{\"n\":\"3\",\"v\":101},\n{\"bn\":\"/2/1/\", \"n\":\"0\",\"v\":1},\n{\"n\":\"1\",\"v\":1},\n{\"n\":\"2/102\",\"v\":15},\n{\"n\":\"3\",\"v\":102}]",
+    "expected": [
+      {
+        "path": "/0/1/0",
+        "type": "string",
+        "value": "coaps://server1.example.com"
+      },
+      {
+        "path": "/0/1/1",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/0/1/2",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/0/1/3",
+        "type": "opaque",
+        "value": "62333133636332322d663936392d343265632d61643432"
+      },
+      {
+        "path": "/0/1/4",
+        "type": "opaque",
+        "value": ""
+      },
+      {
+        "path": "/0/1/5",
+        "type": "opaque",
+        "value": "1ca2028d7197c778e9aef5ef69082bea"
+      },
+      {
+        "path": "/0/1/10",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/0/2/0",
+        "type": "string",
+        "value": "coaps://server2.example.com"
+      },
+      {
+        "path": "/0/2/1",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/0/2/2",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/0/2/3",
+        "type": "opaque",
+        "value": "3059301306072a8648ce3d020106082a8648ce3d03010703420004a09dcb1bc739e7f19afa9adcb1944968bfba73efcec29b50486eb44d1b29c193449970a3736830cb2bd5d7ec05d2bd1fc07b6df5e48b54ce77a6a7229c3a91c2"
+      },
+      {
+        "path": "/0/2/4",
+        "type": "opaque",
+        "value": "3059301306072a8648ce3d020106082a8648ce3d0301070342000482c773f378d30c2783a48eb811b96cf6a90694a8564f1e7f6d366152f11698950f6f7c40cda585334f837750a102f5bf25508ceb9e55dfc0f12a455199a4c960"
+      },
+      {
+        "path": "/0/2/5",
+        "type": "opaque",
+        "value": "307702010104209f352da16495748e146fcb5370b8e96d292ced5567a8fae55a22bb67d91651b8a00a06082a8648ce3d030107a14403420004a09dcb1bc739e7f19afa9adcb1944968bfba73efcec29b50486eb44d1b29c193449970a3736830cb2bd5d7ec05d2bd1fc07b6df5e48b54ce77a6a7229c3a91c2"
+      },
+      {
+        "path": "/0/2/10",
+        "type": "integer",
+        "value": 102
+      },
+      {
+        "path": "/1/0/0",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/2",
+        "type": "integer",
+        "value": 300
+      },
+      {
+        "path": "/1/0/3",
+        "type": "integer",
+        "value": 6000
+      },
+      {
+        "path": "/1/0/5",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/6",
+        "type": "boolean",
+        "value": true
+      },
+      {
+        "path": "/1/0/7",
+        "type": "string",
+        "value": "U"
+      },
+      {
+        "path": "/1/1/0",
+        "type": "integer",
+        "value": 102
+      },
+      {
+        "path": "/1/1/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/1/2",
+        "type": "integer",
+        "value": 60
+      },
+      {
+        "path": "/1/1/3",
+        "type": "integer",
+        "value": 6000
+      },
+      {
+        "path": "/1/1/5",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/1/6",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/1/1/7",
+        "type": "string",
+        "value": "U"
+      },
+      {
+        "path": "/2/0/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/0/1",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/2/0/2/101",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/2/0/3",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/2/1/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/1/1",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/2/1/2/102",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/2/1/3",
+        "type": "integer",
+        "value": 102
+      }
+    ],
+    "notes": "Bootstrap-Pack (response to GET /bspack). vd is base64url WITHOUT padding (Table C.-2). Decoded opaque values match Appendix F (PSK identity \"b313cc22-f969-42ec-ad42\", PSK 1ca2028d..., RPK/SPKI DER). The PDF wraps the vd strings at \"-\"; the HTML text (used here) has them unbroken."
+  },
+  {
+    "id": "spec-senml-json-bootstrap-pack-transport",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.1",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 110,
+    "text": "[{\"bn\":\"/0/1/\", \"n\":\"0\",\"vs\":\"coaps://server1.example.com\"},\n{\"n\":\"1\",\"vb\":false},\n{\"n\":\"2\",\"v\":0},\n{\"n\":\"3\",\"vd\":\"YjMxM2NjMjItZjk2OS00MmVjLWFkNDI\"},\n{\"n\":\"4\",\"vd\":\"\"},\n{\"n\":\"5\",\"vd\":\"HKICjXGXx3jprvXvaQgr6g\"},\n{\"n\":\"10\",\"v\":101},\n{\"bn\":\"/1/0/\", \"n\":\"0\",\"v\":101},\n{\"n\":\"1\",\"v\":86400},\n{\"n\":\"2\",\"v\":300},\n{\"n\":\"3\",\"v\":6000},\n{\"n\":\"5\",\"v\":86400},\n{\"n\":\"6\",\"vb\":true},\n{\"n\":\"7\",\"vs\":\"U\"}]",
+    "expected": [
+      {
+        "path": "/0/1/0",
+        "type": "string",
+        "value": "coaps://server1.example.com"
+      },
+      {
+        "path": "/0/1/1",
+        "type": "boolean",
+        "value": false
+      },
+      {
+        "path": "/0/1/2",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/0/1/3",
+        "type": "opaque",
+        "value": "62333133636332322d663936392d343265632d61643432"
+      },
+      {
+        "path": "/0/1/4",
+        "type": "opaque",
+        "value": ""
+      },
+      {
+        "path": "/0/1/5",
+        "type": "opaque",
+        "value": "1ca2028d7197c778e9aef5ef69082bea"
+      },
+      {
+        "path": "/0/1/10",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/1/0/0",
+        "type": "integer",
+        "value": 101
+      },
+      {
+        "path": "/1/0/1",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/2",
+        "type": "integer",
+        "value": 300
+      },
+      {
+        "path": "/1/0/3",
+        "type": "integer",
+        "value": 6000
+      },
+      {
+        "path": "/1/0/5",
+        "type": "integer",
+        "value": 86400
+      },
+      {
+        "path": "/1/0/6",
+        "type": "boolean",
+        "value": true
+      },
+      {
+        "path": "/1/0/7",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "Bootstrap-Pack example in the alternate-path section: Bootstrap-Interface names never carry the alternate path."
+  },
+  {
+    "id": "spec-senml-json-alternate-path",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.1",
+    "direction": "decode",
+    "path": "/lwm2m/3/0/0",
+    "content_format": 110,
+    "text": "[\n  { \"n\":\"/lwm2m/3/0/0\", \"vs\":\"Open Mobile Alliance\" }\n]",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": "Client registered </lwm2m>;rt=\"oma.lwm2m\". Names in SenML carry the alternate path (T §6.4.1); node path shown after stripping /lwm2m."
+  },
+  {
+    "id": "spec-senml-json-write-34-0-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.3.1",
+    "direction": "encode",
+    "path": "/34/0/1",
+    "content_format": 110,
+    "text": "[ { \"n\": \"/34/0/1/1\", \"vs\":\"Yellow\" },\n  { \"n\": \"/34/0/1/3\", \"vs\":\"Blue\" }]",
+    "expected": [
+      {
+        "path": "/34/0/1/1",
+        "type": "string",
+        "value": "Yellow"
+      },
+      {
+        "path": "/34/0/1/3",
+        "type": "string",
+        "value": "Blue"
+      }
+    ],
+    "notes": "Write on a multi-instance resource. Replace (PUT) leaves {1:\"Yellow\",3:\"Blue\"}; Partial Update (POST) leaves {0:\"Red\",1:\"Yellow\",3:\"Blue\"} given prior {0:\"Red\",1:\"Green\"}."
+  },
+  {
+    "id": "spec-senml-json-send-location-rssi",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.4.6; OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.5",
+    "direction": "decode",
+    "path": "/dp",
+    "content_format": 110,
+    "text": "[\n{\"n\":\"/6/0/0\", \"v\":43.61092},\n{\"n\":\"/6/0/1\", \"v\":3.87723},\n{\"n\":\"/4/0/2\", \"v\":-49}\n]",
+    "expected": [
+      {
+        "path": "/6/0/0",
+        "type": "float",
+        "value": 43.61092
+      },
+      {
+        "path": "/6/0/1",
+        "type": "float",
+        "value": 3.87723
+      },
+      {
+        "path": "/4/0/2",
+        "type": "integer",
+        "value": -49
+      }
+    ],
+    "notes": "Send = CoAP POST /dp, Content-Format application/senml+json. Server answers 2.04."
+  },
+  {
+    "id": "spec-senml-json-send-battery",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.4.-1",
+    "direction": "decode",
+    "path": "/dp",
+    "content_format": 110,
+    "text": "[{\"n\":\"/3/0/9\", \"v\":10}]",
+    "expected": [
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 10
+      }
+    ],
+    "notes": "Send in the DM example flow (POST /dp, 2.04 Changed)."
+  },
+  {
+    "id": "spec-senml-json-gateway-read",
+    "source": "OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A §10",
+    "direction": "decode",
+    "path": "/d01/3303/0",
+    "content_format": 110,
+    "text": "[\n{\"bn\":\"/d01/3303/0/\", \"n\":\"5700\", \"v\":22.1},\n{\"n\":\"5601\", \"v\":17.5},\n{\"n\":\"5602\", \"v\":23.9},\n{\"n\":\"5701\", \"vs\":\"Cel\"}\n]",
+    "expected": [
+      {
+        "path": "/d01/3303/0/5700",
+        "type": "float",
+        "value": 22.1
+      },
+      {
+        "path": "/d01/3303/0/5601",
+        "type": "float",
+        "value": 17.5
+      },
+      {
+        "path": "/d01/3303/0/5602",
+        "type": "float",
+        "value": 23.9
+      },
+      {
+        "path": "/d01/3303/0/5701",
+        "type": "string",
+        "value": "Cel"
+      }
+    ],
+    "notes": "Read GET /d01/3303/0 through a gateway; the prefix is part of the SenML names (Gateway TS §9)."
+  },
+  {
+    "id": "spec-senml-json-gateway-read-composite-request",
+    "source": "OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A §10",
+    "direction": "decode",
+    "path": null,
+    "content_format": 110,
+    "text": "[\n{\"bn\":\"/d01/3/0/\",\"n\":\"0\"},\n{\"n\":\"/9\"},\n{\"bn\":\"/d02/3/0/\",\"n\":\"0\"},\n{\"n\":\"/9\"}\n]",
+    "expected": "error",
+    "notes": "SPEC ERRATUM: RFC 8428 resolution of bn \"/d01/3/0/\" + n \"/9\" gives \"/d01/3/0//9\", not a valid path. Intended paths: /d01/3/0/0, /d01/3/0/9, /d02/3/0/0, /d02/3/0/9 (see the LwM2M CBOR response spec-lwcbor-gateway-prefix-composite)."
+  },
+  {
+    "id": "spec-oma-json-read-3-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.6.1",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 11543,
+    "text": "{\"bn\":\"/3/0/\",\n\"e\":[\n{\"n\":\"0\",\"sv\":\"Open Mobile Alliance\"},\n{\"n\":\"1\",\"sv\":\"Lightweight M2M Client\"},\n{\"n\":\"2\",\"sv\":\"345000123\"},\n{\"n\":\"3\",\"sv\":\"1.0\"},\n{\"n\":\"6/0\",\"v\":1},\n{\"n\":\"6/1\",\"v\":5},\n{\"n\":\"7/0\",\"v\":3800},\n{\"n\":\"7/1\",\"v\":5000},\n{\"n\":\"8/0\",\"v\":125},\n{\"n\":\"8/1\",\"v\":900},\n{\"n\":\"9\",\"v\":100},\n{\"n\":\"10\",\"v\":15},\n{\"n\":\"11/0\",\"v\":0},\n{\"n\":\"13\",\"v\":1367491215},\n{\"n\":\"14\",\"sv\":\"+02:00\"},\n{\"n\":\"16\",\"sv\":\"U\"}]\n}",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      },
+      {
+        "path": "/3/0/1",
+        "type": "string",
+        "value": "Lightweight M2M Client"
+      },
+      {
+        "path": "/3/0/2",
+        "type": "string",
+        "value": "345000123"
+      },
+      {
+        "path": "/3/0/3",
+        "type": "string",
+        "value": "1.0"
+      },
+      {
+        "path": "/3/0/6/0",
+        "type": "integer",
+        "value": 1
+      },
+      {
+        "path": "/3/0/6/1",
+        "type": "integer",
+        "value": 5
+      },
+      {
+        "path": "/3/0/7/0",
+        "type": "integer",
+        "value": 3800
+      },
+      {
+        "path": "/3/0/7/1",
+        "type": "integer",
+        "value": 5000
+      },
+      {
+        "path": "/3/0/8/0",
+        "type": "integer",
+        "value": 125
+      },
+      {
+        "path": "/3/0/8/1",
+        "type": "integer",
+        "value": 900
+      },
+      {
+        "path": "/3/0/9",
+        "type": "integer",
+        "value": 100
+      },
+      {
+        "path": "/3/0/10",
+        "type": "integer",
+        "value": 15
+      },
+      {
+        "path": "/3/0/11/0",
+        "type": "integer",
+        "value": 0
+      },
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      },
+      {
+        "path": "/3/0/14",
+        "type": "string",
+        "value": "+02:00"
+      },
+      {
+        "path": "/3/0/16",
+        "type": "string",
+        "value": "U"
+      }
+    ],
+    "notes": "LwM2M 1.0 JSON (application/vnd.oma.lwm2m+json). A 1.1+ server MUST still accept it (C §7.5.6); 1.1+ clients MUST NOT send it."
+  },
+  {
+    "id": "spec-text-read-3-0-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.5.1; OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.4.-1",
+    "direction": "both",
+    "path": "/3/0/0",
+    "content_format": 0,
+    "text": "Open Mobile Alliance",
+    "expected": [
+      {
+        "path": "/3/0/0",
+        "type": "string",
+        "value": "Open Mobile Alliance"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "spec-text-write-3-0-13",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.4.-1",
+    "direction": "both",
+    "path": "/3/0/13",
+    "content_format": 0,
+    "text": "1367491215",
+    "expected": [
+      {
+        "path": "/3/0/13",
+        "type": "time",
+        "value": 1367491215
+      }
+    ],
+    "notes": "PUT /3/0/13 -> 2.04 Changed."
+  },
+  {
+    "id": "spec-text-integer",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "both",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "-750",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "integer",
+        "value": -750
+      }
+    ],
+    "notes": "Placeholder path; type from Table C.-2 row."
+  },
+  {
+    "id": "spec-text-unsigned",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "both",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "18",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "unsigned",
+        "value": 18
+      }
+    ],
+    "notes": "Placeholder path."
+  },
+  {
+    "id": "spec-text-float",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "decode",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "0.00000000006667",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "float",
+        "value": 6.667e-11
+      }
+    ],
+    "notes": "Text Float is plain decimal (no exponent) in the spec example. Decode direction only is exact; encoders may differ."
+  },
+  {
+    "id": "spec-text-boolean-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "both",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "0",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "spec-text-boolean-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "both",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "1",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "spec-text-opaque-base64",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "both",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "AQIDBAU=",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "opaque",
+        "value": "0102030405"
+      }
+    ],
+    "notes": "Opaque in text format = standard Base64 WITH padding (RFC 4648), unlike SenML vd (base64url, no padding)."
+  },
+  {
+    "id": "spec-text-time",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Table C.-2",
+    "direction": "both",
+    "path": "/0/0/0",
+    "content_format": 0,
+    "text": "1476186613",
+    "expected": [
+      {
+        "path": "/0/0/0",
+        "type": "time",
+        "value": 1476186613
+      }
+    ],
+    "notes": "Tue 11-Oct-16 11:50:13 UTC."
+  },
+  {
+    "id": "spec-lf-bootstrap-discover-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.3",
+    "direction": "decode",
+    "path": "/0",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.1,</0/0>;ssid=101;uri=\"coaps://server_1.example.com\", </0/1/>, </0/2>;ssid=102;uri=\"coaps://server_2.example.com\"",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.1"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            },
+            {
+              "name": "uri",
+              "value": "coaps://server_1.example.com",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/1/",
+          "attributes": []
+        },
+        {
+          "uri": "/0/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "102"
+            },
+            {
+              "name": "uri",
+              "value": "coaps://server_2.example.com",
+              "quoted": true
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Bootstrap-Discover /0. \"</0/1/>\" has a trailing slash: tolerate it (treat as /0/1). /0/1 = Bootstrap-Server security instance (no ssid/uri). Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-bootstrap-discover-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.3",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.1,</0/0>;ssid=101;uri=\"coaps://server_1.example.com\", </0/1>, </1/0/>;ssid=101, </3/0>,</5>,</4>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.1"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            },
+            {
+              "name": "uri",
+              "value": "coaps://server_1.example.com",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0/",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5",
+          "attributes": []
+        },
+        {
+          "uri": "/4",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Bootstrap-Discover /. Trailing slash on </1/0/>. Uninstantiated objects listed as </5>, </4>. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-bootstrap-discover-3",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.3",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.1,</0/0>;ssid=101;uri=\"coaps://server_1.example.com\",</0/2>;ssid=102;uri=\"coap://server_1.example.com\",</21/0>;ssid=101,</21/2>;ssid=102,</0/1>,</21/1/>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.1"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            },
+            {
+              "name": "uri",
+              "value": "coaps://server_1.example.com",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "102"
+            },
+            {
+              "name": "uri",
+              "value": "coap://server_1.example.com",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/21/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        },
+        {
+          "uri": "/21/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "102"
+            }
+          ]
+        },
+        {
+          "uri": "/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/21/1/",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Bootstrap-Discover with OSCORE (/21) instances. Trailing slash on </21/1/>."
+  },
+  {
+    "id": "spec-lf-bootstrap-discover-4",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.3",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.1,</0/0>,</0/1>;ssid=101;uri=\"coaps://server_1.example.com\", </1/0/>;ssid=101, </3/0>,</5>,</4>, </55>;ver=1.9,</55/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.1"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/0/1",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            },
+            {
+              "name": "uri",
+              "value": "coaps://server_1.example.com",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/1/0/",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5",
+          "attributes": []
+        },
+        {
+          "uri": "/4",
+          "attributes": []
+        },
+        {
+          "uri": "/55",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.9"
+            }
+          ]
+        },
+        {
+          "uri": "/55/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Non-core object 55 v1.9: ver on the object link. Here /0/0 carries no ssid, /0/1 does (inverse of the previous examples). Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-bootstrap-discover-5",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.3",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 40,
+    "text": "</>;lwm2m=1.2,</0/0>;ssid=101;uri=\"coaps://server_1.example.com\",</0/1>,</21/0>;ssid=101,</24/1>,</23/65>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.2"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            },
+            {
+              "name": "uri",
+              "value": "coaps://server_1.example.com",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/21/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        },
+        {
+          "uri": "/24/1",
+          "attributes": []
+        },
+        {
+          "uri": "/23/65",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "1.2 Bootstrap-Discover with MQTT Server (/24) and COSE (/23) instances of the Bootstrap-Server account (no ssid)."
+  },
+  {
+    "id": "spec-lf-bootstrap-discover-legacy-no-uri",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.3 Note",
+    "direction": "decode",
+    "path": "/",
+    "content_format": 40,
+    "text": "lwm2m=1.0,</0/0>;ssid=101,</0/1/>,</0/2>;ssid=102",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "lwm2m",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/0/0",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "101"
+            }
+          ]
+        },
+        {
+          "uri": "/0/1/",
+          "attributes": []
+        },
+        {
+          "uri": "/0/2",
+          "attributes": [
+            {
+              "name": "ssid",
+              "value": "102"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Pre-1.2 example form with lwm2m=1.0 not attached to a URI-reference. Not RFC 6690 conformant; \"LwM2M Servers MAY accept this particular error\". Expected = lenient reading (lwm2m attached to an implicit \"/\" link)."
+  },
+  {
+    "id": "spec-lf-bspack-acc-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.7",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</0/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/0/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Bootstrap-Pack-Request \"acc\" parameter: BS account instances, links MUST NOT carry parameters."
+  },
+  {
+    "id": "spec-lf-bspack-acc-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.1.7.7",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</0/2>,</21/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/21/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "BS account = Security instance 2 + OSCORE instance 0."
+  },
+  {
+    "id": "spec-lf-register-example-client",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.2.1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/0>,</1/1>,</2/0>,</2/1>,</2/2>,</2/3>,</2/4>,</3/0>,</4/0>,</5>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/0",
+          "attributes": []
+        },
+        {
+          "uri": "/2/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/2",
+          "attributes": []
+        },
+        {
+          "uri": "/2/3",
+          "attributes": []
+        },
+        {
+          "uri": "/2/4",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/4/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Register payload of the Appendix F client. /0 is never listed."
+  },
+  {
+    "id": "spec-lf-register-ct-110",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.2.1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</>;ct=110, </1/0>,</1/1>,</2/0>,</2/1>,</2/2>,</2/3>,</2/4>,</3/0>,</4/0>,</5>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "ct",
+              "value": "110"
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/0",
+          "attributes": []
+        },
+        {
+          "uri": "/2/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/2",
+          "attributes": []
+        },
+        {
+          "uri": "/2/3",
+          "attributes": []
+        },
+        {
+          "uri": "/2/4",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/4/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Optional formats advertised on the root link. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-register-ct-list",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.2.1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</>;ct=\"110 112 60\", </1/0>,</1/1>,</2/0>,</2/1>,</2/2>,</2/3>,</2/4>,</3/0>,</4/0>,</5>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/",
+          "attributes": [
+            {
+              "name": "ct",
+              "value": "110 112 60",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/0",
+          "attributes": []
+        },
+        {
+          "uri": "/2/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/2",
+          "attributes": []
+        },
+        {
+          "uri": "/2/3",
+          "attributes": []
+        },
+        {
+          "uri": "/2/4",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/4/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Several content formats: quoted, space-separated list (RFC 7252 §7.2.1). Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-register-ver-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.2.3 example 1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/0>,</1/1>,</3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "1.1 client, Server 1.1 and Device 1.1: versions implied by lwm2m=1.1, so no ver."
+  },
+  {
+    "id": "spec-lf-register-ver-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.2.3 example 2",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1>;ver=1.0,</1/0>,</1/1>,</3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.0"
+            }
+          ]
+        },
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "1.1 client with Server Object 1.0: ver on the object link because there are several instances."
+  },
+  {
+    "id": "spec-lf-register-ver-3",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.2.3 example 3",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/0>,</1/1>,</3/0>,</44/0>;ver=2.2",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/44/0",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "2.2"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Single-instance object: ver may sit on the instance link (object link omitted)."
+  },
+  {
+    "id": "spec-lf-register-ver-4",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.2.3 example 4",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1>,</1/0>,</1/1>,</3/0>,</4/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/4/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "All versions match the 1.1 enabler, ver omitted."
+  },
+  {
+    "id": "spec-lf-register-alternate-path",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</lwm2m>;rt=\"oma.lwm2m\", </lwm2m/1/0>,</lwm2m/1/1>,</lwm2m/2/0>,</lwm2m/2/1>,</lwm2m/2/2>,</lwm2m/2/3>,</lwm2m/2/4>,</lwm2m/3/0>,</lwm2m/4/0>,</lwm2m/5>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/lwm2m",
+          "attributes": [
+            {
+              "name": "rt",
+              "value": "oma.lwm2m",
+              "quoted": true
+            }
+          ]
+        },
+        {
+          "uri": "/lwm2m/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/2/0",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/2/1",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/2/2",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/2/3",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/2/4",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/4/0",
+          "attributes": []
+        },
+        {
+          "uri": "/lwm2m/5",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Alternate path /lwm2m. Server MUST then prefix DM/IR paths with /lwm2m. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-register-figure-6-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Figure 6.2.-1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/1>,</2/1>,</3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/2/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Register ep=node1."
+  },
+  {
+    "id": "spec-lf-update-figure-6-2-2-a",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Figure 6.2.2.-2",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/1>,</3/0>,</12/0>,</12/1>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/12/0",
+          "attributes": []
+        },
+        {
+          "uri": "/12/1",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Initial Register."
+  },
+  {
+    "id": "spec-lf-update-figure-6-2-2-b",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Figure 6.2.2.-2",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/1>,</3/0>,</12/0>,</12/1>,</12/2>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/12/0",
+          "attributes": []
+        },
+        {
+          "uri": "/12/1",
+          "attributes": []
+        },
+        {
+          "uri": "/12/2",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Update after Create /12: full list, not a delta."
+  },
+  {
+    "id": "spec-lf-update-figure-6-2-2-c",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Figure 6.2.2.-2",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/1>,</3/0>,</12/0>,</12/2>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/12/0",
+          "attributes": []
+        },
+        {
+          "uri": "/12/2",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Update after Delete /12/1."
+  },
+  {
+    "id": "spec-lf-register-queue-mode",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.5.-1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/0>, </3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "POST /rd?ep=node&lt=86400&lwm2m=1.1&b=U&Q. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-register-queue-mode-observe",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.5.-2",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/0>, </3/0>, </5/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "POST /rd?ep=node&lwm2m=1.1&lt=86400&b=U&Q. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-register-sms-trigger",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.6.1.-1",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/2>, </3/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/2",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "POST /rd?ep=node&lwm2m=1.1&lt=86400&b=U&Q&sms=12345678. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-register-gateway",
+    "source": "OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A §10",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</1/0>,</3/0>,</5/0>,</25/0>,</25/1>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0",
+          "attributes": []
+        },
+        {
+          "uri": "/5/0",
+          "attributes": []
+        },
+        {
+          "uri": "/25/0",
+          "attributes": []
+        },
+        {
+          "uri": "/25/1",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Gateway registers its own objects plus one /25 instance per IoT device; device objects are never listed."
+  },
+  {
+    "id": "spec-lf-gateway-device-objects-d02",
+    "source": "OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A Table 10.-2",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</3/0>;ver=1.1,</3306/0>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.1"
+            }
+          ]
+        },
+        {
+          "uri": "/3306/0",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Value of /25/1/3 (IoT Device Objects, Corelnk)."
+  },
+  {
+    "id": "spec-lf-observe-composite-attrs",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.4.4",
+    "direction": "decode",
+    "path": null,
+    "content_format": 40,
+    "text": "</3>;pmin=60\n</4>;pmax=300",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "60"
+            }
+          ]
+        },
+        {
+          "uri": "/4",
+          "attributes": [
+            {
+              "name": "pmax",
+              "value": "300"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Attributes attached before an Observe-Composite. The spec shows them on two lines without a comma; here kept verbatim. Not a single valid link-format document (newline instead of \",\"); expected shows the two links."
+  },
+  {
+    "id": "spec-lf-register-figure-6-4-3-missing-comma",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.3.-1",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</1/1>,</1/2>,</2/0></2/1>,</3/0>,</4/0>",
+    "expected": "error",
+    "notes": "SPEC ERRATUM in a figure: \"</2/0></2/1>\" has no comma, invalid per RFC 6690. Register was POST /rd?ep=example-client&lwm2m=1.1&lt=86400 -> 2.01 Location /rd/5a3f."
+  },
+  {
+    "id": "spec-lf-gateway-device-objects-d01",
+    "source": "OMA-TS-LWM2M_Gateway-V1_1_1-20240312-A Table 10.-1",
+    "direction": "decode",
+    "content_format": 40,
+    "text": "</3/0>;ver=1.2,</5/0>;ver1.1,</3303/0>,</3303/1>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0",
+          "attributes": [
+            {
+              "name": "ver",
+              "value": "1.2"
+            }
+          ]
+        },
+        {
+          "uri": "/5/0",
+          "attributes": [
+            {
+              "name": "ver1.1"
+            }
+          ]
+        },
+        {
+          "uri": "/3303/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3303/1",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "SPEC ERRATUM: \";ver1.1\" (missing \"=\"). RFC 6690 parses it as a valueless parameter named \"ver1.1\"; intended ver=1.1."
+  },
+  {
+    "id": "spec-lf-discover-3",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/3",
+    "content_format": 40,
+    "text": "</3>;pmin=10, </3/0>;pmax=60, </3/0/1>, </3/0/2>, </3/0/3>, </3/0/4>, </3/0/6>;dim=2, </3/0/7>;dim=2;gt=50;lt=42.2, </3/0/8>;dim=2, </3/0/11>, </3/0/16>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "10"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0",
+          "attributes": [
+            {
+              "name": "pmax",
+              "value": "60"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/6",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/7",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            },
+            {
+              "name": "gt",
+              "value": "50"
+            },
+            {
+              "name": "lt",
+              "value": "42.2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/8",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/11",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/16",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Discover /3, default depth 2. Spec prose swaps pmin/pmax (\"Maximum Period attached to the Object\") vs the payload (pmin on /3, pmax on /3/0). Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-discover-1-depth-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/1?depth=1",
+    "content_format": 40,
+    "text": "</1>, </1/0>, </1/4>;pmax=300",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/4",
+          "attributes": [
+            {
+              "name": "pmax",
+              "value": "300"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-discover-3-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": 40,
+    "text": "</3/0>;pmin=10;pmax=60, </3/0/1>, </3/0/2>, </3/0/3>, </3/0/4>, </3/0/6>;dim=2, </3/0/6/0>, </3/0/6/3>, </3/0/7>;dim=2;gt=50;lt=42.2, </3/0/7/0>, </3/0/7/1>;lt=45, </3/0/8>;dim=2, </3/0/8/1>, </3/0/8/2>, </3/0/11>, </3/0/16>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "10"
+            },
+            {
+              "name": "pmax",
+              "value": "60"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/2",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/3",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/4",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/6",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/6/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/6/3",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/7",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            },
+            {
+              "name": "gt",
+              "value": "50"
+            },
+            {
+              "name": "lt",
+              "value": "42.2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/7/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/7/1",
+          "attributes": [
+            {
+              "name": "lt",
+              "value": "45"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/8",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/8/1",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/8/2",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/11",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/16",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Discover /3/0 with resource instances listed, i.e. depth 3, but the default for an instance target is depth 1 (Table 6.3.2.-2), which would not list resource instances. Inherited pmin shown on /3/0. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-discover-3-0-depth-0",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/3/0?depth=0",
+    "content_format": 40,
+    "text": "</3/0>;pmin=10;pmax=60",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0",
+          "attributes": [
+            {
+              "name": "pmin",
+              "value": "10"
+            },
+            {
+              "name": "pmax",
+              "value": "60"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-lf-discover-3-0-7",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 40,
+    "text": "</3/0/7>;dim=2;pmin=10;pmax=60;gt=50;lt=42.2, </3/0/7/0>, </3/0/7/1>;lt=45",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0/7",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            },
+            {
+              "name": "pmin",
+              "value": "10"
+            },
+            {
+              "name": "pmax",
+              "value": "60"
+            },
+            {
+              "name": "gt",
+              "value": "50"
+            },
+            {
+              "name": "lt",
+              "value": "42.2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/7/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/7/1",
+          "attributes": [
+            {
+              "name": "lt",
+              "value": "45"
+            }
+          ]
+        }
+      ]
+    },
+    "notes": "Inherited pmin/pmax reported on the resource link. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-discover-3-0-7-server-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 40,
+    "text": "</3/0/7>;dim=2;gt=50;lt=42.2, </3/0/7/0>, </3/0/7/1>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0/7",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            },
+            {
+              "name": "gt",
+              "value": "50"
+            },
+            {
+              "name": "lt",
+              "value": "42.2"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/7/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/7/1",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Attributes are per server: Server 1 view. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-discover-3-0-7-server-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.2",
+    "direction": "decode",
+    "path": "/3/0/7",
+    "content_format": 40,
+    "text": "</3/0/7>;dim=2;pmax=300;gt=80;lt=65.5, </3/0/7/0>, </3/0/7/1>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/3/0/7",
+          "attributes": [
+            {
+              "name": "dim",
+              "value": "2"
+            },
+            {
+              "name": "pmax",
+              "value": "300"
+            },
+            {
+              "name": "gt",
+              "value": "80"
+            },
+            {
+              "name": "lt",
+              "value": "65.5"
+            }
+          ]
+        },
+        {
+          "uri": "/3/0/7/0",
+          "attributes": []
+        },
+        {
+          "uri": "/3/0/7/1",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "Server 2 view of the same resource. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-lf-discover-1-resources",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §7.1",
+    "direction": "decode",
+    "path": "/1",
+    "content_format": 40,
+    "text": "</1/0/0>,</1/0/1>,</1/0/6>,</1/0/7>, </1/0/8>, </1/1/0>,</1/1/1>,</1/1/2>,</1/1/4>,</1/1/6>,</1/1/7>, </1/1/8>",
+    "expected": {
+      "links": [
+        {
+          "uri": "/1/0/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0/1",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0/6",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0/7",
+          "attributes": []
+        },
+        {
+          "uri": "/1/0/8",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/0",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/1",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/2",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/4",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/6",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/7",
+          "attributes": []
+        },
+        {
+          "uri": "/1/1/8",
+          "attributes": []
+        }
+      ]
+    },
+    "notes": "C §7.1 example of \"DISCOVER /1\": lists only resource links, no </1> or instance links, which is not what Table 6.3.2.-2 depth 2 gives. Contains SP after \",\" which RFC 6690 ABNF does not allow; the spec does it throughout, so parsers must skip optional whitespace between links."
+  },
+  {
+    "id": "spec-attr-pmin-1",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.4 example 1",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "pmin=1",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin",
+          "value": 1
+        }
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-attr-pmin-unset",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.4 example 2",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "pmin",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin"
+        }
+      ]
+    },
+    "notes": "No value = unset at this level; falls back to inherited or /1/x/2."
+  },
+  {
+    "id": "spec-attr-pmin-10-instance",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.4 example 3",
+    "direction": "decode",
+    "path": "/3/0",
+    "content_format": null,
+    "text": "pmin=10",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin",
+          "value": 10
+        }
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-attr-gt-st",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.4 example 4",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "gt=45&st=10",
+    "expected": {
+      "attributes": [
+        {
+          "name": "gt",
+          "value": 45
+        },
+        {
+          "name": "st",
+          "value": 10
+        }
+      ]
+    },
+    "notes": "Spec outcomes: 45->50 notify (gt), 38->49 notify (gt and st), 48->42 notify (gt crossing downward), 48->55 no notify (no crossing, change 7 < st)."
+  },
+  {
+    "id": "spec-attr-lt-gt-st",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.4.4 example 5",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "lt=20&gt=85&st=10",
+    "expected": {
+      "attributes": [
+        {
+          "name": "lt",
+          "value": 20
+        },
+        {
+          "name": "gt",
+          "value": 85
+        },
+        {
+          "name": "st",
+          "value": 10
+        }
+      ]
+    },
+    "notes": "Valid: lt(20)+2*st(10)=40 < gt(85). 87 -> 99 notifies on step only."
+  },
+  {
+    "id": "spec-attr-figure",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.4.-1",
+    "direction": "decode",
+    "path": "/3/0/9",
+    "content_format": null,
+    "text": "pmin=1&pmax=5&lt=5",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin",
+          "value": 1
+        },
+        {
+          "name": "pmax",
+          "value": 5
+        },
+        {
+          "name": "lt",
+          "value": 5
+        }
+      ]
+    },
+    "notes": "PUT /3/0/9?pmin=1&pmax=5&lt=5 -> 2.04 Changed."
+  },
+  {
+    "id": "spec-attr-pmin-pmax",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Figure 6.4.2.-1",
+    "direction": "decode",
+    "path": "/4/0/2",
+    "content_format": null,
+    "text": "pmin=10&pmax=60",
+    "expected": {
+      "attributes": [
+        {
+          "name": "pmin",
+          "value": 10
+        },
+        {
+          "name": "pmax",
+          "value": 60
+        }
+      ]
+    },
+    "notes": "Then Observe /4/0/2: notifications no sooner than 10 s and no later than 60 s after the previous one."
+  },
+  {
+    "id": "spec-exec-args-1",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.5",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "5",
+    "expected": {
+      "execute_args": [
+        {
+          "digit": 5
+        }
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-exec-args-2",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.5",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "2='10.3'",
+    "expected": {
+      "execute_args": [
+        {
+          "digit": 2,
+          "value": "10.3"
+        }
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "id": "spec-exec-args-3",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.5",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "7,0=' <https://www.omaspecworks.org>'",
+    "expected": {
+      "execute_args": [
+        {
+          "digit": 7
+        },
+        {
+          "digit": 0,
+          "value": " <https://www.omaspecworks.org>"
+        }
+      ]
+    },
+    "notes": "Listed as valid, but CHAR excludes SP (%x20), so the leading space inside the quotes violates the ABNF. 1.2.1 claims to have removed such spaces. Strict parsers reject it."
+  },
+  {
+    "id": "spec-exec-args-4",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.3.5",
+    "direction": "decode",
+    "content_format": 0,
+    "text": "0,1,2,3,4",
+    "expected": {
+      "execute_args": [
+        {
+          "digit": 0
+        },
+        {
+          "digit": 1
+        },
+        {
+          "digit": 2
+        },
+        {
+          "digit": 3
+        },
+        {
+          "digit": 4
+        }
+      ]
+    },
+    "notes": "Each digit appears once (1.2.1 rule)."
+  },
+  {
+    "id": "spec-profile-id-sha256-32",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A §6.2.1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "6:1234abcd",
+    "expected": {
+      "profile_ids": [
+        {
+          "kind": "dynamic",
+          "suite": 6,
+          "hash_hex": "1234abcd"
+        }
+      ]
+    },
+    "notes": "Query pid=6:1234abcd. Suite 6 = sha-256-32 (RFC 6920 §9.4 Figure 11). Placeholder hash; the spec defines no input serialization, so no real hash vector exists."
+  },
+  {
+    "id": "spec-mqtt-bootstrap-request",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §8.3.1",
+    "direction": "both",
+    "content_format": null,
+    "bytes_hex": "a2010002182a",
+    "expected": {
+      "mqtt": {
+        "topic": "tenant-a/lwm2m/bs/b1cccdea-22ca-4448-bcf7-d07317ee0361",
+        "message": {
+          "1": 0,
+          "2": 42
+        }
+      }
+    },
+    "notes": "Bootstrap-Request {1: 0, 2: 42}. bytes_hex is our deterministic CBOR encoding of the spec diagnostic (the spec gives no bytes)."
+  },
+  {
+    "id": "spec-mqtt-read",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §8.3.3",
+    "direction": "both",
+    "content_format": null,
+    "bytes_hex": "a3010902183805662f332f302f30",
+    "expected": {
+      "mqtt": {
+        "topic": "tenant-a/lwm2m/rd/b1cccdea-22ca-4448-bcf7-d07317ee0361",
+        "message": {
+          "1": 9,
+          "2": 56,
+          "5": "/3/0/0"
+        }
+      }
+    },
+    "notes": "Read {1: 9, 2: 56, 5: \"/3/0/0\"} published by the server. bytes_hex encoded by us from the spec diagnostic."
+  },
+  {
+    "id": "spec-mqtt-read-response",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §8.4",
+    "direction": "both",
+    "content_format": null,
+    "bytes_hex": "a41218cd021838130007744f70656e204d6f62696c6520416c6c69616e6365",
+    "expected": {
+      "mqtt": {
+        "topic": "tenant-a/lwm2m/rd/b1cccdea-22ca-4448-bcf7-d07317ee0361",
+        "message": {
+          "18": 205,
+          "2": 56,
+          "19": 0,
+          "7": "Open Mobile Alliance"
+        }
+      }
+    },
+    "notes": "Generic response {18: 205, 2: 56, 19: 0, 7: \"Open Mobile Alliance\"}. The CDDL says payload is bstr but the example uses a text string; encoded here as the spec example shows (text). bytes_hex encoded by us."
+  },
+  {
+    "id": "spec-mqtt-send",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §8.3.4",
+    "direction": "decode",
+    "content_format": null,
+    "bytes_hex": "a4011702184e131870075582a321652f332f302f006139020fa2006232300204",
+    "expected": {
+      "mqtt": {
+        "topic": "tenant-a/lwm2m/rd/b1cccdea-22ca-4448-bcf7-d07317ee0361",
+        "message": {
+          "1": 23,
+          "2": 78,
+          "19": 112,
+          "7": "82a321652f332f302f006139020fa2006232300204"
+        }
+      }
+    },
+    "notes": "SPEC ERRATA: (a) labelled \"operation Send\" but uses 23, which is Notify; Send is 24. (b) payload hex h'82A321652F332F302F006139020FA200623230024' has an odd digit count. payload bytes here are re-encoded from the spec's own diagnostic [{-2: \"/3/0/\", 0: \"9\", 2: 15}, {0: \"20\", 2: 4}] (SenML CBOR: /3/0/9=15, /3/0/20=4); message bytes encoded by us."
+  },
+  {
+    "id": "spec-coap-sms-trigger-execute-1-0-8",
+    "source": "OMA-TS-LightweightM2M_Core-V1_2_2-20240613-A Appendix L Table L.-2",
+    "direction": "decode",
+    "content_format": null,
+    "bytes_hex": "4402b60b2161fb63b13101300138",
+    "expected": {
+      "coap": {
+        "type": "CON",
+        "code": "0.02",
+        "message_id": 46603,
+        "token": "2161fb63",
+        "uri_path": [
+          "1",
+          "0",
+          "8"
+        ],
+        "payload_hex": ""
+      }
+    },
+    "notes": "Execute /1/0/8 (Registration Update Trigger) sent over SMS (WAP push WDP port 2948, X-WAP-Application-ID 0x9A). Expected values are read from the bytes; the spec's description says Message ID 34488 and token 0x301e65ca, which do not match the bytes (b60b = 46603, token 2161fb63)."
+  },
+  {
+    "id": "spec-uri-register-basic",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.3.-1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "POST /rd?ep=example-client&lwm2m=1.1&lt=86400",
+    "expected": {
+      "request": {
+        "method": "POST",
+        "path": [
+          "rd"
+        ],
+        "query": {
+          "ep": "example-client",
+          "lwm2m": "1.1",
+          "lt": "86400"
+        }
+      }
+    },
+    "notes": "-> 2.01 Created, Location-Path rd/5a3f."
+  },
+  {
+    "id": "spec-uri-update-lt",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.3.-1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "POST /rd/5a3f?lt=600000",
+    "expected": {
+      "request": {
+        "method": "POST",
+        "path": [
+          "rd",
+          "5a3f"
+        ],
+        "query": {
+          "lt": "600000"
+        }
+      }
+    },
+    "notes": "-> 2.04 Changed. DELETE /rd/5a3f -> 2.02 Deleted."
+  },
+  {
+    "id": "spec-uri-register-queue",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.5.-1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "POST /rd?ep=node&lt=86400&lwm2m=1.1&b=U&Q",
+    "expected": {
+      "request": {
+        "method": "POST",
+        "path": [
+          "rd"
+        ],
+        "query": {
+          "ep": "node",
+          "lt": "86400",
+          "lwm2m": "1.1",
+          "b": "U",
+          "Q": null
+        }
+      }
+    },
+    "notes": "Q is a valueless query flag (1.1+)."
+  },
+  {
+    "id": "spec-uri-register-sms",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.6.1.-1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "POST /rd?ep=node&lwm2m=1.1&lt=86400&b=U&Q&sms=12345678",
+    "expected": {
+      "request": {
+        "method": "POST",
+        "path": [
+          "rd"
+        ],
+        "query": {
+          "ep": "node",
+          "lwm2m": "1.1",
+          "lt": "86400",
+          "b": "U",
+          "Q": null,
+          "sms": "12345678"
+        }
+      }
+    },
+    "notes": "MSISDN without \"+\" (3GPP 23.003)."
+  },
+  {
+    "id": "spec-uri-bootstrap-request",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.2.-1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "POST /bs?ep=node34141",
+    "expected": {
+      "request": {
+        "method": "POST",
+        "path": [
+          "bs"
+        ],
+        "query": {
+          "ep": "node34141"
+        }
+      }
+    },
+    "notes": "-> 2.04, then DELETE /, PUT /0/1, PUT /1/0, PUT /2/0, POST /bs (Bootstrap-Finish)."
+  },
+  {
+    "id": "spec-uri-bootstrap-pack-request",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A Figure 6.4.2.-2",
+    "direction": "decode",
+    "content_format": null,
+    "text": "GET /bspack?ep=node34141",
+    "expected": {
+      "request": {
+        "method": "GET",
+        "path": [
+          "bspack"
+        ],
+        "query": {
+          "ep": "node34141"
+        }
+      }
+    },
+    "notes": "-> 2.05 Content with the Bootstrap-Pack."
+  },
+  {
+    "id": "spec-uri-registration-update-trigger-binding",
+    "source": "OMA-TS-LightweightM2M_Transport-V1_2_2-20240613-A §6.6.1",
+    "direction": "decode",
+    "content_format": null,
+    "text": "POST /1/x/8?0=U",
+    "expected": {
+      "request": {
+        "method": "POST",
+        "path": [
+          "1",
+          "x",
+          "8"
+        ],
+        "query": {
+          "0": "U"
+        }
+      }
+    },
+    "notes": "Literal from the spec (\"x\" = server instance). The binding override is shown as a URI query, but Execute arguments are a text/plain payload everywhere else (C §6.3.5). See ambiguity A-12."
+  }
+]

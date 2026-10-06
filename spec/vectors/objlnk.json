@@ -1,0 +1,146 @@
+[
+  {
+    "id": "objlnk-wakaama-in-fail-empty",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:204",
+    "direction": "decode",
+    "content_format": null,
+    "text": "",
+    "expected": "error",
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 0 (reject)."
+  },
+  {
+    "id": "objlnk-wakaama-in-fail-c",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:205",
+    "direction": "decode",
+    "content_format": null,
+    "text": ":",
+    "expected": "error",
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 0 (reject)."
+  },
+  {
+    "id": "objlnk-wakaama-in-fail-0c",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:206",
+    "direction": "decode",
+    "content_format": null,
+    "text": "0:",
+    "expected": "error",
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 0 (reject)."
+  },
+  {
+    "id": "objlnk-wakaama-in-fail-c0",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:207",
+    "direction": "decode",
+    "content_format": null,
+    "text": ":0",
+    "expected": "error",
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 0 (reject)."
+  },
+  {
+    "id": "objlnk-wakaama-in-0-0",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:208",
+    "direction": "decode",
+    "content_format": null,
+    "text": "0:0",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 1 (ok)."
+  },
+  {
+    "id": "objlnk-wakaama-in-1-2",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:211",
+    "direction": "decode",
+    "content_format": null,
+    "text": "1:2",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "1:2"
+      }
+    ],
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 1 (ok)."
+  },
+  {
+    "id": "objlnk-wakaama-in-65535-65535",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:214",
+    "direction": "decode",
+    "content_format": null,
+    "text": "65535:65535",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 1 (ok)."
+  },
+  {
+    "id": "objlnk-wakaama-in-fail-65536c65535",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:217",
+    "direction": "decode",
+    "content_format": null,
+    "text": "65536:65535",
+    "expected": "error",
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 0 (reject)."
+  },
+  {
+    "id": "objlnk-wakaama-in-fail-65535c65536",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:218",
+    "direction": "decode",
+    "content_format": null,
+    "text": "65535:65536",
+    "expected": "error",
+    "notes": "Wakaama helper utils_textToObjLink (used by its plain-text and SenML vlo parsing). Returns 0 (reject)."
+  },
+  {
+    "id": "objlnk-wakaama-out-0-0",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:388",
+    "direction": "encode",
+    "content_format": null,
+    "text": "0:0",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "0:0"
+      }
+    ],
+    "notes": "Wakaama helper utils_objLinkToText; output is not NUL-terminated (returns length 3; a 3-byte buffer suffices for \"0:0\")."
+  },
+  {
+    "id": "objlnk-wakaama-out-10-20",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:392",
+    "direction": "encode",
+    "content_format": null,
+    "text": "10:20",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "10:20"
+      }
+    ],
+    "notes": "Wakaama helper utils_objLinkToText; output is not NUL-terminated (returns length 5; a 3-byte buffer suffices for \"0:0\")."
+  },
+  {
+    "id": "objlnk-wakaama-out-65535-65535",
+    "source": "wakaama/wakaama/tests/core_convert_numbers_test.c:394",
+    "direction": "encode",
+    "content_format": null,
+    "text": "65535:65535",
+    "expected": [
+      {
+        "path": "",
+        "type": "objlnk",
+        "value": "65535:65535"
+      }
+    ],
+    "notes": "Wakaama helper utils_objLinkToText; output is not NUL-terminated (returns length 11; a 3-byte buffer suffices for \"0:0\")."
+  }
+]
