@@ -191,6 +191,37 @@ func TestTCPRegistrationAndDM(t *testing.T) {
 	})
 }
 
+// Proves: TCP-02
+// coap+tcp is NoSec and coaps+tcp is TLS (above); an address without a
+// port gets the scheme's default, 5683 for coap+tcp and 5684 for
+// coaps+tcp, and a TLS client can register on it.
+func TestTCPDefaultPorts(t *testing.T) {
+	h := newHarness(t)
+	k := newPKI(t)
+	a, err := h.srv.ListenTCP("127.0.0.1")
+	if err != nil {
+		t.Skipf("port 5683 busy: %v", err)
+	}
+	b, err := h.srv.ListenTLS("127.0.0.1", &tls.Config{Certificates: []tls.Certificate{k.server}})
+	if err != nil {
+		t.Skipf("port 5684 busy: %v", err)
+	}
+	if a.String() != "127.0.0.1:5683" || b.String() != "127.0.0.1:5684" {
+		t.Fatalf("coap+tcp %v, coaps+tcp %v", a, b)
+	}
+	c := testclient.NewTCP(testclient.Config{Endpoint: "tls-default", Binding: "T"})
+	if err := c.Dial(b.String(), &tls.Config{RootCAs: k.pool, NextProtos: []string{"coap"}}); err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.Set(p("/3/0/0"), lwm2m.String("x"))
+	r, err := c.Register(h.ctx)
+	mustCode(t, r, err, "2.01")
+	if reg, ok := h.srv.Store().ByEndpoint("tls-default"); !ok || reg.Identity.Mode != ModeNoSec || reg.peer.Binding() != "T" {
+		t.Fatalf("registration %+v", reg)
+	}
+}
+
 func readOK(t *testing.T, h *harness, ep string, path lwm2m.Path) *Response {
 	t.Helper()
 	r, err := h.srv.Read(h.ctx, ep, path, ReadOptions{})

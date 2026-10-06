@@ -47,10 +47,18 @@ func (s *Server) peerOf(cc coapConn) Peer {
 	return s.coap.peer(cc, "U")
 }
 
-// ListenTCP serves CoAP over TCP (coap+tcp, NoSec, TCP-02) on addr and
-// returns the bound address.
+// withPort adds the scheme's default port to an addr that has none.
+func withPort(addr, port string) string {
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		return net.JoinHostPort(addr, port)
+	}
+	return addr
+}
+
+// ListenTCP serves CoAP over TCP (coap+tcp, NoSec, TCP-02) on addr, port
+// 5683 when addr has none, and returns the bound address.
 func (s *Server) ListenTCP(addr string) (net.Addr, error) {
-	l, err := coapnet.NewTCPListener("tcp", addr)
+	l, err := coapnet.NewTCPListener("tcp", withPort(addr, "5683"))
 	if err != nil {
 		return nil, err
 	}
@@ -58,16 +66,17 @@ func (s *Server) ListenTCP(addr string) (net.Addr, error) {
 	return l.Addr(), nil
 }
 
-// ListenTLS serves CoAP over TLS 1.2/1.3 (coaps+tcp, TCP-02) on addr. For
-// X.509 clients set ClientAuth to tls.RequireAndVerifyClientCert with
-// ClientCAs; only a verified certificate is an authenticated identity.
+// ListenTLS serves CoAP over TLS 1.2/1.3 (coaps+tcp, TCP-02) on addr, port
+// 5684 when addr has none. For X.509 clients set ClientAuth to
+// tls.RequireAndVerifyClientCert with ClientCAs; only a verified
+// certificate is an authenticated identity.
 // NextProtos defaults to the ALPN "coap" (RFC 8323 §11.7).
 func (s *Server) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
 	cfg = cfg.Clone()
 	if len(cfg.NextProtos) == 0 {
 		cfg.NextProtos = []string{"coap"}
 	}
-	l, err := coapnet.NewTLSListener("tcp", addr, cfg)
+	l, err := coapnet.NewTLSListener("tcp", withPort(addr, "5684"), cfg)
 	if err != nil {
 		return nil, err
 	}

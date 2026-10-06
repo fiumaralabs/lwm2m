@@ -172,11 +172,13 @@ func mediaType(f lwm2m.ContentFormat) (string, error) {
 	return "", fmt.Errorf("%w: %v has no media type", ErrUnsupported, f)
 }
 
-// identity is what TLS authenticated: the client certificate (X.509), or,
-// without one, the client's IP address. HTTP opens new connections at will,
-// so the port is not part of a NoSec identity.
+// identity is what TLS authenticated: the client certificate (X.509) when
+// the handshake verified it (ClientAuth with ClientCAs), or, without one,
+// the client's IP address. An unverified certificate (RequireAnyClientCert)
+// authenticates nothing. HTTP opens new connections at will, so the port
+// is not part of a NoSec identity.
 func identity(r *http.Request) server.Identity {
-	if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+	if r.TLS != nil && len(r.TLS.VerifiedChains) > 0 {
 		c := r.TLS.PeerCertificates[0]
 		return server.Identity{Mode: server.ModeX509, CertCN: c.Subject.CommonName, Cert: c}
 	}

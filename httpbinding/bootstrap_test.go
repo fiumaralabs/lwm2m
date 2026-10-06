@@ -242,6 +242,14 @@ func newOSCOREDevice(t *testing.T, ctx *oscore.Context) *oscoreDevice {
 // Unprotected HTTP Bootstrap-Requests for the OSCORE endpoint get 401.
 // Proves: OSC-09
 func TestOSCOREOverHTTPBootstrap(t *testing.T) {
+	// RFC 8613 §11.5 example ("OSCORE: CSU" for option 0x0925) and the
+	// empty-option form.
+	if got := encodeOSCOREHeader([]byte{0x09, 0x25}); got != "CSU" {
+		t.Fatalf("header %q", got)
+	}
+	if v, err := decodeOSCOREHeader("AA"); err != nil || len(v) != 0 || encodeOSCOREHeader(nil) != "AA" {
+		t.Fatal("empty OSCORE option")
+	}
 	cp := oscore.Params{MasterSecret: make([]byte, 16), SenderID: []byte("dev"), RecipientID: []byte("bs")}
 	_, _ = rand.Read(cp.MasterSecret)
 	cl, _ := oscore.New(cp)
@@ -309,5 +317,32 @@ func TestOSCOREOverHTTPBootstrap(t *testing.T) {
 	}
 	if res, _ := e.do(t, "POST", "/bs?ep=osc-ep", ""); res.StatusCode != 401 {
 		t.Fatalf("unprotected: %d", res.StatusCode)
+	}
+}
+
+// Proves: HTTP-02
+// The Bootstrap-Server uses plain /{o}/{i}/{r} paths over HTTP even when
+// the client's Bootstrap-Discover reports an alternate path (T §7.1.1).
+func TestBootstrapIgnoresAlternatePath(t *testing.T) {
+	e := newBSEnv(t, bootstrap.Config{})
+	if err := e.configs.Put("bs-ep", bsConfig()); err != nil {
+		t.Fatal(err)
+	}
+	e.dev.script(func(r *http.Request) (int, string, string, string) {
+		if r.Method == http.MethodGet && r.Header.Get("Accept") == "application/link-format" {
+			return 200, "application/link-format", `</lwm2m>;rt="oma.lwm2m";lwm2m=1.2,</lwm2m/0/1>,</lwm2m/1>,</lwm2m/2>,</lwm2m/3/0>`, ""
+		}
+		return cooperative(r)
+	})
+	if res, _ := e.do(t, "POST", "/bs?ep=bs-ep&pct=11542", ""); res.StatusCode != 200 {
+		t.Fatalf("Bootstrap-Request status %d", res.StatusCode)
+	}
+	for _, want := range []string{"/", "/0", "/1", "/0/0", "/1/0", "/2", "/bs"} {
+		if s := e.dev.next(t); s.path != want {
+			t.Fatalf("BS sent %s %s, want path %s", s.method, s.path, want)
+		}
+	}
+	if r := e.result(t); r.Err != nil {
+		t.Fatal(r.Err)
 	}
 }

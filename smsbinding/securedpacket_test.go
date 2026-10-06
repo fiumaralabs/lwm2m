@@ -107,7 +107,7 @@ func decodeCommand(t *testing.T, k PacketKeys, m SMS) []byte {
 	return v
 }
 
-// Proves: SMS-05
+// Proves: SMS-05, SMS-03
 // A full smartcard exchange through the SMS binding: the card's Register
 // arrives as a Command Packet (CPI 70 00) from TP-OA "+12345678"; the
 // 2.01 goes back as a Command Packet, not a Response Packet, to that TP-OA

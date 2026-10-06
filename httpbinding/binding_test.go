@@ -364,31 +364,42 @@ func TestUnsupportedOperations(t *testing.T) {
 }
 
 // Proves: HTTP-01
+// HTTP is secured by TLS: a client certificate the handshake verified is
+// the X.509 identity (ep from the CN, another ep is 400). An unverified
+// certificate (RequireAnyClientCert) authenticates nothing, so it cannot
+// register an endpoint that has X.509 credentials.
 func TestTLSClientCertificate(t *testing.T) {
 	e := newEnv(t)
 	cert := selfSigned(t, "certdev")
-	ts := httptest.NewUnstartedServer(New(e.srv, Config{}))
-	ts.TLS = &tls.Config{ClientAuth: tls.RequireAnyClientCert}
-	ts.StartTLS()
-	defer ts.Close()
-	tr := ts.Client().Transport.(*http.Transport).Clone()
-	tr.TLSClientConfig.Certificates = []tls.Certificate{cert}
-	cl := &http.Client{Transport: tr}
+	leaf, _ := x509.ParseCertificate(cert.Certificate[0])
+	pool := x509.NewCertPool()
+	pool.AddCert(leaf)
 	e.srv.Security().Put(server.SecurityInfo{Endpoint: "certdev", X509: true})
-	post := func(path string) int {
+	post := func(cfg *tls.Config, path string) int {
+		ts := httptest.NewUnstartedServer(New(e.srv, Config{}))
+		ts.TLS = cfg
+		ts.StartTLS()
+		defer ts.Close()
+		tr := ts.Client().Transport.(*http.Transport).Clone()
+		tr.TLSClientConfig.Certificates = []tls.Certificate{cert}
 		req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader("</3/0>"))
 		req.Header.Set("Content-Type", "application/link-format")
-		res, err := cl.Do(req)
+		res, err := (&http.Client{Transport: tr}).Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
 		res.Body.Close()
 		return res.StatusCode
 	}
-	if s := post("/rd?ep=other&lt=60&lwm2m=1.2"); s != 400 {
+	unverified := &tls.Config{ClientAuth: tls.RequireAnyClientCert}
+	if s := post(unverified, "/rd?ep=certdev&lt=60&lwm2m=1.2"); s != 400 {
+		t.Errorf("unverified certificate registered an X.509 endpoint: %d, want 400", s)
+	}
+	verified := &tls.Config{ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: pool}
+	if s := post(verified, "/rd?ep=other&lt=60&lwm2m=1.2"); s != 400 {
 		t.Errorf("ep not matching the certificate CN: %d, want 400", s)
 	}
-	if s := post("/rd?lt=60&lwm2m=1.2"); s != 201 { // ep derived from the CN (REG-02)
+	if s := post(verified, "/rd?lt=60&lwm2m=1.2"); s != 201 { // ep derived from the CN (REG-02)
 		t.Fatalf("Register over TLS: %d", s)
 	}
 	if reg, ok := e.srv.Store().ByEndpoint("certdev"); !ok || reg.Identity.Mode != server.ModeX509 {

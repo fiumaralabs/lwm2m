@@ -24,8 +24,13 @@ type SMS struct {
 	UDH    []byte // user data header information elements, without the UDHL byte
 	Data   []byte // user data after the header
 	PID    byte   // TP-PID; 0 is the default
-	DCS    byte   // TP-DCS; 0 leaves the SMSC's 8-bit default
+	DCS    byte   // TP-DCS; 0 is sent as DCS8Bit
 }
+
+// DCS8Bit is TP-DCS 0000 0100: 8-bit data, no message class (3GPP 23.038
+// §4). CoAP over SMS uses 8-bit encoding (T §6.8.3); 0 would be the GSM
+// 7-bit alphabet.
+const DCS8Bit = 0x04
 
 // MaxUserData is the user data size of one SMS, UDHL and UDH included.
 const MaxUserData = 140
@@ -162,6 +167,9 @@ func (b *Binding) send(ctx context.Context, msisdn string, coap []byte) error {
 // reference IE (3GPP 23.040 §9.2.3.24.1) when it does not fit. A Command
 // or Response Packet IE goes in the first part only (31.115 §4.3, §4.5).
 func (b *Binding) submit(ctx context.Context, m SMS) error {
+	if m.DCS == 0 {
+		m.DCS = DCS8Bit
+	}
 	udh, data := m.UDH, m.Data
 	if 1+len(udh)+len(data) <= MaxUserData || len(udh) == 0 && len(data) <= MaxUserData {
 		return b.cfg.SMSC.Submit(ctx, m)

@@ -9,10 +9,12 @@ import (
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/bootstrap"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/codec/senml"
 	"github.com/fiumaralabs/lwm2m/internal/vectors"
 	"github.com/fiumaralabs/lwm2m/link"
+	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -207,6 +209,30 @@ func TestRegistry(t *testing.T) {
 	reg := gatewayReg("2.0")
 	if Version(reg) != "2.0" || Version(gatewayReg("")) != "1.0" {
 		t.Fatal("Version")
+	}
+	// Both definitions exist: Core E.12/E.13 /25 v1.0 (Prefix RW, res 2
+	// Objlnk to /26) with /26 (Object ID, Mapping Info Corelnk), and the
+	// GW TS /25 v2.0 (Prefix R, res 3 Corelnk, no res 2).
+	res := func(obj uint16, ver model.Version, id uint16) *model.Resource {
+		o, ok := model.Default().Get(obj, ver)
+		if !ok {
+			t.Fatalf("no /%d v%v", obj, ver)
+		}
+		r, _ := o.Resource(id)
+		return r
+	}
+	v10, v20 := model.Version{Major: 1, Minor: 0}, model.Version{Major: 2, Minor: 0}
+	if r := res(25, v10, 1); r == nil || !r.Writable() || res(25, v10, 2) == nil || res(25, v10, 2).Type != lwm2m.TypeObjlnk {
+		t.Fatal("/25 v1.0 model")
+	}
+	if r := res(25, v20, 1); r == nil || r.Writable() || res(25, v20, 2) != nil || res(25, v20, 3) == nil || res(25, v20, 3).Type != lwm2m.TypeCorelnk {
+		t.Fatal("/25 v2.0 model")
+	}
+	if res(26, v10, 0) == nil || res(26, v10, 1) == nil || res(26, v10, 1).Type != lwm2m.TypeCorelnk {
+		t.Fatal("/26 v1.0 model")
+	}
+	if v, err := model.ResolveVersion("1.2", 25, Version(reg)); err != nil || v != v20 {
+		t.Fatalf("ver=2.0 resolves to %v %v", v, err)
 	}
 	if got := Instances(reg); len(got) != 2 {
 		t.Fatalf("instances %v", got)
@@ -469,5 +495,23 @@ func TestBootstrapExcludesDeviceObjects(t *testing.T) {
 	ns, _ := Decode(lwm2m.FormatSenMLCBOR, Path{}, pack, nil)
 	if !errors.Is(CheckBootstrap(nil, ns), ErrBootstrap) {
 		t.Fatal("device object in a Bootstrap-Pack accepted")
+	}
+
+	// The Bootstrap-Server itself: a config whose raw writes hold a device
+	// node is refused, so neither a session nor a Pack can carry it; target
+	// paths cannot name a prefix at all.
+	cfg := &bootstrap.BootstrapConfig{Writes: []bootstrap.Write{{Path: lwm2m.MustParsePath("/3/0"),
+		Nodes: []Node{pn("", "/3/0/14", lwm2m.String("+01")), pn("d01", "/3/0/14", lwm2m.String("+02"))}}}}
+	if err := bootstrap.NewMemoryConfigStore().Put("gw", cfg); !errors.Is(err, bootstrap.ErrInvalidConfig) {
+		t.Fatalf("device node in Bootstrap Information: %v", err)
+	}
+	cfg.Writes[0].Nodes = cfg.Writes[0].Nodes[:1]
+	if err := bootstrap.NewMemoryConfigStore().Put("gw", cfg); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []*bootstrap.BootstrapConfig{{ToDelete: []string{"/d01/3"}}, {Read: []string{"/d01/1"}}} {
+		if err := c.Validate(); err == nil {
+			t.Fatalf("prefixed target accepted: %+v", c)
+		}
 	}
 }

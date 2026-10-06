@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net"
+	"reflect"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/codec/senml"
 	"github.com/fiumaralabs/lwm2m/internal/vectors"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fxamacker/cbor/v2"
 	mochi "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/listeners"
 	"github.com/mochi-mqtt/server/v2/packets"
@@ -264,9 +266,12 @@ func TestRegistrationInterface(t *testing.T) {
 		t.Fatalf("topic %q", got)
 	}
 	c := newClient(t, e.addr, "tenant-a/lwm2m/rd/"+ep)
-	c.register(t)
+	if r := c.call(&Message{Operation: u64(OpRegister), Lifetime: u64(3600), Version: str("1.2"), B: str("M"), SMS: str("491711234567"),
+		Payload: []byte("</1/0>,</3/0>,</4/0>,</5/0>")}); *r.Result != 201 {
+		t.Fatalf("Register result %d, want 201", *r.Result)
+	}
 	reg := e.event(t, func(ev server.Event) bool { _, ok := ev.(server.Registered); return ok }).(server.Registered).Registration
-	if reg.Endpoint != ep || reg.Version != "1.2" || reg.Lifetime != time.Hour || reg.Binding != "M" || !reg.HasObject(5) {
+	if reg.Endpoint != ep || reg.Version != "1.2" || reg.Lifetime != time.Hour || reg.Binding != "M" || reg.SMS != "491711234567" || !reg.HasObject(5) {
 		t.Fatalf("registration %+v", reg)
 	}
 	if r := c.call(&Message{Operation: u64(OpUpdate), Lifetime: u64(60), Payload: []byte("</1/0>,</3/0>")}); *r.Result != 204 {
@@ -592,4 +597,35 @@ func selfSigned(t *testing.T) (tls.Certificate, *x509.CertPool) {
 	pool := x509.NewCertPool()
 	pool.AddCert(c)
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, pool
+}
+
+// Proves: MQTT-04
+// Every field encodes under its T Tbl 8.7-1 key: a message with all
+// fields set decodes, as a plain integer-keyed CBOR map, to keys 1-22
+// holding exactly the values given.
+func TestKeyNumbers(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	m := &Message{Operation: u64(101), Token: 102, EP: str("ep"), PCT: u64(104), URI: str("/5"), Paths: []byte{6},
+		Payload: Payload{7}, Lifetime: u64(108), Version: str("1.2"), B: str("M"), SMS: str("11"), Pmin: u64(112),
+		Pmax: u64(113), Gt: f(14.5), St: f(15.5), Epmin: u64(116), Epmax: u64(117), Result: u64(118), CT: u64(119),
+		Edge: u64(120), Hqmax: u64(121), Depth: u64(122)}
+	b, err := Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[uint64]any
+	if err := cbor.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := map[uint64]any{1: uint64(101), 2: uint64(102), 3: "ep", 4: uint64(104), 5: "/5", 6: []byte{6}, 7: []byte{7},
+		8: uint64(108), 9: "1.2", 10: "M", 11: "11", 12: uint64(112), 13: uint64(113), 14: 14.5, 15: 15.5,
+		16: uint64(116), 17: uint64(117), 18: uint64(118), 19: uint64(119), 20: uint64(120), 21: uint64(121), 22: uint64(122)}
+	if len(got) != len(want) {
+		t.Fatalf("keys %v", got)
+	}
+	for k, v := range want {
+		if !reflect.DeepEqual(got[k], v) {
+			t.Errorf("key %d = %#v, want %#v", k, got[k], v)
+		}
+	}
 }

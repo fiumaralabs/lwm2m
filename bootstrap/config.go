@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/server"
 )
 
 // SecurityMode is /0/x/2 Security Mode (Core E.1).
@@ -249,7 +250,22 @@ func (c *BootstrapConfig) Validate() error {
 			if !n.Path.HasPrefix(w.Path) {
 				return invalid("raw write %s holds %s", w.Path, n.Path)
 			}
+			if n.Prefix != "" {
+				return invalid("raw write %s holds end-device node %s: Bootstrap Information has no Device Objects (GW §8.1)", w.Path, n.PathString())
+			}
 		}
+	}
+	// OSC-07: each /0/x/17 links to a /21 instance this config writes, with
+	// resources 0-2, and no /21 instance is linked from two /0 instances.
+	// ponytail: a link to a /21 instance already on the client (partial
+	// update, BS-22) is refused too; relax if a deployment needs it.
+	var all []lwm2m.Node
+	_, writes := c.plan(nil, false)
+	for _, w := range writes {
+		all = append(all, w.Nodes...)
+	}
+	if err := server.CheckOSCORELinks(all); err != nil {
+		return invalid("%v", err)
 	}
 	return nil
 }
@@ -426,15 +442,20 @@ func (o OSCOREConfig) nodes(p lwm2m.Path) []lwm2m.Node {
 
 // plan returns the Bootstrap-Deletes and Bootstrap-Writes, in order: /0,
 // /1, /2, /21 instances, then the raw writes. For a Pack (pack=true) the
-// BS account instance is left out: the client keeps its own (BS-15).
+// BS account instance and its /21 instance are left out: the client keeps
+// its own (BS-15).
 func (c *BootstrapConfig) plan(bsIDs []uint16, pack bool) (deletes []lwm2m.Path, writes []Write) {
 	for _, d := range c.ToDelete {
 		deletes = append(deletes, lwm2m.MustParsePath(d))
 	}
 	ids := c.securityIDs(bsIDs)
+	bsOSCORE := map[uint16]bool{} // the BS account's /21 instance stays out of a Pack too
 	for _, id := range sortedKeys(c.Security) {
 		s := c.Security[id]
 		if pack && s.BootstrapServer {
+			if s.OSCORE != nil {
+				bsOSCORE[*s.OSCORE] = true
+			}
 			continue
 		}
 		p := lwm2m.NewPath(0, ids[id])
@@ -449,6 +470,9 @@ func (c *BootstrapConfig) plan(bsIDs []uint16, pack bool) (deletes []lwm2m.Path,
 		writes = append(writes, Write{p, c.ACLs[id].nodes(p)})
 	}
 	for _, id := range sortedKeys(c.OSCORE) {
+		if bsOSCORE[id] {
+			continue
+		}
 		p := lwm2m.NewPath(21, id)
 		writes = append(writes, Write{p, c.OSCORE[id].nodes(p)})
 	}

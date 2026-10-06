@@ -115,8 +115,8 @@ func TestCoAPOverSMS(t *testing.T) {
 		done <- resp
 	}()
 	m := smsc.next(t)
-	if m.MSISDN != msisdn || len(m.UDH) != 0 {
-		t.Fatalf("downlink SMS %+v", m)
+	if m.MSISDN != msisdn || len(m.UDH) != 0 || m.DCS != 0x04 {
+		t.Fatalf("downlink SMS %+v, want 8-bit (DCS 04) without UDH", m)
 	}
 	req := frame(t, m.Data)
 	if req.Type != message.Confirmable || req.Msg.Code != codes.GET || req.Msg.Path != "/3/0/0" {
@@ -152,7 +152,7 @@ func TestCoAPOverSMS(t *testing.T) {
 	}
 	var joined []byte
 	for i, p := range parts {
-		if 1+len(p.UDH)+len(p.Data) > MaxUserData || !bytes.Equal(p.UDH[:2], []byte{0, 3}) || p.UDH[3] != 3 || int(p.UDH[4]) != i+1 {
+		if 1+len(p.UDH)+len(p.Data) > MaxUserData || p.DCS != 0x04 || !bytes.Equal(p.UDH[:2], []byte{0, 3}) || p.UDH[3] != 3 || int(p.UDH[4]) != i+1 {
 			t.Fatalf("part %d: udh %x, %d bytes", i, p.UDH, len(p.Data))
 		}
 		joined = append(joined, p.Data...)
@@ -233,7 +233,7 @@ func TestSMSTrigger(t *testing.T) {
 	}
 	m := smsc.next(t)
 	coapIn, err := ParseWAPPush(m)
-	if err != nil || m.MSISDN != msisdn || frame(t, coapIn).Msg.Path != "/1/2/8" {
+	if err != nil || m.MSISDN != msisdn || m.DCS != 0x04 || frame(t, coapIn).Msg.Path != "/1/2/8" {
 		t.Fatalf("trigger SMS %+v %v", m, err)
 	}
 
