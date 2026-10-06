@@ -88,6 +88,7 @@ type Client struct {
 	location        string
 	seq             uint32
 	offline         bool
+	aclSSID         uint16 // non-zero: enforce /2 Access Control (acl.go)
 	bindingOverride string
 	bootstrapHook   ExecHook
 	notifyMu        sync.Mutex        // one notification in flight at a time
@@ -509,6 +510,10 @@ func (c *Client) handle(w mux.ResponseWriter, m *mux.Message) {
 			return
 		}
 	}
+	if code, ok := c.checkAccess(r); !ok {
+		respond(w, code, nil, nil)
+		return
+	}
 	code, cf, body, extra := c.serve(r)
 	respond(w, code, cf, body, extra...)
 }
@@ -571,8 +576,8 @@ func (c *Client) serve(r Request) (codes.Code, *lwm2m.ContentFormat, []byte, []m
 			return codes.MethodNotAllowed, nil, nil, nil
 		}
 		c.mu.Lock()
-		defer c.mu.Unlock()
 		if !c.instances[p] {
+			c.mu.Unlock()
 			return codes.NotFound, nil, nil, nil
 		}
 		delete(c.instances, p)
@@ -581,6 +586,8 @@ func (c *Client) serve(r Request) (codes.Code, *lwm2m.ContentFormat, []byte, []m
 				delete(c.values, vp)
 			}
 		}
+		c.mu.Unlock()
+		c.afterDelete(p)
 		return codes.Deleted, nil, nil, nil
 	}
 	return codes.MethodNotAllowed, nil, nil, nil
@@ -748,6 +755,7 @@ func (c *Client) create(p lwm2m.Path, r Request) (codes.Code, *lwm2m.ContentForm
 		}
 	}
 	c.mu.Unlock()
+	c.afterCreate(inst)
 	return codes.Created, nil, nil, []message.Option{
 		{ID: message.LocationPath, Value: []byte(strconv.Itoa(int(inst.Object())))},
 		{ID: message.LocationPath, Value: []byte(strconv.Itoa(int(inst.Instance())))},
