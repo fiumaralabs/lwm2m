@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
@@ -160,7 +162,9 @@ func TestInt5ServerInitiatedBootstrap(t *testing.T) {
 	h := newHarness(t)
 	dm := server.New(server.Config{RequestTimeout: 5 * time.Second})
 	t.Cleanup(func() { _ = dm.Close() })
-	dmAddr, err := dm.ListenUDP("127.0.0.1:0")
+	dmCoAP := coap.New(dm)
+	t.Cleanup(func() { _ = dmCoAP.Close() })
+	dmAddr, err := dmCoAP.ListenUDP("127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,10 +1,11 @@
-package server
+package server_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -24,24 +25,24 @@ func TestDeviceObjectDuties(t *testing.T) {
 	c.Set(p("/3/0/6/2"), lwm2m.Integer(5))
 	c.Set(p("/3/0/7/0"), lwm2m.Integer(3800))
 	c.Set(p("/3/0/7/2"), lwm2m.Integer(5000))
-	r := expect(t, "2.05")(h.srv.Read(h.ctx, "dev", p("/3/0"), ReadOptions{}))
-	if err := CheckPowerSources(r.Nodes); err != nil {
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "dev", p("/3/0"), server.ReadOptions{}))
+	if err := server.CheckPowerSources(r.Nodes); err != nil {
 		t.Fatal(err)
 	}
-	if errs := DeviceErrors(r.Nodes); len(errs) != 0 {
+	if errs := server.DeviceErrors(r.Nodes); len(errs) != 0 {
 		t.Fatalf("no-error code read as %v", errs)
 	}
 	bad := append(r.Nodes, lwm2m.ValueNode(p("/3/0/8/1"), lwm2m.Integer(10)))
-	if CheckPowerSources(bad) == nil {
+	if server.CheckPowerSources(bad) == nil {
 		t.Fatal("mismatched power source instances accepted")
 	}
-	ob, _, err := h.srv.Observe(h.ctx, "dev", p("/3/0/11"), ObserveOptions{})
+	ob, _, err := h.srv.Observe(h.ctx, "dev", p("/3/0/11"), server.ObserveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Set(p("/3/0/11/0"), lwm2m.Integer(2))
 	n := notification(t, h, ob)
-	if errs := DeviceErrors(n.Response.Nodes); len(errs) != 1 || errs[0] != 2 {
+	if errs := server.DeviceErrors(n.Response.Nodes); len(errs) != 1 || errs[0] != 2 {
 		t.Fatalf("errors %v", errs)
 	}
 }

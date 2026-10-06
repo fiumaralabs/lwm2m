@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -36,7 +37,7 @@ func TestGatewaySendPrefixed(t *testing.T) {
 	for _, cf := range []lwm2m.ContentFormat{lwm2m.FormatSenMLJSON, lwm2m.FormatSenMLCBOR, lwm2m.FormatLwM2MCBOR} {
 		r, err := gw.Send(h.ctx, nodes, cf)
 		mustCode(t, r, err, "2.04")
-		ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+		ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 		if ev.ContentFormat != cf || !lwm2m.NodesEqual(ev.Nodes, nodes) {
 			t.Fatalf("%v: event\n%s", cf, lwm2m.FormatNodes(ev.Nodes))
 		}
@@ -46,7 +47,7 @@ func TestGatewaySendPrefixed(t *testing.T) {
 	body := []byte{0xa1, 0x83, 0x63, 'd', '0', '1', 3, 0, 0xa2, 0, 0x69, 'C', 'o', 'm', 'p', 'a', 'n', 'y', ' ', 'A', 9, 0x18, 100}
 	r, err := gw.Raw(h.ctx, codes.POST, "/dp", nil, &cf, body)
 	mustCode(t, r, err, "2.04")
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 	if want := []lwm2m.Node{
 		{Prefix: "d01", Path: p("/3/0/0"), Value: lwm2m.String("Company A")},
 		{Prefix: "d01", Path: p("/3/0/9"), Value: lwm2m.Integer(100)},
@@ -90,7 +91,7 @@ func TestGatewayEndDeviceReadObserve(t *testing.T) {
 		return codes.Content, &cf, b, true
 	})
 	tlv := lwm2m.FormatTLV
-	r, err := h.srv.Read(h.ctx, "gw", p("/3/0"), ReadOptions{Prefix: "d01", Accept: &tlv})
+	r, err := h.srv.Read(h.ctx, "gw", p("/3/0"), server.ReadOptions{Prefix: "d01", Accept: &tlv})
 	mustResp(t, r, err, "2.05")
 	want := []lwm2m.Node{{Prefix: "d01", Path: p("/3/0/0"), Value: lwm2m.String("Company A")}}
 	if r.DecodeErr != nil || !lwm2m.NodesEqual(r.Nodes, want) {
@@ -100,7 +101,7 @@ func TestGatewayEndDeviceReadObserve(t *testing.T) {
 		t.Fatalf("read went to %s", req.Path)
 	}
 
-	ob, r, err := h.srv.Observe(h.ctx, "gw", p("/3/0/9"), ObserveOptions{Prefix: "d01"})
+	ob, r, err := h.srv.Observe(h.ctx, "gw", p("/3/0/9"), server.ObserveOptions{Prefix: "d01"})
 	mustResp(t, r, err, "2.05")
 	if req, _ := gw.LastRequest(); req.Path != "/d01/3/0/9" || req.Observe == nil || *req.Observe != 0 {
 		t.Fatalf("observe went to %s", req.Path)
@@ -108,14 +109,14 @@ func TestGatewayEndDeviceReadObserve(t *testing.T) {
 	if ob.Prefix != "d01" || !lwm2m.NodesEqual(r.Nodes, []lwm2m.Node{{Prefix: "d01", Path: p("/3/0/9"), Value: lwm2m.Integer(100)}}) {
 		t.Fatalf("observe: %+v\n%s", ob, lwm2m.FormatNodes(r.Nodes))
 	}
-	if _, err := gw.NotifyRaw(h.ctx, ob.token, lwm2m.FormatSenMLJSON, []byte(`[{"n":"/d01/3/0/9","v":55}]`)); err != nil {
+	if _, err := gw.NotifyRaw(h.ctx, server.ObservationToken(ob), lwm2m.FormatSenMLJSON, []byte(`[{"n":"/d01/3/0/9","v":55}]`)); err != nil {
 		t.Fatal(err)
 	}
 	n := notification(t, h, ob)
 	if n.Response.DecodeErr != nil || !lwm2m.NodesEqual(n.Response.Nodes, []lwm2m.Node{{Prefix: "d01", Path: p("/3/0/9"), Value: lwm2m.Integer(55)}}) {
 		t.Fatalf("notification: %v\n%s", n.Response.DecodeErr, lwm2m.FormatNodes(n.Response.Nodes))
 	}
-	if _, err := gw.NotifyRaw(h.ctx, ob.token, lwm2m.FormatSenMLJSON, []byte(`[{"n":"/d02/3/0/9","v":1}]`)); err != nil {
+	if _, err := gw.NotifyRaw(h.ctx, server.ObservationToken(ob), lwm2m.FormatSenMLJSON, []byte(`[{"n":"/d02/3/0/9","v":1}]`)); err != nil {
 		t.Fatal(err)
 	}
 	if n := notification(t, h, ob); n.Response.DecodeErr == nil {
@@ -129,13 +130,13 @@ func TestGatewayEndDeviceReadObserve(t *testing.T) {
 	}
 
 	h.registered("plain")
-	if _, err := h.srv.Read(h.ctx, "plain", p("/3/0"), ReadOptions{Prefix: "d01"}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Read(h.ctx, "plain", p("/3/0"), server.ReadOptions{Prefix: "d01"}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("prefix on a non-gateway: %v", err)
 	}
-	if _, _, err := h.srv.Observe(h.ctx, "gw", p("/3/0"), ObserveOptions{Prefix: "42"}); !errors.Is(err, ErrBadRequest) {
+	if _, _, err := h.srv.Observe(h.ctx, "gw", p("/3/0"), server.ObserveOptions{Prefix: "42"}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("numeric prefix: %v", err)
 	}
-	if got := uriPath(&Registration{RootPath: "/lwm2m"}, "d01", p("/3303/0")); got != "/lwm2m/d01/3303/0" {
+	if got := server.URIPath(&server.Registration{RootPath: "/lwm2m"}, "d01", p("/3303/0")); got != "/lwm2m/d01/3303/0" {
 		t.Fatalf("alternate path: %s", got)
 	}
 }

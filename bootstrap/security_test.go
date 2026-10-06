@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/fiumaralabs/lwm2m/server"
@@ -39,7 +41,9 @@ func TestInt1BootstrapPSK(t *testing.T) {
 	h := newHarness(t)
 	dm := server.New(server.Config{RequestTimeout: 5 * time.Second})
 	t.Cleanup(func() { _ = dm.Close() })
-	dmAddr, err := dm.ListenDTLS("127.0.0.1:0", server.DTLSConfig{})
+	dmCoAP := coap.New(dm)
+	t.Cleanup(func() { _ = dmCoAP.Close() })
+	dmAddr, err := dmCoAP.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,10 +128,10 @@ func (k *pki) leaf(t *testing.T, cn string) tls.Certificate {
 // certListener opens a BS DTLS listener for certificate modes, with the
 // credential callbacks of the LwM2M Server's DTLS config over the BS
 // security store: the plug-in point for RPK and X.509 credentials.
-func (h *harness) certListener(t *testing.T, m server.CertificateModes) string {
+func (h *harness) certListener(t *testing.T, m coap.CertificateModes) string {
 	helper := server.New(server.Config{Security: h.sec})
 	t.Cleanup(func() { _ = helper.Close() })
-	a, err := h.bs.ListenDTLS("127.0.0.1:0", DTLSConfig{Config: helper.DTLSConfig(m)})
+	a, err := h.bs.ListenDTLS("127.0.0.1:0", DTLSConfig{Config: coap.New(helper).DTLSConfig(m)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +146,7 @@ func (h *harness) certListener(t *testing.T, m server.CertificateModes) string {
 func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
 	h := newHarness(t)
 	k := newPKI(t)
-	addr := h.certListener(t, server.CertificateModes{Certificates: []tls.Certificate{k.leaf(t, "bs")}, ClientCAs: k.pool})
+	addr := h.certListener(t, coap.CertificateModes{Certificates: []tls.Certificate{k.leaf(t, "bs")}, ClientCAs: k.pool})
 	for _, ep := range []string{"cert-ep", "other"} {
 		if err := h.sec.Put(server.SecurityInfo{Endpoint: ep, X509: true}); err != nil {
 			t.Fatal(err)
@@ -168,7 +172,7 @@ func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rpkAddr := h.certListener(t, server.CertificateModes{Certificates: []tls.Certificate{raw}})
+	rpkAddr := h.certListener(t, coap.CertificateModes{Certificates: []tls.Certificate{raw}})
 	cliKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	cliSPKI, _ := x509.MarshalPKIXPublicKey(cliKey.Public())
 	if err := h.sec.Put(server.SecurityInfo{Endpoint: "rpk-ep", PublicKey: cliSPKI}); err != nil {

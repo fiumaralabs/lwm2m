@@ -1,26 +1,26 @@
-// Package server implements the LwM2M Server: the Registration interface
-// (C §6.2), Device Management (C §6.3), Information Reporting (C §6.4) and
-// queue mode (T §6.5) over CoAP/UDP and CoAP/DTLS.
+// Package server implements the LwM2M Server core: the Registration
+// interface (C §6.2), Device Management (C §6.3), Information Reporting
+// (C §6.4), Send (C §6.4.6) and queue mode (T §6.5).
+//
+// The core is binding-neutral. A transport delivers every uplink message
+// with HandleUplink and carries downlinks through its Peer:
+// transport/coap serves CoAP over UDP, DTLS, TCP/TLS and WebSockets, and
+// the transport/mqtt, http, sms, nidd and lorawan packages the other
+// bindings.
+//
+//	srv := server.New(server.Config{})
+//	cb := coap.New(srv) // github.com/fiumaralabs/lwm2m/transport/coap
+//	cb.ListenUDP(":5683")
+//	defer srv.Close()
+//	defer cb.Close()
 package server
 
 import (
-	"errors"
-	"fmt"
-	"net"
 	"sync"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/link"
-	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
-	dtlsServer "github.com/plgd-dev/go-coap/v3/dtls/server"
-	"github.com/plgd-dev/go-coap/v3/mux"
-	coapnet "github.com/plgd-dev/go-coap/v3/net"
-	"github.com/plgd-dev/go-coap/v3/options"
-	"github.com/plgd-dev/go-coap/v3/udp"
-	udpServer "github.com/plgd-dev/go-coap/v3/udp/server"
 )
 
 // Config configures a Server. Zero values select spec defaults.
@@ -67,25 +67,20 @@ type Server struct {
 	cfg      Config
 	store    Store
 	security SecurityStore
-	router   *mux.Router
 
 	mu       sync.Mutex
-	udp      []*udpServer.Server
-	dtls     []*dtlsServer.Server
-	closers  []func() error
 	stop     chan struct{}
 	wg       sync.WaitGroup
 	obs      *observations
 	queues   *queues
 	profiles *profileCache
 	formats  sync.Map // registration ID -> learned multi-value format
-	coap     coapBinding
-	held     heldConns       // connections of registered clients (keepconn.go)
-	block1   block1Assembler // client Block1 reassembly (block1.go)
+	live     sync.Map // Peer -> struct{}: sessions of live registrations (Registered)
 	closed   bool
 }
 
-// New returns a Server. Call Listen* to start serving.
+// New returns a Server. Connect transports to it (e.g. coap.New) to serve
+// clients.
 func New(cfg Config) *Server {
 	if cfg.Store == nil {
 		cfg.Store = NewMemoryStore()
@@ -114,8 +109,6 @@ func New(cfg Config) *Server {
 		profiles: newProfileCache(cfg.Profiles),
 	}
 	s.queues = newQueues(s)
-	s.router = mux.NewRouter()
-	s.router.DefaultHandle(mux.HandlerFunc(s.serveCoAP))
 	s.wg.Add(1)
 	go s.expiryLoop()
 	return s
@@ -127,101 +120,19 @@ func (s *Server) Store() Store { return s.store }
 // Security returns the security store.
 func (s *Server) Security() SecurityStore { return s.security }
 
+// Config returns the configuration in effect, defaults applied.
+// Transports take their clock and request timeout from it.
+func (s *Server) Config() Config { return s.cfg }
+
 func (s *Server) emit(e Event) {
-	s.held.track(e)
+	s.trackSession(e)
 	if s.cfg.OnEvent != nil {
 		s.cfg.OnEvent(e)
 	}
 }
 
-// ListenUDP serves CoAP over plain UDP (NoSec, T §5.3) on addr and returns
-// the bound address.
-func (s *Server) ListenUDP(addr string) (net.Addr, error) {
-	l, err := coapnet.NewListenUDP("udp", addr)
-	if err != nil {
-		return nil, err
-	}
-	srv := udp.NewServer(
-		options.WithMux(s.router),
-		options.WithBlockwise(true, BlockSZX, s.cfg.RequestTimeout),
-		options.WithProcessReceivedMessageFunc(s.processUDP),
-		s.held.monitor(),
-	)
-	s.mu.Lock()
-	s.udp = append(s.udp, srv)
-	s.closers = append(s.closers, l.Close)
-	s.mu.Unlock()
-	go func() { _ = srv.Serve(l) }()
-	return l.LocalAddr(), nil
-}
-
-// DTLSConfig configures a DTLS listener. PSK credentials are resolved from
-// the security store by identity; a nil Config builds one.
-type DTLSConfig struct {
-	Config *piondtls.Config
-	// CIDLength is the length of the Connection ID the server assigns
-	// (RFC 9146, CID-01). 0 disables CID; default 8.
-	CIDLength int
-	// DisableCID turns Connection ID support off.
-	DisableCID bool
-}
-
-// ListenDTLS serves CoAP over DTLS 1.2 on addr.
-func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
-	cfg := dc.Config
-	if cfg == nil {
-		cfg = &piondtls.Config{}
-	}
-	if cfg.PSK == nil {
-		cfg.PSK = s.pskLookup
-	}
-	if len(cfg.CipherSuites) == 0 {
-		// SEC-04: TLS_PSK_WITH_AES_128_CCM_8 and TLS_PSK_WITH_AES_128_CBC_SHA256;
-		// SEC-09/10: ECDHE_ECDSA with AES_128_CCM_8 and AES_128_CBC_SHA256.
-		cfg.CipherSuites = []piondtls.CipherSuiteID{
-			piondtls.TLS_PSK_WITH_AES_128_CCM_8,
-			piondtls.TLS_PSK_WITH_AES_128_CBC_SHA256,
-			piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
-			piondtls.TLS_PSK_WITH_AES_128_CCM,
-			piondtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
-			piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		}
-	}
-	if !dc.DisableCID && cfg.ConnectionIDGenerator == nil {
-		n := dc.CIDLength
-		if n == 0 {
-			n = 8
-		}
-		cfg.ConnectionIDGenerator = piondtls.RandomCIDGenerator(n)
-	}
-	l, err := dtlscoap.Listen("udp", addr, cfg)
-	if err != nil {
-		return nil, err
-	}
-	srv := coapdtls.NewServer(
-		options.WithMux(s.router),
-		options.WithBlockwise(true, BlockSZX, s.cfg.RequestTimeout),
-		options.WithProcessReceivedMessageFunc(s.processUDP),
-		s.held.monitor(),
-	)
-	s.mu.Lock()
-	s.dtls = append(s.dtls, srv)
-	s.closers = append(s.closers, l.Close)
-	s.mu.Unlock()
-	go func() { _ = srv.Serve(l) }()
-	return l.Addr(), nil
-}
-
-// pskLookup resolves the pre-shared key for a PSK identity (SEC-05).
-func (s *Server) pskLookup(identity []byte) ([]byte, error) {
-	si, ok := s.security.ByPSKIdentity(string(identity))
-	if !ok || len(si.PSKKey) == 0 {
-		return nil, fmt.Errorf("server: unknown PSK identity")
-	}
-	return si.PSKKey, nil
-}
-
-// Close stops all listeners and background work.
+// Close stops background work. It does not stop transports: close them
+// first.
 func (s *Server) Close() error {
 	s.mu.Lock()
 	if s.closed {
@@ -230,22 +141,48 @@ func (s *Server) Close() error {
 	}
 	s.closed = true
 	close(s.stop)
-	udps, dtlss, closers := s.udp, s.dtls, s.closers
 	s.mu.Unlock()
-	for _, u := range udps {
-		u.Stop()
-	}
-	for _, d := range dtlss {
-		d.Stop()
-	}
-	var errs []error
-	for _, c := range closers {
-		if err := c(); err != nil && !errors.Is(err, net.ErrClosed) {
-			errs = append(errs, err)
-		}
-	}
 	s.wg.Wait()
-	return errors.Join(errs...)
+	return nil
+}
+
+// Registered reports whether p is the session of a live registration.
+// Transports that close idle sessions use it to keep a registered
+// client's session open: a DTLS session, and its Connection ID, lasts as
+// long as the registration (T §5.2.8).
+func (s *Server) Registered(p Peer) bool {
+	_, ok := s.live.Load(p)
+	return ok
+}
+
+// trackSession follows the session of every registration for Registered.
+func (s *Server) trackSession(e Event) {
+	switch e := e.(type) {
+	case Registered:
+		s.hold(e.Registration.peer)
+		if e.Replaced != nil && e.Replaced.peer != e.Registration.peer {
+			s.release(e.Replaced.peer)
+		}
+	case Updated:
+		s.hold(e.Registration.peer)
+		if e.Previous.peer != e.Registration.peer {
+			s.release(e.Previous.peer)
+		}
+	case Deregistered: // client, expiry, replacement, operator
+		s.release(e.Registration.peer)
+	}
+}
+
+func (s *Server) hold(p Peer) {
+	if p != nil {
+		s.live.Store(p, struct{}{})
+	}
+}
+
+func (s *Server) release(p Peer) {
+	if p != nil {
+		s.live.Delete(p)
+	}
 }
 
 // expiryLoop removes registrations whose lifetime elapsed (REG-13).

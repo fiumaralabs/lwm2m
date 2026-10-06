@@ -1,7 +1,6 @@
-package server
+package coap
 
 import (
-	"sync"
 	"time"
 
 	"github.com/plgd-dev/go-coap/v3/options"
@@ -17,50 +16,21 @@ const idleClose = 16 * time.Second
 // registered client that discards its DTLS session (and Connection ID)
 // between Updates, so every later downlink fails and the client has to
 // handshake again (T §5.2.8: the session lasts for the registration).
-// Found by the Zephyr interop suite: queue-mode and idle clients.
+// Found by the Zephyr interop suite: queue-mode and idle clients. The core
+// tracks which sessions carry a registration (Server.Registered).
 type heldConns struct {
-	m    sync.Map      // coapConn -> struct{}
 	idle time.Duration // 0 = idleClose; set before Listen*
-}
-
-func (h *heldConns) track(e Event) {
-	switch e := e.(type) {
-	case Registered:
-		h.hold(e.Registration.peer)
-		if e.Replaced != nil && e.Replaced.peer != e.Registration.peer {
-			h.release(e.Replaced.peer)
-		}
-	case Updated:
-		h.hold(e.Registration.peer)
-		if e.Previous.peer != e.Registration.peer {
-			h.release(e.Previous.peer)
-		}
-	case Deregistered: // client, expiry, replacement, operator
-		h.release(e.Registration.peer)
-	}
-}
-
-func (h *heldConns) hold(p Peer) {
-	if cp, ok := p.(*coapPeer); ok {
-		h.m.Store(cp.cc, struct{}{})
-	}
-}
-
-func (h *heldConns) release(p Peer) {
-	if cp, ok := p.(*coapPeer); ok {
-		h.m.Delete(cp.cc)
-	}
 }
 
 // monitor is the inactivity option for the UDP and DTLS listeners. A held
 // connection is checked again on every tick until its registration ends.
-func (h *heldConns) monitor() options.InactivityMonitorOpt[func(*client.Conn)] {
-	idle := h.idle
+func (b *Binding) monitor() options.InactivityMonitorOpt[func(*client.Conn)] {
+	idle := b.held.idle
 	if idle == 0 {
 		idle = idleClose
 	}
 	return options.WithInactivityMonitor(idle, func(cc *client.Conn) {
-		if _, held := h.m.Load(coapConn(cc)); !held {
+		if p, ok := b.peers.Load(coapConn(cc)); !ok || !b.srv.Registered(p.(*coapPeer)) {
 			_ = cc.Close()
 		}
 	})

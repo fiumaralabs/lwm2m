@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	pionelliptic "github.com/fiumaralabs/dtls/v3/pkg/crypto/elliptic"
@@ -45,7 +47,7 @@ func (s *secureSetup) rpkClient(ep string) (*ecdsa.PrivateKey, []byte) {
 	s.t.Helper()
 	k := newKey(s.t)
 	spki := spkiOf(s.t, k)
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: ep, PublicKey: spki}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: ep, PublicKey: spki}); err != nil {
 		s.t.Fatal(err)
 	}
 	return k, spki
@@ -53,7 +55,7 @@ func (s *secureSetup) rpkClient(ep string) (*ecdsa.PrivateKey, []byte) {
 
 func (s *secureSetup) x509Client(ep string) tls.Certificate {
 	s.t.Helper()
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: ep, X509: true}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: ep, X509: true}); err != nil {
 		s.t.Fatal(err)
 	}
 	return s.pki.issue(s.t, ep)
@@ -68,7 +70,7 @@ func (s *secureSetup) x509Client(ep string) tls.Certificate {
 func TestSecurityModesOnePort(t *testing.T) {
 	var cfg *piondtls.Config
 	s := newSecure(t, func(c *piondtls.Config) { cfg = c })
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: "psk", PSKIdentity: "psk-id", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "psk", PSKIdentity: "psk-id", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	rk, _ := s.rpkClient("rpk")
@@ -80,7 +82,7 @@ func TestSecurityModesOnePort(t *testing.T) {
 			t.Fatalf("/0/x/16 values %x lack mandatory suite %#x", values, want)
 		}
 	}
-	modes := map[SecurityMode]bool{}
+	modes := map[server.SecurityMode]bool{}
 	for _, v := range values {
 		id := piondtls.CipherSuiteID(v)
 		name := piondtls.CipherSuiteName(id)
@@ -90,7 +92,7 @@ func TestSecurityModesOnePort(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if strings.Contains(name, "PSK") {
 				s.mustRegisterSecure(testclient.Config{Endpoint: "psk"}, s.addr, pskConfig("psk-id", []byte("0123456789abcdef"), id))
-				modes[ModePSK] = true
+				modes[server.ModePSK] = true
 				return
 			}
 			rc, err := testclient.RPKConfig(rk, s.serverSPKI, id)
@@ -99,10 +101,10 @@ func TestSecurityModesOnePort(t *testing.T) {
 			}
 			s.mustRegisterSecure(testclient.Config{Endpoint: "rpk"}, s.addr, rc)
 			s.mustRegisterSecure(testclient.Config{Endpoint: "x509"}, s.addr, testclient.X509Config(xc, s.pki.pool, "lwm2m.test", id))
-			modes[ModeRPK], modes[ModeX509] = true, true
+			modes[server.ModeRPK], modes[server.ModeX509] = true, true
 		})
 	}
-	for ep, mode := range map[string]SecurityMode{"psk": ModePSK, "rpk": ModeRPK, "x509": ModeX509} {
+	for ep, mode := range map[string]server.SecurityMode{"psk": server.ModePSK, "rpk": server.ModeRPK, "x509": server.ModeX509} {
 		reg, ok := s.srv.Store().ByEndpoint(ep)
 		if !ok || reg.Identity.Mode != mode || !modes[mode] {
 			t.Fatalf("%s: registration %v, identity %v", ep, ok, reg)
@@ -132,7 +134,7 @@ func TestRPKMode(t *testing.T) {
 		s.mustRegisterSecure(testclient.Config{Endpoint: "dev-rpk"}, s.addr, cfg)
 	}
 	reg, _ := s.srv.Store().ByEndpoint("dev-rpk")
-	if reg.Identity.Mode != ModeRPK || !bytes.Equal(reg.Identity.PublicKey, spki) {
+	if reg.Identity.Mode != server.ModeRPK || !bytes.Equal(reg.Identity.PublicKey, spki) {
 		t.Fatalf("identity %+v", reg.Identity)
 	}
 	// Right key, wrong ep: 4.00.
@@ -162,7 +164,7 @@ func TestX509Mode(t *testing.T) {
 		s.mustRegisterSecure(testclient.Config{Endpoint: "urn:dev:x509"}, s.addr, testclient.X509Config(xc, s.pki.pool, "lwm2m.test", suite))
 	}
 	reg, _ := s.srv.Store().ByEndpoint("urn:dev:x509")
-	if reg.Identity.Mode != ModeX509 || reg.Identity.CertCN != "urn:dev:x509" {
+	if reg.Identity.Mode != server.ModeX509 || reg.Identity.CertCN != "urn:dev:x509" {
 		t.Fatalf("identity %+v", reg.Identity)
 	}
 	// ep different from the certificate CN: 4.00.
@@ -201,7 +203,7 @@ func TestSNICertificateSelection(t *testing.T) {
 		t.Fatal("/0/x/23 lacks SNI")
 	}
 	xc := p.issue(t, "sni-dev")
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "sni-dev", X509: true}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "sni-dev", X509: true}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"a.lwm2m.test", "b.lwm2m.test"} {
@@ -273,7 +275,7 @@ func TestCIDRebinding(t *testing.T) {
 	if DTLSExtensions != 1<<0|1<<12 {
 		t.Fatalf("/0/x/23 = %#x, want SNI and CID only", DTLSExtensions)
 	}
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "cid", PSKIdentity: "cid", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "cid", PSKIdentity: "cid", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	addr := h.listenSecure(CertificateModes{})
@@ -281,7 +283,7 @@ func TestCIDRebinding(t *testing.T) {
 	c := h.mustRegisterSecure(testclient.Config{Endpoint: "cid", CID: true}, px.Addr(), pskConfig("cid", []byte("0123456789abcdef")))
 	reg, _ := h.srv.Store().ByEndpoint("cid")
 	before := reg.Addr.String()
-	h.ev.wait(t, func(e Event) bool { _, ok := e.(Registered); return ok })
+	h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.Registered); return ok })
 
 	// After the handshake the client sends CID records with the server's 8-byte CID.
 	sawCID := false
@@ -302,7 +304,7 @@ func TestCIDRebinding(t *testing.T) {
 	if reg.Addr.String() != px.UpstreamAddr() || reg.Addr.String() == before {
 		t.Fatalf("registration address %s, want the rebound %s", reg.Addr, px.UpstreamAddr())
 	}
-	resp, err := h.srv.Read(h.ctx, "cid", p("/3/0/0"), ReadOptions{})
+	resp, err := h.srv.Read(h.ctx, "cid", p("/3/0/0"), server.ReadOptions{})
 	mustResp(t, resp, err, "2.05")
 	after := px.since(m)
 	if hs := append(handshakeMsgs(after, true), handshakeMsgs(after, false)...); len(hs) > 0 {
@@ -311,7 +313,7 @@ func TestCIDRebinding(t *testing.T) {
 	h.ev.mu.Lock()
 	defer h.ev.mu.Unlock()
 	for _, e := range h.ev.l {
-		if r, ok := e.(Registered); ok && r.Registration.ID != reg.ID {
+		if r, ok := e.(server.Registered); ok && r.Registration.ID != reg.ID {
 			t.Fatal("rebinding created a new registration")
 		}
 	}
@@ -346,7 +348,7 @@ func (c *clientSessions) Del(k []byte) error                     { delete(c.m, s
 // server's own key, or a key stored for two endpoints, is refused.
 func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 	h := newHarness(t)
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	var store *countingStore
@@ -383,20 +385,20 @@ func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 
 	// Key uniqueness.
 	srvKey := sc.PrivateKey.(*ecdsa.PrivateKey)
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "copycat", PublicKey: spkiOf(t, srvKey)}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "copycat", PublicKey: spkiOf(t, srvKey)}); err != nil {
 		t.Fatal(err)
 	}
 	rc, _ := testclient.RPKConfig(srvKey, spkiOf(t, srvKey))
 	h.handshakeFails(testclient.Config{Endpoint: "copycat"}, addr, rc)
 	// The same holds for X.509: the server's own certificate (a trusted
 	// chain whose CN has credentials) is not a client key pair.
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "lwm2m.test", X509: true}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "lwm2m.test", X509: true}); err != nil {
 		t.Fatal(err)
 	}
 	h.handshakeFails(testclient.Config{Endpoint: "lwm2m.test"}, addr, testclient.X509Config(sc, p.pool, "lwm2m.test"))
 	shared := newKey(t)
 	for _, ep := range []string{"twin-1", "twin-2"} {
-		if err := h.srv.Security().Put(SecurityInfo{Endpoint: ep, PublicKey: spkiOf(t, shared)}); err != nil {
+		if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: ep, PublicKey: spkiOf(t, shared)}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -412,7 +414,7 @@ func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 // survives and the CoAP retransmission succeeds.
 func TestDTLSAlerts(t *testing.T) {
 	s := newSecure(t)
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: "mac", PSKIdentity: "mac", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "mac", PSKIdentity: "mac", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	rc, _ := testclient.RPKConfig(newKey(t), s.serverSPKI)
@@ -467,7 +469,7 @@ func TestDTLSAlerts(t *testing.T) {
 // (TestDTLSAlerts).
 func TestDTLSRecordProtection(t *testing.T) {
 	h := newHarness(t)
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "urn:dev:secret", PSKIdentity: "pid", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "urn:dev:secret", PSKIdentity: "pid", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	addr := h.listenSecure(CertificateModes{})
@@ -512,7 +514,7 @@ func TestDTLSRecordProtection(t *testing.T) {
 	// Session gone: the server never initiates a handshake.
 	_ = c.Close()
 	time.Sleep(100 * time.Millisecond)
-	if _, err := h.srv.Read(h.ctx, "urn:dev:secret", p("/3/0/0"), ReadOptions{}); err == nil {
+	if _, err := h.srv.Read(h.ctx, "urn:dev:secret", p("/3/0/0"), server.ReadOptions{}); err == nil {
 		t.Fatal("read succeeded on a closed session")
 	}
 	for _, typ := range handshakeMsgs(px.since(0), false) {
@@ -556,7 +558,7 @@ func TestCurvesAndSignatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: "weak", PublicKey: spkiOf(t, weak)}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "weak", PublicKey: spkiOf(t, weak)}); err != nil {
 		t.Fatal(err)
 	}
 	cfg, _ = testclient.RPKConfig(weak, s.serverSPKI)
@@ -607,9 +609,9 @@ func TestSecurityObjectInaccessible(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("sec0")
 	ctx := h.ctx
-	_, _, obsErr := h.srv.Observe(ctx, "sec0", p("/0/0"), ObserveOptions{})
+	_, _, obsErr := h.srv.Observe(ctx, "sec0", p("/0/0"), server.ObserveOptions{})
 	for i, err := range []error{
-		second(h.srv.Write(ctx, "sec0", p("/0/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/0/0/0"), lwm2m.String("coap://evil"))}, WriteOptions{})),
+		second(h.srv.Write(ctx, "sec0", p("/0/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/0/0/0"), lwm2m.String("coap://evil"))}, server.WriteOptions{})),
 		obsErr,
 		second(h.srv.Discover(ctx, "sec0", p("/0"), nil)),
 		second(h.srv.Delete(ctx, "sec0", p("/0/1"))),
@@ -617,7 +619,7 @@ func TestSecurityObjectInaccessible(t *testing.T) {
 		second(h.srv.WriteAttributes(ctx, "sec0", p("/0/0"), []string{"pmin=1"})),
 		second(h.srv.WriteComposite(ctx, "sec0", []lwm2m.Node{lwm2m.ValueNode(p("/0/0/0"), lwm2m.String("coap://evil"))}, nil)),
 	} {
-		if !errors.Is(err, ErrBadRequest) {
+		if !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("operation %d on /0: err %v, want ErrBadRequest", i, err)
 		}
 	}

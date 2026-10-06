@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"slices"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/acl"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
@@ -16,7 +17,7 @@ import (
 // the new instance's ACL, the owner can set rights, a non-owner cannot,
 // and deleting the instance removes its ACL.
 func TestAccessControlOwner(t *testing.T) {
-	h := newHarness(t, func(c *Config) { c.ShortServerID = 101 })
+	h := newHarness(t, func(c *server.Config) { c.ShortServerID = 101 })
 	c := h.device(testclient.Config{Endpoint: "acl"})
 	c.AddObject(16)
 	c.EnableAccessControl(101,
@@ -28,14 +29,14 @@ func TestAccessControlOwner(t *testing.T) {
 	c.Set(p("/1/1/0"), lwm2m.Integer(102))
 	mustCode(mustRegister(h, c))
 
-	expect(t, "2.05")(h.srv.Read(h.ctx, "acl", p("/3/0/0"), ReadOptions{}))
+	expect(t, "2.05")(h.srv.Read(h.ctx, "acl", p("/3/0/0"), server.ReadOptions{}))
 	// Object-level Read aggregates only the readable instances (C §8.2.3).
-	r := expect(t, "2.05")(h.srv.Read(h.ctx, "acl", p("/1"), ReadOptions{}))
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "acl", p("/1"), server.ReadOptions{}))
 	if len(r.Nodes) == 0 || slices.ContainsFunc(r.Nodes, func(n lwm2m.Node) bool { return n.Path.Instance() != 0 }) {
 		t.Fatalf("object read %s", lwm2m.FormatNodes(r.Nodes))
 	}
-	expect(t, "4.01")(h.srv.Write(h.ctx, "acl", p("/3/0/13"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/13"), lwm2m.Time(1))}, WriteOptions{}))
-	expect(t, "2.04")(h.srv.Write(h.ctx, "acl", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(500))}, WriteOptions{}))
+	expect(t, "4.01")(h.srv.Write(h.ctx, "acl", p("/3/0/13"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/13"), lwm2m.Time(1))}, server.WriteOptions{}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "acl", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(500))}, server.WriteOptions{}))
 
 	expect(t, "2.01")(h.srv.Create(h.ctx, "acl", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/0"), lwm2m.String("x"))}, nil))
 	insts, err := h.srv.ReadACL(h.ctx, "acl")
@@ -72,7 +73,7 @@ func TestAccessControlOwner(t *testing.T) {
 // deletes instances nobody else could access; this server follows the
 // owner change by observing /2/x/3, as the spec allows.
 func TestUnbootstrapOwnership(t *testing.T) {
-	h := newHarness(t, func(c *Config) { c.ShortServerID = 101 })
+	h := newHarness(t, func(c *server.Config) { c.ShortServerID = 101 })
 	c := h.device(testclient.Config{Endpoint: "unbs"})
 	c.Set(p("/16/0/0/0"), lwm2m.String("shared"))
 	c.Set(p("/16/1/0/0"), lwm2m.String("only-102"))
@@ -83,7 +84,7 @@ func TestUnbootstrapOwnership(t *testing.T) {
 		acl.Instance{ID: 3, Object: 1, Instance: 0, Owner: 101, ACL: map[uint16]acl.Rights{}},
 	)
 	mustCode(mustRegister(h, c))
-	ob, r, err := h.srv.Observe(h.ctx, "unbs", p("/2/0/3"), ObserveOptions{})
+	ob, r, err := h.srv.Observe(h.ctx, "unbs", p("/2/0/3"), server.ObserveOptions{})
 	if err != nil || !r.Success() || r.Nodes[0].Value.Int != 102 {
 		t.Fatalf("observe owner: %v %+v", err, r)
 	}

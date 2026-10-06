@@ -30,10 +30,11 @@ import (
 	"github.com/fiumaralabs/lwm2m/leshanapi"
 	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
 func main() {
-	coap := flag.String("coap", ":5683", "CoAP/UDP (NoSec) address; empty disables")
+	coapAddr := flag.String("coap", ":5683", "CoAP/UDP (NoSec) address; empty disables")
 	coaps := flag.String("coaps", ":5684", "CoAP/DTLS address; empty disables")
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
@@ -61,6 +62,7 @@ func main() {
 	}
 	srv := server.New(server.Config{OnEvent: onEvent, Schema: models.Schema})
 	api.Attach(srv)
+	cb := coap.New(srv)
 
 	listen := func(name, addr string, f func(string) (net.Addr, error)) {
 		if addr == "" {
@@ -72,14 +74,14 @@ func main() {
 		}
 		log.Printf("%s listening on %v", name, a)
 	}
-	listen("coap", *coap, func(a string) (net.Addr, error) { return srv.ListenUDP(a) })
+	listen("coap", *coapAddr, func(a string) (net.Addr, error) { return cb.ListenUDP(a) })
 	listen("coaps", *coaps, func(a string) (net.Addr, error) {
 		// DTLSConfig adds session resumption (SEC-11) to the PSK lookup:
 		// devices with session caching resume instead of a full handshake.
-		return srv.ListenDTLS(a, server.DTLSConfig{Config: srv.DTLSConfig(server.CertificateModes{}),
+		return cb.ListenDTLS(a, coap.DTLSConfig{Config: cb.DTLSConfig(coap.CertificateModes{}),
 			CIDLength: *cidLen, DisableCID: *cidLen == 0})
 	})
-	listen("coap+tcp", *tcp, func(a string) (net.Addr, error) { return srv.ListenTCP(a) })
+	listen("coap+tcp", *tcp, func(a string) (net.Addr, error) { return cb.ListenTCP(a) })
 
 	if *fwDir != "" {
 		fs := fota.NewFileServer()
@@ -96,7 +98,7 @@ func main() {
 		}
 		listen("fw coap", *fwCoap, fs.ListenUDP)
 		listen("fw coaps", *fwCoaps, func(a string) (net.Addr, error) {
-			return fs.ListenDTLS(a, srv.DTLSConfig(server.CertificateModes{}))
+			return fs.ListenDTLS(a, cb.DTLSConfig(coap.CertificateModes{}))
 		})
 	}
 
@@ -142,6 +144,9 @@ func main() {
 		cancel()
 	}
 	if err := bs.Close(); err != nil {
+		log.Print(err)
+	}
+	if err := cb.Close(); err != nil {
 		log.Print(err)
 	}
 	if err := srv.Close(); err != nil {

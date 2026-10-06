@@ -8,6 +8,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -118,7 +120,7 @@ func (s *Server) interceptOSCORE(o *OSCORE, w mux.ResponseWriter, m *mux.Message
 		return true
 	}
 	op := oscorePeer{coapPeer: peer, e: q.Entry}
-	msg, err := server.MessageFromCoAP(q.Inner)
+	msg, err := coap.MessageFromCoAP(q.Inner)
 	if err != nil {
 		writeCoAP(w, oscore.PlainError(codes.BadRequest, ""))
 		return true
@@ -200,18 +202,18 @@ type oscorePeer struct {
 }
 
 // Identity is the (D)TLS identity when the transport authenticated one,
-// else the OSCORE context's (server.OSCOREIdentity).
+// else the OSCORE context's (coap.OSCOREIdentity).
 func (p oscorePeer) Identity() server.Identity {
 	if id := p.coapPeer.Identity(); id.Secure() {
 		return id
 	}
-	return server.OSCOREIdentity(p.e.Params())
+	return coap.OSCOREIdentity(p.e.Params())
 }
 
 // Exchange protects a downlink request (RFC 8613 §8.1) and verifies the
 // response, with one Echo retry (oscore.RoundTrip).
 func (p oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
-	plain, err := server.CoAPMessage(req)
+	plain, err := coap.CoAPMessage(req)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +232,7 @@ func (p oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap: OSCORE: %w", err)
 	}
-	return server.MessageFromCoAP(inner)
+	return coap.MessageFromCoAP(inner)
 }
 
 // OSCORE returns the OSCORE layer, nil until EnableOSCORE.

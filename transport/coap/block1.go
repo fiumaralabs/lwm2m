@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -10,6 +10,12 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message/pool"
 	"github.com/plgd-dev/go-coap/v3/net/blockwise"
 	"github.com/plgd-dev/go-coap/v3/udp/client"
+)
+
+// RFC 8132 methods a Block1 request may carry; go-coap has no names for them.
+const (
+	codeFETCH  codes.Code = 5
+	codeIPATCH codes.Code = 7
 )
 
 // maxBlock1Body bounds a reassembled Block1 request; larger is 4.13.

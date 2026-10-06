@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -175,7 +177,7 @@ type Config struct {
 	// messages pass through OSCORE.HandleCoAP first, and requests and
 	// notifications protected there are served by a Peer whose downlinks
 	// are protected too.
-	OSCORE *server.OSCORE
+	OSCORE *coap.OSCORE
 	// RequireOSCORE makes OSCORE the only protection of the channel (SMS
 	// NoSec plus /0/x/17, T §5.3.1): unprotected inbound requests are
 	// dropped and Exchange of a plain request fails with ErrUnprotected.
@@ -251,7 +253,7 @@ func (c *Conn) Exchange(ctx context.Context, req *server.Message) (*server.Messa
 }
 
 // ExchangeCoAP is Exchange for a whole CoAP message, options included
-// (an OSCORE-protected request, server.CoAPWire); the response is
+// (an OSCORE-protected request, coap.CoAPWire); the response is
 // returned as received.
 func (c *Conn) ExchangeCoAP(ctx context.Context, req message.Message) (message.Message, error) {
 	mid := c.NextMID()

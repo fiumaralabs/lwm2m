@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/bootstrap"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
@@ -167,7 +169,7 @@ type env struct {
 	cert *serverCert
 }
 
-type envOpt func(*server.Config, *server.CertificateModes)
+type envOpt func(*server.Config, *coap.CertificateModes)
 
 func newEnv(t *testing.T, opts ...envOpt) *env {
 	t.Helper()
@@ -175,26 +177,28 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	models := server.NewModels(model.Default())
 	cfg := server.Config{OnEvent: e.ev.on, Security: e.sec, Schema: models.Schema,
 		RequestTimeout: 20 * time.Second}
-	var cm server.CertificateModes
+	var cm coap.CertificateModes
 	for _, o := range opts {
 		o(&cfg, &cm)
 	}
 	e.srv = server.New(cfg)
 	t.Cleanup(func() { _ = e.srv.Close() })
-	a, err := e.srv.ListenUDP("127.0.0.1:0")
+	cb := coap.New(e.srv)
+	t.Cleanup(func() { _ = cb.Close() })
+	a, err := cb.ListenUDP("127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.udp = port(a)
-	dc := server.DTLSConfig{CIDLength: 6}
+	dc := coap.DTLSConfig{CIDLength: 6}
 	if len(cm.Certificates) > 0 {
-		dc.Config = e.srv.DTLSConfig(cm)
+		dc.Config = cb.DTLSConfig(cm)
 	}
-	if a, err = e.srv.ListenDTLS("127.0.0.1:0", dc); err != nil {
+	if a, err = cb.ListenDTLS("127.0.0.1:0", dc); err != nil {
 		t.Fatal(err)
 	}
 	e.dtls = port(a)
-	if a, err = e.srv.ListenTCP("127.0.0.1:0"); err != nil {
+	if a, err = cb.ListenTCP("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
 	e.tcp = port(a)
@@ -206,7 +210,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 
 // withX509 serves certificate clients signed by the returned CA.
 func withX509(sc *serverCert) envOpt {
-	return func(_ *server.Config, cm *server.CertificateModes) {
+	return func(_ *server.Config, cm *coap.CertificateModes) {
 		cm.Certificates = []tls.Certificate{sc.tls}
 		pool := x509.NewCertPool()
 		pool.AddCert(sc.ca)
@@ -215,7 +219,7 @@ func withX509(sc *serverCert) envOpt {
 }
 
 func withConfig(f func(*server.Config)) envOpt {
-	return func(c *server.Config, _ *server.CertificateModes) { f(c) }
+	return func(c *server.Config, _ *coap.CertificateModes) { f(c) }
 }
 
 func port(a net.Addr) int {

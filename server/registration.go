@@ -36,6 +36,11 @@ type Registration struct {
 	peer Peer // current transport session
 }
 
+// Peer returns the transport session the client registered or last
+// updated on; downlinks go over it. It is nil for a Registration that was
+// not created by the server (e.g. one loaded into a Store).
+func (r *Registration) Peer() Peer { return r.peer }
+
 // Expired reports whether the lifetime has elapsed at now.
 func (r *Registration) Expired(now time.Time) bool {
 	return r.Lifetime > 0 && now.After(r.LastUpdate.Add(r.Lifetime))

@@ -1,4 +1,4 @@
-package server_test
+package coap
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/server"
-	"github.com/fiumaralabs/lwm2m/transport/coap"
 
 	"github.com/fiumaralabs/lwm2m"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
@@ -67,7 +66,7 @@ func (e *events) wait(t *testing.T, match func(server.Event) bool) server.Event 
 type harness struct {
 	t      *testing.T
 	srv    *server.Server
-	coap   *coap.Binding
+	b      *Binding
 	addr   string // UDP
 	dtls   string // DTLS
 	ev     *events
@@ -86,13 +85,13 @@ func newHarness(t *testing.T, mod ...func(*server.Config)) *harness {
 		m(&cfg)
 	}
 	h.srv = server.New(cfg)
-	h.coap = coap.New(h.srv)
-	a, err := h.coap.ListenUDP("127.0.0.1:0")
+	h.b = New(h.srv)
+	a, err := h.b.ListenUDP("127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	h.addr = a.String()
-	d, err := h.coap.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{})
+	d, err := h.b.ListenDTLS("127.0.0.1:0", DTLSConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +99,7 @@ func newHarness(t *testing.T, mod ...func(*server.Config)) *harness {
 	h.ctx, h.cancel = context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(func() {
 		h.cancel()
-		_ = h.coap.Close()
+		_ = h.b.Close()
 		_ = h.srv.Close()
 	})
 	return h
@@ -163,4 +162,20 @@ func mustResp(t *testing.T, r *server.Response, err error, want string) *server.
 
 func p(s string) lwm2m.Path { return lwm2m.MustParsePath(s) }
 
-func fmtPtr(f lwm2m.ContentFormat) *lwm2m.ContentFormat { return &f }
+// expect returns a checker for a downlink result with the given code.
+func expect(t *testing.T, want string) func(*server.Response, error) *server.Response {
+	return func(r *server.Response, err error) *server.Response {
+		t.Helper()
+		return mustResp(t, r, err, want)
+	}
+}
+
+func second[A, B any](_ A, b B) B { return b }
+
+func notification(t *testing.T, h *harness, ob *server.Observation) server.Notification {
+	t.Helper()
+	return h.ev.wait(t, func(e server.Event) bool {
+		n, ok := e.(server.Notification)
+		return ok && n.Observation.ID == ob.ID
+	}).(server.Notification)
+}

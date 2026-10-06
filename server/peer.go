@@ -26,7 +26,9 @@ type Message struct {
 
 // Peer is one transport session with a client: a CoAP/UDP or DTLS
 // endpoint, a CoAP/TCP connection, or an MQTT or HTTP client. Every
-// binding implements it so the LwM2M core stays binding-agnostic.
+// binding implements it so the LwM2M core stays binding-agnostic. Peer
+// values must be comparable (a pointer type is): the core compares them to
+// follow a client from one session to the next.
 type Peer interface {
 	// Exchange sends a request to the client and returns its response.
 	Exchange(ctx context.Context, req *Message) (*Message, error)

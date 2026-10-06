@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
@@ -316,9 +318,11 @@ func TestCertificateModeWithEST(t *testing.T) {
 
 	srv := server.New(server.Config{RequestTimeout: 5 * time.Second})
 	t.Cleanup(func() { _ = srv.Close() })
+	cb := coap.New(srv)
+	t.Cleanup(func() { _ = cb.Close() })
 	pool := x509.NewCertPool()
 	pool.AddCert(f.ca.Cert)
-	addr, err := srv.ListenDTLS("127.0.0.1:0", server.DTLSConfig{Config: srv.DTLSConfig(server.CertificateModes{
+	addr, err := cb.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{Config: cb.DTLSConfig(coap.CertificateModes{
 		Certificates: []tls.Certificate{tlsCert(scert, sk)}, ClientCAs: pool})})
 	if err != nil {
 		t.Fatal(err)

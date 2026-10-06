@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"context"
@@ -22,9 +22,9 @@ import (
 // WebSocketHandler returns an http.Handler that upgrades requests offering
 // the "coap" subprotocol (RFC 8323 §4.1) to CoAP; others get 400. Each call
 // starts its own acceptor, stopped by Close.
-func (s *Server) WebSocketHandler() http.Handler {
+func (b *Binding) WebSocketHandler() http.Handler {
 	l := &wsListener{conns: make(chan net.Conn), done: make(chan struct{})}
-	s.serveTCP(l)
+	b.serveTCP(l)
 	up := websocket.Upgrader{Subprotocols: []string{coapws.Subprotocol}}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(websocket.Subprotocols(r), coapws.Subprotocol) {

@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -22,19 +23,19 @@ func TestObjectVersionResolution(t *testing.T) {
 
 	def := h.device(testclient.Config{Endpoint: "v11"})
 	mustCode(mustRegister(h, def))
-	expect(t, "2.04")(h.srv.Write(h.ctx, "v11", p("/1/0/10"), write, WriteOptions{}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "v11", p("/1/0/10"), write, server.WriteOptions{}))
 
 	old := h.device(testclient.Config{Endpoint: "v10"})
 	r, err := old.RegisterRaw(h.ctx, old.RegisterQuery(), []byte("</1/0>;ver=1.0,</3/0>"), true)
 	mustCode(t, r, err, "2.01")
-	if _, err := h.srv.Write(h.ctx, "v10", p("/1/0/10"), write, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Write(h.ctx, "v10", p("/1/0/10"), write, server.WriteOptions{}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("write to a resource of another object version: %v", err)
 	}
 	// ver on the object link (0 or >=2 instances form, C §7.2.3).
 	obj := h.device(testclient.Config{Endpoint: "v10obj"})
 	r, err = obj.RegisterRaw(h.ctx, obj.RegisterQuery(), []byte("</1>;ver=1.0,</1/0>,</3/0>"), true)
 	mustCode(t, r, err, "2.01")
-	if _, err := h.srv.Write(h.ctx, "v10obj", p("/1/0/10"), write, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Write(h.ctx, "v10obj", p("/1/0/10"), write, server.WriteOptions{}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("object-link ver ignored: %v", err)
 	}
 }
@@ -50,11 +51,11 @@ func TestObjlnkTargets(t *testing.T) {
 	ok := []lwm2m.ObjLink{lwm2m.NullObjLink, {Object: 3, Instance: lwm2m.MaxID}, {Object: 3, Instance: 0}}
 	for _, l := range ok {
 		v := lwm2m.Value{Type: lwm2m.TypeObjlnk, Link: l}
-		expect(t, "2.04")(h.srv.Write(h.ctx, "lnk", p("/1/0/10"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/10"), v)}, WriteOptions{}))
+		expect(t, "2.04")(h.srv.Write(h.ctx, "lnk", p("/1/0/10"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/10"), v)}, server.WriteOptions{}))
 	}
 	for _, l := range []lwm2m.ObjLink{{Object: 9, Instance: 0}, {Object: 3, Instance: 7}} {
 		v := lwm2m.Value{Type: lwm2m.TypeObjlnk, Link: l}
-		if _, err := h.srv.Write(h.ctx, "lnk", p("/1/0/10"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/10"), v)}, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+		if _, err := h.srv.Write(h.ctx, "lnk", p("/1/0/10"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/10"), v)}, server.WriteOptions{}); !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("objlnk %v sent: %v", l, err)
 		}
 	}
@@ -79,19 +80,19 @@ func TestDataTypes(t *testing.T) {
 		"/3/0/14": lwm2m.Integer(1),
 	}
 	for path, v := range bad {
-		if _, err := h.srv.Write(h.ctx, "dt", p(path), []lwm2m.Node{lwm2m.ValueNode(p(path), v)}, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+		if _, err := h.srv.Write(h.ctx, "dt", p(path), []lwm2m.Node{lwm2m.ValueNode(p(path), v)}, server.WriteOptions{}); !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("%s=%v sent: %v", path, v, err)
 		}
 	}
 	tlv := lwm2m.FormatTLV
 	expect(t, "2.04")(h.srv.Write(h.ctx, "dt", p("/1/0"), []lwm2m.Node{
 		lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300)),
-	}, WriteOptions{Mode: PartialUpdate, Format: &tlv}))
+	}, server.WriteOptions{Mode: server.PartialUpdate, Format: &tlv}))
 	req, _ := c.LastRequest()
 	if string(req.Body) != "\xc2\x01\x01\x2c" {
 		t.Fatalf("TLV %x, want c201012c", req.Body)
 	}
-	expect(t, "2.04")(h.srv.Write(h.ctx, "dt", p("/3/0/13"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/13"), lwm2m.Time(1700000000))}, WriteOptions{}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "dt", p("/3/0/13"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/13"), lwm2m.Time(1700000000))}, server.WriteOptions{}))
 	if v, _ := c.Get(p("/3/0/13")); !v.Equal(lwm2m.Time(1700000000)) {
 		t.Fatalf("time stored as %v", v)
 	}
@@ -107,7 +108,7 @@ func TestDataTypes(t *testing.T) {
 		c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
 			return codes.Content, &cf, body, true
 		})
-		if r, err := h.srv.Read(h.ctx, "dt", p(bad.path), ReadOptions{}); err != nil || r.DecodeErr == nil {
+		if r, err := h.srv.Read(h.ctx, "dt", p(bad.path), server.ReadOptions{}); err != nil || r.DecodeErr == nil {
 			t.Errorf("%s %q decoded: %v %+v", bad.path, bad.body, err, r)
 		}
 	}
@@ -136,7 +137,7 @@ func TestLegacyContentFormats(t *testing.T) {
 		c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
 			return codes.Content, &cf, body, true
 		})
-		r := expect(t, "2.05")(h.srv.Read(h.ctx, "legacy", path, ReadOptions{}))
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, "legacy", path, server.ReadOptions{}))
 		if r.DecodeErr != nil || !lwm2m.NodesEqual(r.Nodes, c.Nodes(path)) {
 			t.Fatalf("%d: %v %v", legacy, r.DecodeErr, r.Nodes)
 		}
@@ -152,22 +153,22 @@ func TestResponseCodes(t *testing.T) {
 	c := h.registered("codes")
 	for _, code := range []codes.Code{
 		codes.BadRequest, codes.Unauthorized, codes.NotFound, codes.MethodNotAllowed, codes.NotAcceptable,
-		codes.RequestEntityIncomplete, codeConflict, codes.PreconditionFailed, codes.RequestEntityTooLarge,
+		codes.RequestEntityIncomplete, server.CodeConflict, codes.PreconditionFailed, codes.RequestEntityTooLarge,
 		codes.UnsupportedMediaType, codes.InternalServerError, codes.NotImplemented, codes.ServiceUnavailable,
 	} {
 		cc := code
 		c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) { return cc, nil, nil, true })
-		r, err := h.srv.Read(h.ctx, "codes", p("/3/0/0"), ReadOptions{})
+		r, err := h.srv.Read(h.ctx, "codes", p("/3/0/0"), server.ReadOptions{})
 		if err != nil || r.Code != code || r.Success() {
-			t.Fatalf("%s: %v %+v", CodeString(code), err, r)
+			t.Fatalf("%s: %v %+v", server.CodeString(code), err, r)
 		}
 	}
 	c.SetOverride(nil)
 	_ = c.Close()
-	h2 := newHarness(t, func(cfg *Config) { cfg.RequestTimeout = 300e6 })
+	h2 := newHarness(t, func(cfg *server.Config) { cfg.RequestTimeout = 300e6 })
 	gone := h2.registered("gone")
 	_ = gone.Close()
-	if _, err := h2.srv.Read(h2.ctx, "gone", p("/3/0/0"), ReadOptions{}); err == nil {
+	if _, err := h2.srv.Read(h2.ctx, "gone", p("/3/0/0"), server.ReadOptions{}); err == nil {
 		t.Fatal("unanswered request reported success")
 	}
 }
@@ -179,17 +180,17 @@ func TestResponseCodes(t *testing.T) {
 // registration.
 func TestBindingSession(t *testing.T) {
 	h := newHarness(t)
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "sec", PSKIdentity: "sec", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "sec", PSKIdentity: "sec", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	c := h.device(testclient.Config{Endpoint: "sec", PSKIdentity: "sec", PSKKey: []byte("0123456789abcdef")})
 	mustCode(mustRegister(h, c))
 	reg, _ := h.srv.Store().ByEndpoint("sec")
-	if reg.peer.Binding() != "U" || !reg.Identity.Secure() {
-		t.Fatalf("peer %v %+v", reg.peer.Binding(), reg.Identity)
+	if reg.Peer().Binding() != "U" || !reg.Identity.Secure() {
+		t.Fatalf("peer %v %+v", reg.Peer().Binding(), reg.Identity)
 	}
-	expect(t, "2.04")(h.srv.Write(h.ctx, "sec", p("/1/0/7"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/7"), lwm2m.String("UQ"))}, WriteOptions{}))
-	expect(t, "2.05")(h.srv.Read(h.ctx, "sec", p("/3/0/0"), ReadOptions{}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "sec", p("/1/0/7"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/7"), lwm2m.String("UQ"))}, server.WriteOptions{}))
+	expect(t, "2.05")(h.srv.Read(h.ctx, "sec", p("/3/0/0"), server.ReadOptions{}))
 	after, _ := h.srv.Store().ByEndpoint("sec")
 	if after != reg || after.QueueMode || after.Binding != "U" {
 		t.Fatal("binding resource write changed the registration")
@@ -236,7 +237,7 @@ func TestRegisterBurstAndURNs(t *testing.T) {
 func TestNewSessionUpdate(t *testing.T) {
 	h := newHarness(t)
 	key := []byte("0123456789abcdef")
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: key}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: key}); err != nil {
 		t.Fatal(err)
 	}
 	c := h.device(testclient.Config{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: key, Queue: true})
@@ -246,7 +247,7 @@ func TestNewSessionUpdate(t *testing.T) {
 	c2 := h.device(testclient.Config{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: key, Queue: true})
 	r, err := c2.Raw(h.ctx, codes.POST, "/rd/"+loc, nil, nil, nil)
 	mustCode(t, r, err, "2.04")
-	expect(t, "2.05")(h.srv.Read(h.ctx, "sleepy", p("/3/0/0"), ReadOptions{}))
+	expect(t, "2.05")(h.srv.Read(h.ctx, "sleepy", p("/3/0/0"), server.ReadOptions{}))
 	if len(c2.Requests()) != 1 {
 		t.Fatal("request not sent over the new session")
 	}
@@ -258,7 +259,7 @@ func TestNewSessionUpdate(t *testing.T) {
 func TestBatchedNotification(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("batch")
-	ob, _, err := h.srv.Observe(h.ctx, "batch", p("/3/0/9"), ObserveOptions{Accept: fmtPtr(lwm2m.FormatSenMLCBOR)})
+	ob, _, err := h.srv.Observe(h.ctx, "batch", p("/3/0/9"), server.ObserveOptions{Accept: fmtPtr(lwm2m.FormatSenMLCBOR)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,15 +294,15 @@ func TestLwM2MCBORUses(t *testing.T) {
 	c.AddObject(16)
 	mustCode(mustRegister(h, c))
 	cb := lwm2m.FormatLwM2MCBOR
-	if _, err := h.srv.ReadComposite(h.ctx, "lwcbor", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{Format: &cb}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.ReadComposite(h.ctx, "lwcbor", []lwm2m.Path{p("/3/0/0")}, server.CompositeOptions{Format: &cb}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("LwM2M CBOR path list sent: %v", err)
 	}
-	r := expect(t, "2.05")(h.srv.ReadComposite(h.ctx, "lwcbor", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{Accept: &cb}))
+	r := expect(t, "2.05")(h.srv.ReadComposite(h.ctx, "lwcbor", []lwm2m.Path{p("/3/0/0")}, server.CompositeOptions{Accept: &cb}))
 	if r.ContentFormat != cb || len(r.Nodes) != 1 {
 		t.Fatalf("response %v %v", r.ContentFormat, r.Nodes)
 	}
 	expect(t, "2.04")(h.srv.WriteComposite(h.ctx, "lwcbor", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(99))}, &cb))
-	expect(t, "2.04")(h.srv.Write(h.ctx, "lwcbor", p("/1/0"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(98))}, WriteOptions{Mode: PartialUpdate, Format: &cb}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "lwcbor", p("/1/0"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(98))}, server.WriteOptions{Mode: server.PartialUpdate, Format: &cb}))
 	if req, _ := c.LastRequest(); *req.Format != cb {
 		t.Fatalf("format %v", *req.Format)
 	}
@@ -310,7 +311,7 @@ func TestLwM2MCBORUses(t *testing.T) {
 		t.Fatalf("create %+v", req)
 	}
 	// Observe response and Notify in LwM2M CBOR.
-	ob, r, err := h.srv.Observe(h.ctx, "lwcbor", p("/3/0"), ObserveOptions{Accept: &cb})
+	ob, r, err := h.srv.Observe(h.ctx, "lwcbor", p("/3/0"), server.ObserveOptions{Accept: &cb})
 	if err != nil || r.ContentFormat != cb || !lwm2m.NodesEqual(r.Nodes, c.Nodes(p("/3/0"))) {
 		t.Fatalf("observe %v %+v", err, r)
 	}
@@ -333,11 +334,11 @@ func TestOMAJSONOnlyAccepted(t *testing.T) {
 	oj := lwm2m.FormatOMAJSON
 	c := h.device(testclient.Config{Endpoint: "oj", Version: "1.1", Format: oj, Formats: []lwm2m.ContentFormat{oj}})
 	mustCode(mustRegister(h, c))
-	r := expect(t, "2.05")(h.srv.Read(h.ctx, "oj", p("/3/0"), ReadOptions{}))
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "oj", p("/3/0"), server.ReadOptions{}))
 	if r.ContentFormat != oj || !lwm2m.NodesEqual(r.Nodes, c.Nodes(p("/3/0"))) {
 		t.Fatalf("read %v %v", r.ContentFormat, r.DecodeErr)
 	}
-	expect(t, "4.15")(h.srv.Write(h.ctx, "oj", p("/1/0"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(5))}, WriteOptions{Mode: PartialUpdate}))
+	expect(t, "4.15")(h.srv.Write(h.ctx, "oj", p("/1/0"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(5))}, server.WriteOptions{Mode: server.PartialUpdate}))
 	for _, req := range c.Requests() {
 		if req.Format != nil && *req.Format == oj {
 			t.Fatalf("server sent OMA JSON to a 1.1 client: %+v", req)
@@ -357,7 +358,7 @@ func TestCorelnkTargets(t *testing.T) {
 		t.Fatal(r, err)
 	}
 	w := func(v string) error {
-		_, err := h.srv.Write(h.ctx, "clnk", p("/22/0/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/22/0/0/0"), lwm2m.Corelnk(v))}, WriteOptions{})
+		_, err := h.srv.Write(h.ctx, "clnk", p("/22/0/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/22/0/0/0"), lwm2m.Corelnk(v))}, server.WriteOptions{})
 		return err
 	}
 	for _, ok := range []string{"</3/0>", "</3>,</1/0>", "<coap://example.com/x>"} {
@@ -366,7 +367,7 @@ func TestCorelnkTargets(t *testing.T) {
 		}
 	}
 	for _, bad := range []string{"</9/0>", "</3/7>", "</3/0>,</42>"} {
-		if err := w(bad); !errors.Is(err, ErrBadObjlnk) {
+		if err := w(bad); !errors.Is(err, server.ErrBadObjlnk) {
 			t.Errorf("%q sent: %v", bad, err)
 		}
 	}

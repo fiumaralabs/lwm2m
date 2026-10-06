@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -26,7 +27,7 @@ func TestSeparateResponses(t *testing.T) {
 			}()
 			return codes.Empty, nil, nil, true
 		})
-		r := expect(t, "2.05")(h.srv.Read(h.ctx, "sep", p("/3/0/0"), ReadOptions{}))
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, "sep", p("/3/0/0"), server.ReadOptions{}))
 		if len(r.Nodes) != 1 || r.Nodes[0].Value.Str != "late" {
 			t.Fatalf("con=%v: %+v", con, r)
 		}
@@ -38,16 +39,16 @@ func TestSeparateResponses(t *testing.T) {
 // responses: the server's request fails cleanly when it times out, and
 // the registration keeps working afterwards.
 func TestInFlightDroppedDuringBootstrap(t *testing.T) {
-	h := newHarness(t, func(c *Config) { c.RequestTimeout = 500 * time.Millisecond })
+	h := newHarness(t, func(c *server.Config) { c.RequestTimeout = 500 * time.Millisecond })
 	c := h.registered("busy")
 	c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
 		return codes.Empty, nil, nil, true // empty ACK, the response never comes
 	})
-	if _, err := h.srv.Read(h.ctx, "busy", p("/3/0/0"), ReadOptions{}); err == nil {
+	if _, err := h.srv.Read(h.ctx, "busy", p("/3/0/0"), server.ReadOptions{}); err == nil {
 		t.Fatal("dropped exchange reported success")
 	}
 	c.SetOverride(nil)
-	expect(t, "2.05")(h.srv.Read(h.ctx, "busy", p("/3/0/0"), ReadOptions{}))
+	expect(t, "2.05")(h.srv.Read(h.ctx, "busy", p("/3/0/0"), server.ReadOptions{}))
 }
 
 // Proves: BS-23
@@ -67,7 +68,7 @@ func TestImplicitDeregistration(t *testing.T) {
 	gone := h.device(testclient.Config{Endpoint: "gone", Lifetime: 60})
 	mustCode(mustRegister(h, gone))
 	h.clock.Add(61 * time.Second)
-	h.srv.expireNow()
+	h.srv.ExpireNow()
 	if _, ok := h.srv.Store().ByEndpoint("gone"); ok {
 		t.Fatal("silently dropped registration never expired")
 	}

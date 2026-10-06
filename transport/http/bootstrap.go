@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/bootstrap"
 	"github.com/fiumaralabs/lwm2m/security/oscore"
@@ -223,7 +225,7 @@ func (b *BootstrapBinding) serveOSCORE(w nethttp.ResponseWriter, r *nethttp.Requ
 		toHTTP(w, reply)
 		return
 	}
-	msg, err := server.MessageFromCoAP(q.Inner)
+	msg, err := coap.MessageFromCoAP(q.Inner)
 	if err != nil {
 		toHTTP(w, oscore.PlainError(codes.BadRequest, ""))
 		return
@@ -268,7 +270,7 @@ func (p *oscorePeer) Identity() server.Identity {
 	if p.id.Secure() {
 		return p.id
 	}
-	return server.OSCOREIdentity(p.e.Params())
+	return coap.OSCOREIdentity(p.e.Params())
 }
 
 func (p *oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
@@ -282,7 +284,7 @@ func (p *oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server
 	if base == "" {
 		return nil, fmt.Errorf("http: no HTTP URL for endpoint %q", p.e.Name)
 	}
-	plain, err := server.CoAPMessage(req)
+	plain, err := coap.CoAPMessage(req)
 	if err != nil {
 		return nil, err
 	}
@@ -311,5 +313,5 @@ func (p *oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server
 	if err != nil {
 		return nil, fmt.Errorf("http: OSCORE: %w", err)
 	}
-	return server.MessageFromCoAP(inner)
+	return coap.MessageFromCoAP(inner)
 }

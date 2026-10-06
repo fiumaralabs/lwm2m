@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/security/oscore"
@@ -59,7 +61,7 @@ func oscoreCode(t *testing.T, r *testclient.OSCOREResponse, err error, want stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := CodeString(r.Code); got != want || r.Protected != protected {
+	if got := server.CodeString(r.Code); got != want || r.Protected != protected {
 		t.Fatalf("code %s protected %v, want %s protected %v (body %q)", got, r.Protected, want, protected, r.Body)
 	}
 }
@@ -75,7 +77,7 @@ func oscoreCode(t *testing.T, r *testclient.OSCOREResponse, err error, want stri
 // OSCORE.
 func TestOSCORERegisterEchoAndDM(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
+	o := h.b.EnableOSCORE()
 	cp := clientParams("c1")
 	if err := o.Put("urn:dev:osc", cp.Reverse()); err != nil {
 		t.Fatal(err)
@@ -101,7 +103,7 @@ func TestOSCORERegisterEchoAndDM(t *testing.T) {
 	r, err = c.Update(h.ctx, []string{"lt=600"})
 	oscoreCode(t, r, err, "2.04", true)
 
-	resp, err := h.srv.Read(h.ctx, "urn:dev:osc", p("/3/0/0"), ReadOptions{})
+	resp, err := h.srv.Read(h.ctx, "urn:dev:osc", p("/3/0/0"), server.ReadOptions{})
 	mustResp(t, resp, err, "2.05")
 	if len(resp.Nodes) != 1 || !resp.Nodes[0].Value.Equal(lwm2m.String("Open Mobile Alliance")) {
 		t.Fatalf("read %+v", resp)
@@ -110,7 +112,7 @@ func TestOSCORERegisterEchoAndDM(t *testing.T) {
 	if req.Code != codes.GET || req.Path != "/3/0/0" {
 		t.Fatalf("decrypted request %+v", req)
 	}
-	resp, err = h.srv.Write(h.ctx, "urn:dev:osc", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, WriteOptions{})
+	resp, err = h.srv.Write(h.ctx, "urn:dev:osc", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, server.WriteOptions{})
 	mustResp(t, resp, err, "2.04")
 	if v, _ := c.Get(p("/1/0/1")); !v.Equal(lwm2m.Integer(300)) {
 		t.Fatalf("written %v", v)
@@ -129,7 +131,7 @@ func TestOSCORERegisterEchoAndDM(t *testing.T) {
 // ep.
 func TestOSCOREEndpointBinding(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
+	o := h.b.EnableOSCORE()
 	cp := clientParams("kid-a")
 	if err := o.Put("urn:dev:a", cp.Reverse()); err != nil {
 		t.Fatal(err)
@@ -167,7 +169,7 @@ func TestOSCOREEndpointBinding(t *testing.T) {
 // 4.01, and another OSCORE client cannot act on the registration (4.00).
 func TestOSCOREErrors(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
+	o := h.b.EnableOSCORE()
 	cp := clientParams("c1")
 	if err := o.Put("urn:dev:e", cp.Reverse()); err != nil {
 		t.Fatal(err)
@@ -230,7 +232,7 @@ func TestOSCOREErrors(t *testing.T) {
 // Appendix B.1.2), so older captured requests stay refused.
 func TestOSCOREContextReloadedNeedsEcho(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
+	o := h.b.EnableOSCORE()
 	cp := clientParams("c1")
 	_ = o.Put("urn:dev:r", cp.Reverse())
 	c := h.oscoreDevice(testclient.Config{Endpoint: "urn:dev:r"}, cp)
@@ -253,14 +255,14 @@ func TestOSCOREContextReloadedNeedsEcho(t *testing.T) {
 // Echo; the server repeats the request once with it.
 func TestOSCOREDownlinkEchoRetry(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
+	o := h.b.EnableOSCORE()
 	cp := clientParams("c1")
 	_ = o.Put("urn:dev:w", cp.Reverse())
 	c := h.oscoreDevice(testclient.Config{Endpoint: "urn:dev:w"}, cp)
 	c.RequireEcho = true
 	r, err := c.Register(h.ctx)
 	oscoreCode(t, r, err, "2.01", true)
-	resp, err := h.srv.Write(h.ctx, "urn:dev:w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(120))}, WriteOptions{})
+	resp, err := h.srv.Write(h.ctx, "urn:dev:w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(120))}, server.WriteOptions{})
 	mustResp(t, resp, err, "2.04")
 	if n := len(c.Requests()); n != 2 {
 		t.Fatalf("%d requests, want the challenged one and the retry", n)
@@ -276,13 +278,13 @@ func TestOSCOREDownlinkEchoRetry(t *testing.T) {
 // delivered; an unprotected notification on the same token is dropped.
 func TestOSCOREObserve(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
+	o := h.b.EnableOSCORE()
 	cp := clientParams("c1")
 	_ = o.Put("urn:dev:o", cp.Reverse())
 	c := h.oscoreDevice(testclient.Config{Endpoint: "urn:dev:o"}, cp)
 	r, err := c.Register(h.ctx)
 	oscoreCode(t, r, err, "2.01", true)
-	ob, resp, err := h.srv.Observe(h.ctx, "urn:dev:o", p("/3/0/9"), ObserveOptions{})
+	ob, resp, err := h.srv.Observe(h.ctx, "urn:dev:o", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil || ob == nil || !resp.Success() || !resp.Nodes[0].Value.Equal(lwm2m.Integer(100)) {
 		t.Fatalf("observe: %v %+v", err, resp)
 	}
@@ -303,7 +305,7 @@ func TestOSCOREObserve(t *testing.T) {
 	h.ev.mu.Lock()
 	count := 0
 	for _, e := range h.ev.l {
-		if _, ok := e.(Notification); ok {
+		if _, ok := e.(server.Notification); ok {
 			count++
 		}
 	}
@@ -319,8 +321,8 @@ func TestOSCOREObserve(t *testing.T) {
 // TestOSCORERegisterEchoAndDM; over SMS: transport/sms TestOSCOREOverSMS*.)
 func TestOSCOREOverDTLS(t *testing.T) {
 	h := newHarness(t)
-	o := h.srv.EnableOSCORE()
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "urn:dev:both", PSKIdentity: "both", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	o := h.b.EnableOSCORE()
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "urn:dev:both", PSKIdentity: "both", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	cp := clientParams("c1")
@@ -337,10 +339,10 @@ func TestOSCOREOverDTLS(t *testing.T) {
 	r, err := c.Register(h.ctx)
 	oscoreCode(t, r, err, "2.01", true)
 	reg, _ := h.srv.Store().ByEndpoint("urn:dev:both")
-	if reg.Identity.Mode != ModePSK {
+	if reg.Identity.Mode != server.ModePSK {
 		t.Fatalf("identity %+v", reg.Identity)
 	}
-	resp, err := h.srv.Read(h.ctx, "urn:dev:both", p("/3/0/9"), ReadOptions{})
+	resp, err := h.srv.Read(h.ctx, "urn:dev:both", p("/3/0/9"), server.ReadOptions{})
 	mustResp(t, resp, err, "2.05")
 }
 
@@ -357,7 +359,7 @@ func TestOSCOREObject21(t *testing.T) {
 			lwm2m.ValueNode(base.Append(2), lwm2m.Opaque([]byte("srv"))),
 		}, extra...)
 	}
-	pr, err := OSCOREParams(inst(0,
+	pr, err := server.OSCOREParams(inst(0,
 		lwm2m.ValueNode(p("/21/0/3"), lwm2m.Integer(oscore.AESCCM16_64_128)),
 		lwm2m.ValueNode(p("/21/0/4"), lwm2m.Integer(oscore.HMAC256)),
 		lwm2m.ValueNode(p("/21/0/5"), lwm2m.Opaque([]byte{1, 2})),
@@ -365,14 +367,14 @@ func TestOSCOREObject21(t *testing.T) {
 	if err != nil || string(pr.SenderID) != "dev-x" || string(pr.RecipientID) != "srv" || len(pr.MasterSalt) != 2 || len(pr.IDContext) != 1 {
 		t.Fatalf("%+v %v", pr, err)
 	}
-	if _, err := OSCOREParams(inst(0)[:2]); err == nil {
+	if _, err := server.OSCOREParams(inst(0)[:2]); err == nil {
 		t.Fatal("missing Recipient ID accepted")
 	}
 	link := func(sec, i uint16) lwm2m.Node {
 		return lwm2m.ValueNode(lwm2m.Path{}.Append(0).Append(sec).Append(17), lwm2m.Objlnk(21, i))
 	}
 	good := append(append(inst(0), inst(1)...), link(0, 0), link(1, 1))
-	if err := CheckOSCORELinks(good); err != nil {
+	if err := server.CheckOSCORELinks(good); err != nil {
 		t.Fatal(err)
 	}
 	for name, cfg := range map[string][]lwm2m.Node{
@@ -380,7 +382,7 @@ func TestOSCOREObject21(t *testing.T) {
 		"missing":    append(inst(0), link(0, 3)),
 		"not /21":    {lwm2m.ValueNode(p("/0/0/17"), lwm2m.Objlnk(1, 0))},
 	} {
-		if err := CheckOSCORELinks(cfg); !errors.Is(err, ErrOSCORELink) {
+		if err := server.CheckOSCORELinks(cfg); !errors.Is(err, server.ErrOSCORELink) {
 			t.Errorf("%s: %v", name, err)
 		}
 	}

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/fota"
@@ -39,7 +41,8 @@ func newHarness(t *testing.T) *harness {
 		ExpiryCheck: time.Hour, Schema: models.Schema, Validator: models,
 	})
 	h.mgr = fota.New(h.srv)
-	a, err := h.srv.ListenUDP("127.0.0.1:0")
+	cb := coap.New(h.srv)
+	a, err := cb.ListenUDP("127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,6 +58,7 @@ func newHarness(t *testing.T) *harness {
 	t.Cleanup(func() {
 		cancel()
 		_ = h.files.Close()
+		_ = cb.Close()
 		_ = h.srv.Close()
 	})
 	return h

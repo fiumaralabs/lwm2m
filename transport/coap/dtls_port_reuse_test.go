@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
@@ -24,7 +26,7 @@ import (
 func TestDTLSNewHandshakeFromSamePort(t *testing.T) {
 	for _, cid := range []bool{false, true} {
 		h := newHarness(t)
-		if err := h.srv.Security().Put(SecurityInfo{Endpoint: "reuse", PSKIdentity: "reuse-id", PSKKey: []byte("0123456789abcdef")}); err != nil {
+		if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "reuse", PSKIdentity: "reuse-id", PSKKey: []byte("0123456789abcdef")}); err != nil {
 			t.Fatal(err)
 		}
 		raddr, _ := net.ResolveUDPAddr("udp", h.dtls)

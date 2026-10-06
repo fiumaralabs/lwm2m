@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"errors"
@@ -7,31 +7,32 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
 // waitNotification waits up to d for a notification of ob and returns it,
 // or ok=false.
-func waitNotification(h *harness, ob *Observation, d time.Duration) (Notification, bool) {
+func waitNotification(h *harness, ob *server.Observation, d time.Duration) (server.Notification, bool) {
 	deadline := time.After(d)
 	for {
 		select {
 		case e := <-h.ev.ch:
-			if n, ok := e.(Notification); ok && n.Observation.ID == ob.ID {
+			if n, ok := e.(server.Notification); ok && n.Observation.ID == ob.ID {
 				return n, true
 			}
 		case <-deadline:
-			return Notification{}, false
+			return server.Notification{}, false
 		}
 	}
 }
 
-func observeWith(t *testing.T, h *harness, ep, path string, attrs ...string) *Observation {
+func observeWith(t *testing.T, h *harness, ep, path string, attrs ...string) *server.Observation {
 	t.Helper()
 	if len(attrs) > 0 {
 		expect(t, "2.04")(h.srv.WriteAttributes(h.ctx, ep, p(path), attrs))
 	}
-	ob, r, err := h.srv.Observe(h.ctx, ep, p(path), ObserveOptions{})
+	ob, r, err := h.srv.Observe(h.ctx, ep, p(path), server.ObserveOptions{})
 	if err != nil || !r.Success() {
 		t.Fatal(err, r)
 	}
@@ -65,14 +66,14 @@ func TestPmin(t *testing.T) {
 func TestThresholdAttributes(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("thr")
-	silent := func(ob *Observation, v int64) {
+	silent := func(ob *server.Observation, v int64) {
 		t.Helper()
 		c.Set(p("/3/0/9"), lwm2m.Integer(v))
 		if _, ok := waitNotification(h, ob, 400*time.Millisecond); ok {
 			t.Fatalf("%d notified", v)
 		}
 	}
-	notified := func(ob *Observation, v int64) {
+	notified := func(ob *server.Observation, v int64) {
 		t.Helper()
 		c.Set(p("/3/0/9"), lwm2m.Integer(v))
 		n, ok := waitNotification(h, ob, 2*time.Second)
@@ -80,7 +81,7 @@ func TestThresholdAttributes(t *testing.T) {
 			t.Fatalf("%d not notified", v)
 		}
 	}
-	cancel := func(ob *Observation) {
+	cancel := func(ob *server.Observation) {
 		t.Helper()
 		if _, err := h.srv.CancelObservation(h.ctx, ob, true); err != nil {
 			t.Fatal(err)
@@ -127,11 +128,11 @@ func TestThresholdAttributes(t *testing.T) {
 	// An inconsistent or misplaced set is refused before it is sent.
 	n := len(c.Requests())
 	for _, q := range [][]string{{"lt=10", "gt=30", "st=10"}, {"lt=30", "gt=30"}, {"pmin=10", "pmax=5"}, {"epmin=5", "epmax=5"}, {"ver=1.1"}, {"foo=1"}} {
-		if _, err := h.srv.WriteAttributes(h.ctx, "thr", p("/3/0/9"), q); !errors.Is(err, ErrBadRequest) {
+		if _, err := h.srv.WriteAttributes(h.ctx, "thr", p("/3/0/9"), q); !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("%v: %v, want ErrBadRequest", q, err)
 		}
 	}
-	if _, err := h.srv.WriteAttributes(h.ctx, "thr", p("/3/0"), []string{"gt=1"}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.WriteAttributes(h.ctx, "thr", p("/3/0"), []string{"gt=1"}); !errors.Is(err, server.ErrBadRequest) {
 		t.Errorf("gt on an instance: %v", err)
 	}
 	if len(c.Requests()) != n {
@@ -242,9 +243,9 @@ func TestServerObjectTriggers(t *testing.T) {
 	mustCode(mustRegister(h, c))
 
 	expect(t, "2.04")(h.srv.TriggerUpdate(h.ctx, "trig", ""))
-	h.ev.wait(t, func(e Event) bool { u, ok := e.(Updated); return ok && u.Registration.Endpoint == "trig" })
+	h.ev.wait(t, func(e server.Event) bool { u, ok := e.(server.Updated); return ok && u.Registration.Endpoint == "trig" })
 	expect(t, "2.04")(h.srv.TriggerUpdate(h.ctx, "trig", "T"))
-	h.ev.wait(t, func(e Event) bool { u, ok := e.(Updated); return ok && u.Registration.Endpoint == "trig" })
+	h.ev.wait(t, func(e server.Event) bool { u, ok := e.(server.Updated); return ok && u.Registration.Endpoint == "trig" })
 	if c.BindingOverride() != "T" {
 		t.Fatalf("override %q", c.BindingOverride())
 	}
@@ -252,7 +253,7 @@ func TestServerObjectTriggers(t *testing.T) {
 		t.Fatal("offered a binding not in /1/x/7")
 	}
 
-	if _, err := h.srv.SetPreferredTransport(h.ctx, "trig", "UQ"); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.SetPreferredTransport(h.ctx, "trig", "UQ"); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatal("/1/x/22 holds a single binding")
 	}
 	expect(t, "2.04")(h.srv.SetPreferredTransport(h.ctx, "trig", "U"))
@@ -285,6 +286,12 @@ func TestServerObjectTriggers(t *testing.T) {
 
 	c.Set(p("/1/0/5"), lwm2m.Integer(1))
 	expect(t, "2.04")(h.srv.Disable(h.ctx, "trig"))
-	h.ev.wait(t, func(e Event) bool { d, ok := e.(Deregistered); return ok && d.Registration.Endpoint == "trig" })
-	h.ev.wait(t, func(e Event) bool { r, ok := e.(Registered); return ok && r.Registration.Endpoint == "trig" })
+	h.ev.wait(t, func(e server.Event) bool {
+		d, ok := e.(server.Deregistered)
+		return ok && d.Registration.Endpoint == "trig"
+	})
+	h.ev.wait(t, func(e server.Event) bool {
+		r, ok := e.(server.Registered)
+		return ok && r.Registration.Endpoint == "trig"
+	})
 }

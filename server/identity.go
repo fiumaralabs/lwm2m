@@ -3,9 +3,6 @@ package server
 import (
 	"bytes"
 	"crypto/x509"
-	"net"
-
-	piondtls "github.com/fiumaralabs/dtls/v3"
 )
 
 // SecurityMode is the transport security a client used (T §5.2, SEC-08).
@@ -52,27 +49,3 @@ func (a Identity) Equal(b Identity) bool {
 
 // Secure reports whether the identity was authenticated by (D)TLS.
 func (a Identity) Secure() bool { return a.Mode != ModeNoSec }
-
-// IdentityOf extracts the authenticated identity of a (D)TLS or plain UDP
-// connection. Bindings and the Bootstrap-Server share it.
-func IdentityOf(nc net.Conn, remote net.Addr) Identity {
-	dc, ok := nc.(*piondtls.Conn)
-	if !ok {
-		return Identity{Mode: ModeNoSec, Addr: remote.String()}
-	}
-	st, ok := dc.ConnectionState()
-	if !ok {
-		return Identity{Mode: ModeNoSec, Addr: remote.String()}
-	}
-	if len(st.IdentityHint) > 0 {
-		return Identity{Mode: ModePSK, PSKIdentity: string(st.IdentityHint)}
-	}
-	if len(st.PeerCertificates) > 0 {
-		if c, err := x509.ParseCertificate(st.PeerCertificates[0]); err == nil {
-			return Identity{Mode: ModeX509, CertCN: c.Subject.CommonName, Cert: c}
-		}
-		// A raw public key (RFC 7250) arrives as a bare SubjectPublicKeyInfo.
-		return Identity{Mode: ModeRPK, PublicKey: st.PeerCertificates[0]}
-	}
-	return Identity{Mode: ModeNoSec, Addr: remote.String()}
-}

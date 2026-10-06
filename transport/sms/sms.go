@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m/internal/coapwire"
 	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/fiumaralabs/lwm2m/server"
@@ -97,7 +99,7 @@ type Config struct {
 	// Security set the messages are protected by both, and an unprotected
 	// Register, Update or De-register for an OSCORE endpoint is refused.
 	// Triggers to a registered OSCORE endpoint are protected too.
-	OSCORE *server.OSCORE
+	OSCORE *coap.OSCORE
 	// Allowed, if set, filters inbound SMS by originating MSISDN; others
 	// are silently ignored.
 	Allowed func(msisdn string) bool

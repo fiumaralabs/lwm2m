@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -62,7 +64,7 @@ func TestBlock1NewTokenPerBlock(t *testing.T) {
 			t.Fatalf("block %d: Block1 echo %v %v, want %v", num, got, err, blk)
 		}
 	}
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 	if len(ev.Nodes) != 1 || ev.Nodes[0].Value.Str != big {
 		t.Fatalf("send nodes %+v", ev.Nodes)
 	}

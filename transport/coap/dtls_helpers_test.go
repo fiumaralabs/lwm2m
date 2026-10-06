@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
@@ -94,11 +96,11 @@ func (p *dtlsPKI) issue(t *testing.T, cn string, dns ...string) tls.Certificate 
 // listenSecure starts a DTLS listener serving PSK, RPK and X.509.
 func (h *harness) listenSecure(m CertificateModes, mod ...func(*piondtls.Config)) string {
 	h.t.Helper()
-	cfg := h.srv.DTLSConfig(m)
+	cfg := h.b.DTLSConfig(m)
 	for _, f := range mod {
 		f(cfg)
 	}
-	a, err := h.srv.ListenDTLS("127.0.0.1:0", DTLSConfig{Config: cfg})
+	a, err := h.b.ListenDTLS("127.0.0.1:0", DTLSConfig{Config: cfg})
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -146,7 +148,7 @@ func (h *harness) handshakeFails(tc testclient.Config, addr string, cfg *piondtl
 	defer cancel()
 	r, err := c.Register(ctx)
 	if err == nil {
-		h.t.Fatalf("%s: registered (%s) with a rejected credential", tc.Endpoint, CodeString(r.Code))
+		h.t.Fatalf("%s: registered (%s) with a rejected credential", tc.Endpoint, server.CodeString(r.Code))
 	}
 	return err.Error()
 }

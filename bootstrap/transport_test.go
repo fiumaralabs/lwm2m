@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/security/est"
 	"github.com/fiumaralabs/lwm2m/server"
@@ -105,9 +107,11 @@ func TestESTViaBootstrapServer(t *testing.T) {
 	}
 	dm := server.New(server.Config{RequestTimeout: 5 * time.Second})
 	t.Cleanup(func() { _ = dm.Close() })
+	dmCoAP := coap.New(dm)
+	t.Cleanup(func() { _ = dmCoAP.Close() })
 	pool := x509.NewCertPool()
 	pool.AddCert(ca.Cert)
-	dmAddr, err := dm.ListenDTLS("127.0.0.1:0", server.DTLSConfig{Config: dm.DTLSConfig(server.CertificateModes{
+	dmAddr, err := dmCoAP.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{Config: dmCoAP.DTLSConfig(coap.CertificateModes{
 		Certificates: []tls.Certificate{{Certificate: [][]byte{scert.Raw}, PrivateKey: sk}}, ClientCAs: pool})})
 	if err != nil {
 		t.Fatal(err)

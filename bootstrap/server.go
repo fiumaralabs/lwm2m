@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
@@ -117,7 +119,7 @@ func (s *Server) ListenUDP(addr string) (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := udp.NewServer(options.WithMux(s.router), options.WithBlockwise(true, server.BlockSZX, s.cfg.RequestTimeout),
+	srv := udp.NewServer(options.WithMux(s.router), options.WithBlockwise(true, coap.BlockSZX, s.cfg.RequestTimeout),
 		options.WithProcessReceivedMessageFunc(s.process))
 	s.mu.Lock()
 	s.udp = append(s.udp, srv)
@@ -184,7 +186,7 @@ func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := coapdtls.NewServer(options.WithMux(s.router), options.WithBlockwise(true, server.BlockSZX, s.cfg.RequestTimeout),
+	srv := coapdtls.NewServer(options.WithMux(s.router), options.WithBlockwise(true, coap.BlockSZX, s.cfg.RequestTimeout),
 		options.WithProcessReceivedMessageFunc(s.process))
 	s.mu.Lock()
 	s.dtls = append(s.dtls, srv)
@@ -340,7 +342,7 @@ func (s *Server) process(req *pool.Message, cc *client.Conn, handler config.Hand
 }
 
 // identityOf extracts the authenticated identity of a connection: the
-// LwM2M Server's rules (server.IdentityOf), plus a verified TLS client
+// LwM2M Server's rules (coap.IdentityOf), plus a verified TLS client
 // certificate. Go's crypto/tls has neither PSK nor raw public keys, so a
 // TLS session is X.509 or NoSec.
 func identityOf(nc net.Conn, remote net.Addr) server.Identity {
@@ -350,7 +352,7 @@ func identityOf(nc net.Conn, remote net.Addr) server.Identity {
 			return server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
 		}
 	}
-	return server.IdentityOf(nc, remote)
+	return coap.IdentityOf(nc, remote)
 }
 
 // --- uplink -------------------------------------------------------------

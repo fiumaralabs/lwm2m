@@ -1,9 +1,10 @@
-package server
+package coap
 
 import (
 	"crypto/tls"
 	"net"
 
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/mux"
 	coapnet "github.com/plgd-dev/go-coap/v3/net"
@@ -29,22 +30,22 @@ type tcpPeer struct{ coapPeer }
 // (ModeX509, CN as endpoint). Go's crypto/tls has neither PSK nor raw
 // public keys (RFC 7250), so a TLS session is X.509 or NoSec; a plain TCP
 // or unverified-certificate session is NoSec, bound to the address.
-func (p *tcpPeer) Identity() Identity {
+func (p *tcpPeer) Identity() server.Identity {
 	if tc, ok := p.cc.NetConn().(*tls.Conn); ok {
 		if st := tc.ConnectionState(); len(st.VerifiedChains) > 0 {
 			leaf := st.PeerCertificates[0]
-			return Identity{Mode: ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
+			return server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
 		}
 	}
-	return Identity{Mode: ModeNoSec, Addr: p.cc.RemoteAddr().String()}
+	return server.Identity{Mode: server.ModeNoSec, Addr: p.cc.RemoteAddr().String()}
 }
 
 // peerOf returns the Peer of a CoAP connection: its TCP peer, or a U one.
-func (s *Server) peerOf(cc coapConn) Peer {
+func (b *Binding) peerOf(cc coapConn) server.Peer {
 	if p, ok := cc.Context().Value(tcpPeerKey{}).(*tcpPeer); ok {
 		return p
 	}
-	return s.coap.peer(cc, "U")
+	return b.peer(cc, "U")
 }
 
 // withPort adds the scheme's default port to an addr that has none.
@@ -57,12 +58,12 @@ func withPort(addr, port string) string {
 
 // ListenTCP serves CoAP over TCP (coap+tcp, NoSec, TCP-02) on addr, port
 // 5683 when addr has none, and returns the bound address.
-func (s *Server) ListenTCP(addr string) (net.Addr, error) {
+func (b *Binding) ListenTCP(addr string) (net.Addr, error) {
 	l, err := coapnet.NewTCPListener("tcp", withPort(addr, "5683"))
 	if err != nil {
 		return nil, err
 	}
-	s.serveTCP(l)
+	b.serveTCP(l)
 	return l.Addr(), nil
 }
 
@@ -71,7 +72,7 @@ func (s *Server) ListenTCP(addr string) (net.Addr, error) {
 // tls.RequireAndVerifyClientCert with ClientCAs; only a verified
 // certificate is an authenticated identity.
 // NextProtos defaults to the ALPN "coap" (RFC 8323 §11.7).
-func (s *Server) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
+func (b *Binding) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
 	cfg = cfg.Clone()
 	if len(cfg.NextProtos) == 0 {
 		cfg.NextProtos = []string{"coap"}
@@ -80,21 +81,21 @@ func (s *Server) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.serveTCP(l)
+	b.serveTCP(l)
 	return l.Addr(), nil
 }
 
-func (s *Server) serveTCP(l tcpServer.Listener) {
+func (b *Binding) serveTCP(l tcpServer.Listener) {
 	srv := tcp.NewServer(
-		options.WithMux(mux.HandlerFunc(s.serveTCPMessage)),
-		options.WithBlockwise(true, BlockSZX, s.cfg.RequestTimeout),
+		options.WithMux(mux.HandlerFunc(b.serveTCPMessage)),
+		options.WithBlockwise(true, BlockSZX, b.requestTimeout()),
 		options.WithOnNewConn(func(cc *tcpClient.Conn) {
 			cc.SetContextValue(tcpPeerKey{}, &tcpPeer{coapPeer{cc: cc, binding: "T"}})
 		}),
 	)
-	s.mu.Lock()
-	s.closers = append(s.closers, func() error { srv.Stop(); return nil })
-	s.mu.Unlock()
+	b.mu.Lock()
+	b.closers = append(b.closers, func() error { srv.Stop(); return nil })
+	b.mu.Unlock()
 	go func() { _ = srv.Serve(l) }()
 }
 
@@ -105,7 +106,7 @@ func (s *Server) serveTCP(l tcpServer.Listener) {
 // with GET/FETCH Observe=1 (RFC 8323 §7.4). go-coap's TCP connection
 // ignores WithProcessReceivedMessageFunc, so the response is written here,
 // before the handler's deferred actions run (GEN-10).
-func (s *Server) serveTCPMessage(w mux.ResponseWriter, m *mux.Message) {
+func (b *Binding) serveTCPMessage(w mux.ResponseWriter, m *mux.Message) {
 	cc, ok := w.Conn().(*tcpClient.Conn)
 	if !ok {
 		return
@@ -113,12 +114,12 @@ func (s *Server) serveTCPMessage(w mux.ResponseWriter, m *mux.Message) {
 	if isResponseCode(m.Code()) {
 		m.Remove(message.Observe)
 	}
-	s.serveCoAP(w, m)
+	b.serveCoAP(w, m)
 	if w.Message().IsModified() {
 		if err := cc.Session().WriteMessage(w.Message()); err != nil {
 			_ = cc.Close()
 		}
 		w.Message().SetModified(false)
 	}
-	s.coap.runAfters(cc)
+	b.runAfters(cc)
 }

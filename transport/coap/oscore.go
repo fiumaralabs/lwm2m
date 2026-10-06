@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/security/oscore"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"
@@ -33,7 +34,7 @@ import (
 // context, so it always goes through Echo.
 type OSCORE struct {
 	*oscore.Responder // contexts, Echo freshness, Appendix B.2 (shared with the Bootstrap-Server)
-	s                 *Server
+	b                 *Binding
 
 	mu    sync.Mutex
 	obs   map[string]*oscoreObs // token of an Observe registration
@@ -53,16 +54,16 @@ const oscoreAddrPrefix = "oscore:"
 // a NoSec identity that is stable across addresses and unique per context
 // (ID Context and Recipient ID of the provisioned parameters p).
 // ponytail: carried as NoSec + Addr until Identity has an OSCORE mode.
-func OSCOREIdentity(p oscore.Params) Identity {
-	return Identity{Mode: ModeNoSec, Addr: oscoreAddrPrefix + hex.EncodeToString(p.IDContext) + "/" + hex.EncodeToString(p.RecipientID)}
+func OSCOREIdentity(p oscore.Params) server.Identity {
+	return server.Identity{Mode: server.ModeNoSec, Addr: oscoreAddrPrefix + hex.EncodeToString(p.IDContext) + "/" + hex.EncodeToString(p.RecipientID)}
 }
 
 // EnableOSCORE turns the OSCORE layer on and returns it. Calling it again
 // returns the same layer.
-func (s *Server) EnableOSCORE() *OSCORE {
-	o := &OSCORE{Responder: &oscore.Responder{EchoLifetime: time.Minute, Now: s.cfg.Now}, s: s, obs: map[string]*oscoreObs{}}
-	if !s.coap.oscore.CompareAndSwap(nil, o) {
-		return s.coap.oscore.Load()
+func (b *Binding) EnableOSCORE() *OSCORE {
+	o := &OSCORE{Responder: &oscore.Responder{EchoLifetime: time.Minute, Now: b.srv.Config().Now}, b: b, obs: map[string]*oscoreObs{}}
+	if !b.oscore.CompareAndSwap(nil, o) {
+		return b.oscore.Load()
 	}
 	return o
 }
@@ -111,11 +112,11 @@ func (o *OSCORE) intercept(w mux.ResponseWriter, m *mux.Message, cc coapConn) bo
 	}
 	peerOf := func(e *oscore.Entry) *oscorePeer { return o.peer(cc, e) }
 	if isResponseCode(m.Code()) {
-		o.s.coap.defer_(cc, o.notification(in, peerOf))
+		o.b.defer_(cc, o.notification(in, peerOf))
 		return true
 	}
 	out, after := o.serve(in, peerOf)
-	o.s.coap.defer_(cc, after)
+	o.b.defer_(cc, after)
 	writeCoAP(w, out)
 	return true
 }
@@ -125,7 +126,7 @@ func (o *OSCORE) intercept(w mux.ResponseWriter, m *mux.Message, cc coapConn) bo
 // Its Peer methods describe the transport session; ExchangeCoAP sends one
 // request, options included, and returns the response as received.
 type CoAPWire interface {
-	Peer
+	server.Peer
 	ExchangeCoAP(ctx context.Context, req message.Message) (message.Message, error)
 }
 
@@ -195,7 +196,7 @@ func (o *OSCORE) guard(resp bool, token []byte, opts message.Options) bool {
 			}
 		}
 	case len(seg) == 2 && seg[0] == "rd":
-		if reg, ok := o.s.store.ByID(seg[1]); ok {
+		if reg, ok := o.b.srv.Store().ByID(seg[1]); ok {
 			ep = reg.Endpoint
 		}
 	}
@@ -235,9 +236,9 @@ func (o *OSCORE) serve(in message.Message, peerOf func(*oscore.Entry) *oscorePee
 	if code := o.bind(msg, q.Entry, peer); code != 0 {
 		return protect(q, message.Message{Code: code}), nop
 	}
-	resp, after := o.s.HandleUplink(peer, msg)
+	resp, after := o.b.srv.HandleUplink(peer, msg)
 	if resp == nil {
-		resp = status(codes.Changed)
+		resp = &server.Message{Code: codes.Changed}
 	}
 	return protect(q, toCoAPMessage(resp)), after
 }
@@ -246,8 +247,8 @@ func (o *OSCORE) serve(in message.Message, peerOf func(*oscore.Entry) *oscorePee
 // Register's ep must be the context's endpoint (4.00 otherwise) and is
 // filled in when omitted; requests on a registration must come from the
 // context that registered it.
-func (o *OSCORE) bind(msg *Message, e *oscore.Entry, peer Peer) codes.Code {
-	seg := msg.segments()
+func (o *OSCORE) bind(msg *server.Message, e *oscore.Entry, peer server.Peer) codes.Code {
+	seg := segments(msg)
 	switch {
 	case len(seg) == 1 && seg[0] == "rd" && msg.Code == codes.POST:
 		found := false
@@ -263,7 +264,7 @@ func (o *OSCORE) bind(msg *Message, e *oscore.Entry, peer Peer) codes.Code {
 			msg.Query = append(msg.Query, "ep="+e.Name)
 		}
 	case len(seg) == 2 && seg[0] == "rd":
-		if reg, ok := o.s.store.ByID(seg[1]); ok && !reg.Identity.Equal(peer.Identity()) {
+		if reg, ok := o.b.srv.Store().ByID(seg[1]); ok && !reg.Identity.Equal(peer.Identity()) {
 			return codes.BadRequest
 		}
 	}
@@ -291,7 +292,7 @@ func (o *OSCORE) notification(in message.Message, peerOf func(*oscore.Entry) *os
 	if b == nil {
 		return nop
 	}
-	if !o.s.KnownObservation(in.Token) {
+	if !o.b.srv.KnownObservation(in.Token) {
 		o.mu.Lock()
 		delete(o.obs, tok)
 		o.mu.Unlock()
@@ -305,7 +306,7 @@ func (o *OSCORE) notification(in message.Message, peerOf func(*oscore.Entry) *os
 	if err != nil {
 		return nop
 	}
-	_, after := o.s.HandleUplink(peerOf(b.e), msg)
+	_, after := o.b.srv.HandleUplink(peerOf(b.e), msg)
 	return after
 }
 
@@ -316,7 +317,7 @@ func (o *OSCORE) bindObservation(tok []byte, e *oscore.Entry, x *oscore.Exchange
 	defer o.mu.Unlock()
 	// ponytail: O(n) sweep per Observe registration; index by registration if fleets observe heavily.
 	for t := range o.obs {
-		if !o.s.KnownObservation([]byte(t)) {
+		if !o.b.srv.KnownObservation([]byte(t)) {
 			delete(o.obs, t)
 		}
 	}
@@ -345,7 +346,7 @@ func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
 		defer cc.ReleaseMessage(res)
 		return poolToMessage(res)
 	}
-	p, loaded := o.peers.LoadOrStore(k, &oscorePeer{base: o.s.peerOf(cc), do: do, o: o, e: e})
+	p, loaded := o.peers.LoadOrStore(k, &oscorePeer{base: o.b.peerOf(cc), do: do, o: o, e: e})
 	if !loaded {
 		go func() {
 			<-cc.Context().Done()
@@ -365,7 +366,7 @@ func (o *OSCORE) wirePeer(w CoAPWire, e *oscore.Entry) *oscorePeer {
 // oscorePeer is a session whose LwM2M traffic is OSCORE-protected with
 // one security context.
 type oscorePeer struct {
-	base Peer
+	base server.Peer
 	do   func(ctx context.Context, prot message.Message) (message.Message, error) // one protected exchange
 	o    *OSCORE
 	e    *oscore.Entry
@@ -373,7 +374,7 @@ type oscorePeer struct {
 
 // Identity is the (D)TLS identity when the transport authenticated one
 // (OSCORE over DTLS, OSC-08), else the OSCORE context's (OSCOREIdentity).
-func (p *oscorePeer) Identity() Identity {
+func (p *oscorePeer) Identity() server.Identity {
 	if id := p.base.Identity(); id.Secure() {
 		return id
 	}
@@ -385,7 +386,7 @@ func (p *oscorePeer) Binding() string      { return p.base.Binding() }
 
 // Exchange protects a request to the client (RFC 8613 §8.1) and verifies
 // its response (§8.4), with one Echo retry (oscore.RoundTrip, OSC-04).
-func (p *oscorePeer) Exchange(ctx context.Context, req *Message) (*Message, error) {
+func (p *oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
 	plain, err := CoAPMessage(req)
 	if err != nil {
 		return nil, err
@@ -397,7 +398,7 @@ func (p *oscorePeer) Exchange(ctx context.Context, req *Message) (*Message, erro
 		return p.do(ctx, prot)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("server: OSCORE: %w", err)
+		return nil, fmt.Errorf("coap: OSCORE: %w", err)
 	}
 	return MessageFromCoAP(inner)
 }
@@ -405,7 +406,7 @@ func (p *oscorePeer) Exchange(ctx context.Context, req *Message) (*Message, erro
 // CoAPMessage renders a Message as a plain CoAP message (a token is
 // generated when it has none), e.g. to protect it with OSCORE on another
 // binding.
-func CoAPMessage(m *Message) (message.Message, error) {
+func CoAPMessage(m *server.Message) (message.Message, error) {
 	pm := pool.NewMessage(context.Background())
 	if err := toPool(pm, m); err != nil {
 		return message.Message{}, err
@@ -421,7 +422,7 @@ func CoAPMessage(m *Message) (message.Message, error) {
 }
 
 // MessageFromCoAP is the inverse of CoAPMessage.
-func MessageFromCoAP(m message.Message) (*Message, error) {
+func MessageFromCoAP(m message.Message) (*server.Message, error) {
 	pm := pool.NewMessage(context.Background())
 	pm.SetToken(m.Token)
 	return poolFromMessage(pm, m)
@@ -443,7 +444,7 @@ func poolToMessage(pm *pool.Message) (message.Message, error) {
 
 // poolFromMessage writes a decrypted message into pm (keeping its header)
 // and converts it with fromPool.
-func poolFromMessage(pm *pool.Message, in message.Message) (*Message, error) {
+func poolFromMessage(pm *pool.Message, in message.Message) (*server.Message, error) {
 	pm.ResetOptionsTo(in.Options)
 	pm.SetCode(in.Code)
 	if len(in.Payload) > 0 {
@@ -455,7 +456,7 @@ func poolFromMessage(pm *pool.Message, in message.Message) (*Message, error) {
 }
 
 // toCoAPMessage renders a core response as an unprotected CoAP message.
-func toCoAPMessage(r *Message) message.Message {
+func toCoAPMessage(r *server.Message) message.Message {
 	m := message.Message{Code: r.Code, Payload: r.Payload}
 	for _, l := range r.Location {
 		m.Options = append(m.Options, message.Option{ID: message.LocationPath, Value: []byte(l)})
@@ -473,4 +474,13 @@ func uintValue(v uint32) []byte {
 		v >>= 8
 	}
 	return b
+}
+
+// segments splits the request path into its segments ("/" has none).
+func segments(m *server.Message) []string {
+	p := strings.Trim(m.Path, "/")
+	if p == "" {
+		return nil
+	}
+	return strings.Split(p, "/")
 }

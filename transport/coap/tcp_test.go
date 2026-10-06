@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/testclient"
@@ -67,12 +69,12 @@ type tcpHarness struct {
 func newTCPHarness(t *testing.T) *tcpHarness {
 	t.Helper()
 	h := &tcpHarness{harness: newHarness(t), pki: newPKI(t)}
-	a, err := h.srv.ListenTCP("127.0.0.1:0")
+	a, err := h.b.ListenTCP("127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	h.tcp = a.String()
-	a, err = h.srv.ListenTLS("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{h.pki.server},
+	a, err = h.b.ListenTLS("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{h.pki.server},
 		ClientCAs: h.pki.pool, ClientAuth: tls.RequireAndVerifyClientCert})
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +114,7 @@ func (h *tcpHarness) registered(ep string, overTLS bool) *testclient.TCPClient {
 	cn := ""
 	if overTLS {
 		cn = ep
-		if err := h.srv.Security().Put(SecurityInfo{Endpoint: ep, X509: true}); err != nil {
+		if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: ep, X509: true}); err != nil {
 			h.t.Fatal(err)
 		}
 	}
@@ -147,12 +149,12 @@ func TestTCPRegistrationAndDM(t *testing.T) {
 			t.Fatalf("ping: %v", err)
 		}
 		reg, ok := h.srv.Store().ByEndpoint("tcp-ep")
-		if !ok || reg.peer.Binding() != "T" || reg.Binding != "T" {
+		if !ok || reg.Peer().Binding() != "T" || reg.Binding != "T" {
 			t.Fatalf("registration %+v", reg)
 		}
-		wantMode := ModeNoSec
+		wantMode := server.ModeNoSec
 		if overTLS {
-			wantMode = ModeX509
+			wantMode = server.ModeX509
 		}
 		if reg.Identity.Mode != wantMode {
 			t.Fatalf("identity %v, want %v", reg.Identity.Mode, wantMode)
@@ -174,7 +176,7 @@ func TestTCPRegistrationAndDM(t *testing.T) {
 			t.Fatalf("UDP client got %+v", req)
 		}
 
-		r2, err := h.srv.Write(h.ctx, "tcp-ep", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, WriteOptions{})
+		r2, err := h.srv.Write(h.ctx, "tcp-ep", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, server.WriteOptions{})
 		mustResp(t, r2, err, "2.04")
 		if v, _ := c.Get(p("/1/0/1")); !v.Equal(lwm2m.Integer(300)) {
 			t.Fatalf("write not applied: %v", v)
@@ -182,7 +184,10 @@ func TestTCPRegistrationAndDM(t *testing.T) {
 
 		ur, err := c.Update(h.ctx, []string{"lt=600"})
 		mustCode(t, ur, err, "2.04")
-		h.ev.wait(t, func(e Event) bool { u, ok := e.(Updated); return ok && u.Registration.Endpoint == "tcp-ep" })
+		h.ev.wait(t, func(e server.Event) bool {
+			u, ok := e.(server.Updated)
+			return ok && u.Registration.Endpoint == "tcp-ep"
+		})
 		dr, err := c.Deregister(h.ctx)
 		mustCode(t, dr, err, "2.02")
 		if _, ok := h.srv.Store().ByEndpoint("tcp-ep"); ok {
@@ -198,11 +203,11 @@ func TestTCPRegistrationAndDM(t *testing.T) {
 func TestTCPDefaultPorts(t *testing.T) {
 	h := newHarness(t)
 	k := newPKI(t)
-	a, err := h.srv.ListenTCP("127.0.0.1")
+	a, err := h.b.ListenTCP("127.0.0.1")
 	if err != nil {
 		t.Skipf("port 5683 busy: %v", err)
 	}
-	b, err := h.srv.ListenTLS("127.0.0.1", &tls.Config{Certificates: []tls.Certificate{k.server}})
+	b, err := h.b.ListenTLS("127.0.0.1", &tls.Config{Certificates: []tls.Certificate{k.server}})
 	if err != nil {
 		t.Skipf("port 5684 busy: %v", err)
 	}
@@ -217,14 +222,14 @@ func TestTCPDefaultPorts(t *testing.T) {
 	c.Set(p("/3/0/0"), lwm2m.String("x"))
 	r, err := c.Register(h.ctx)
 	mustCode(t, r, err, "2.01")
-	if reg, ok := h.srv.Store().ByEndpoint("tls-default"); !ok || reg.Identity.Mode != ModeNoSec || reg.peer.Binding() != "T" {
+	if reg, ok := h.srv.Store().ByEndpoint("tls-default"); !ok || reg.Identity.Mode != server.ModeNoSec || reg.Peer().Binding() != "T" {
 		t.Fatalf("registration %+v", reg)
 	}
 }
 
-func readOK(t *testing.T, h *harness, ep string, path lwm2m.Path) *Response {
+func readOK(t *testing.T, h *harness, ep string, path lwm2m.Path) *server.Response {
 	t.Helper()
-	r, err := h.srv.Read(h.ctx, ep, path, ReadOptions{})
+	r, err := h.srv.Read(h.ctx, ep, path, server.ReadOptions{})
 	return mustResp(t, r, err, "2.05")
 }
 
@@ -238,8 +243,8 @@ func TestTCPBindingChangeKeepsSession(t *testing.T) {
 	r, err := c.Update(h.ctx, []string{"b=U"})
 	mustCode(t, r, err, "2.04")
 	reg, _ := h.srv.Store().ByEndpoint("gen13")
-	if reg.Binding != "U" || reg.peer.Binding() != "T" {
-		t.Fatalf("binding %q, session %q", reg.Binding, reg.peer.Binding())
+	if reg.Binding != "U" || reg.Peer().Binding() != "T" {
+		t.Fatalf("binding %q, session %q", reg.Binding, reg.Peer().Binding())
 	}
 	readOK(t, h.harness, "gen13", p("/3/0/9"))
 	if req, _ := c.LastRequest(); req.Path != "/3/0/9" {
@@ -256,7 +261,7 @@ func TestTCPBindingChangeKeepsSession(t *testing.T) {
 func TestTCPObserve(t *testing.T) {
 	eachTCP(t, func(t *testing.T, h *tcpHarness, overTLS bool) {
 		c := h.registered("tcp-obs", overTLS)
-		ob, r, err := h.srv.Observe(h.ctx, "tcp-obs", p("/3/0/9"), ObserveOptions{})
+		ob, r, err := h.srv.Observe(h.ctx, "tcp-obs", p("/3/0/9"), server.ObserveOptions{})
 		if err != nil || ob == nil || !r.Success() {
 			t.Fatalf("observe: %v %+v", err, r)
 		}
@@ -286,7 +291,7 @@ func TestTCPObserve(t *testing.T) {
 		// Passive cancel: over a reliable transport there is no Reset, so the
 		// server cancels explicitly (RFC 8323 §7.4); a late notification is
 		// dropped, not Reset.
-		ob2, _, err := h.srv.Observe(h.ctx, "tcp-obs", p("/3/0/9"), ObserveOptions{})
+		ob2, _, err := h.srv.Observe(h.ctx, "tcp-obs", p("/3/0/9"), server.ObserveOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,7 +314,7 @@ func TestTCPObserve(t *testing.T) {
 		h.ev.mu.Lock()
 		defer h.ev.mu.Unlock()
 		for _, e := range h.ev.l {
-			if n, ok := e.(Notification); ok && n.Observation.ID == ob2.ID {
+			if n, ok := e.(server.Notification); ok && n.Observation.ID == ob2.ID {
 				t.Fatal("notification for a cancelled observation delivered")
 			}
 		}
@@ -324,7 +329,7 @@ func TestTCPSend(t *testing.T) {
 		nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(42))}
 		r, err := c.Send(h.ctx, nodes, lwm2m.FormatSenMLCBOR)
 		mustCode(t, r, err, "2.04")
-		ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+		ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 		if ev.Registration.Endpoint != "tcp-send" || !lwm2m.NodesEqual(ev.Nodes, nodes) {
 			t.Fatalf("event %+v", ev)
 		}
@@ -337,7 +342,7 @@ func TestTCPSend(t *testing.T) {
 // (NoSec) Register for an endpoint with X.509 credentials is 4.00.
 func TestTLSIdentity(t *testing.T) {
 	h := newTCPHarness(t)
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "cert-ep", X509: true}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "cert-ep", X509: true}); err != nil {
 		t.Fatal(err)
 	}
 	c, err := h.device(testclient.Config{}, "cert-ep")

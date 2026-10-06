@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/fota"
 	"github.com/fiumaralabs/lwm2m/server"
@@ -16,7 +18,7 @@ import (
 
 // Proves: FW-01, FW-02, FW-04
 // Push (bw-1): a 5000-byte (Zephyr's test image) and a 20 KiB package go to
-// /5/0/0 as opaque Block1 PUTs of server.BlockSZX (512 bytes), one token per transfer,
+// /5/0/0 as opaque Block1 PUTs of coap.BlockSZX (512 bytes), one token per transfer,
 // numbered from 0, Size1 on the first block, M=1 until the last. The
 // client ends with the exact bytes (CRC32 as bw-1 checks), the server
 // observes State and Update Result, executes /5/0/2 only once Downloaded,
@@ -77,7 +79,7 @@ func checkBlocks(t *testing.T, seen []block1, total, transfers int) {
 		t.Fatalf("%d Block1 transfers, want %d", len(order), transfers)
 	}
 	last := byTok[order[len(order)-1]]
-	bs := 16 << server.BlockSZX // downlink block size
+	bs := 16 << coap.BlockSZX // downlink block size
 	n := (total + bs - 1) / bs
 	if len(last) != n {
 		t.Fatalf("%d blocks, want %d", len(last), n)
@@ -126,7 +128,7 @@ func TestPushAbortRestart(t *testing.T) {
 			first++
 		}
 	}
-	if first >= (len(pkg)+(16<<server.BlockSZX)-1)/(16<<server.BlockSZX) {
+	if first >= (len(pkg)+(16<<coap.BlockSZX)-1)/(16<<coap.BlockSZX) {
 		t.Fatalf("the aborted transfer sent all %d blocks", first)
 	}
 	// Without retries the timeout is the job's error.
@@ -155,7 +157,7 @@ func TestReadBlock2(t *testing.T) {
 	// The client answers the first GET with a 1024-byte block; the server
 	// asks for the rest in its own block size (RFC 7959 §2.4 late
 	// negotiation): 1 + ceil(3976/512) = 9 GETs.
-	bs := 16 << server.BlockSZX
+	bs := 16 << coap.BlockSZX
 	if n, want := len(c.RawRequests())-before, 1+(len(big)-1024+bs-1)/bs; n != want {
 		t.Fatalf("%d request datagrams for the read, want %d", n, want)
 	}

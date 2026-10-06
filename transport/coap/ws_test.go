@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/testclient"
@@ -26,9 +28,9 @@ type wsHarness struct {
 func newWSHarness(t *testing.T) *wsHarness {
 	t.Helper()
 	h := &wsHarness{harness: newHarness(t), pki: newPKI(t)}
-	plain := httptest.NewServer(h.srv.WebSocketHandler())
+	plain := httptest.NewServer(h.b.WebSocketHandler())
 	t.Cleanup(plain.Close)
-	sec := httptest.NewUnstartedServer(h.srv.WebSocketHandler())
+	sec := httptest.NewUnstartedServer(h.b.WebSocketHandler())
 	sec.TLS = &tls.Config{Certificates: []tls.Certificate{h.pki.server}}
 	sec.StartTLS()
 	t.Cleanup(sec.Close)
@@ -75,7 +77,7 @@ func TestWebSocketRegistrationDMObserve(t *testing.T) {
 				t.Fatalf("ping: %v", err)
 			}
 			reg, ok := h.srv.Store().ByEndpoint("ws-ep")
-			if !ok || reg.peer.Binding() != "T" || reg.Binding != "T" {
+			if !ok || reg.Peer().Binding() != "T" || reg.Binding != "T" {
 				t.Fatalf("registration %+v", reg)
 			}
 
@@ -86,13 +88,13 @@ func TestWebSocketRegistrationDMObserve(t *testing.T) {
 			if req, _ := c.LastRequest(); req.Code != codes.GET || req.Path != "/3/0/9" {
 				t.Fatalf("client got %+v", req)
 			}
-			w, err := h.srv.Write(h.ctx, "ws-ep", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, WriteOptions{})
+			w, err := h.srv.Write(h.ctx, "ws-ep", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, server.WriteOptions{})
 			mustResp(t, w, err, "2.04")
 			if v, _ := c.Get(p("/1/0/1")); !v.Equal(lwm2m.Integer(300)) {
 				t.Fatalf("write not applied: %v", v)
 			}
 
-			ob, or, err := h.srv.Observe(h.ctx, "ws-ep", p("/3/0/9"), ObserveOptions{})
+			ob, or, err := h.srv.Observe(h.ctx, "ws-ep", p("/3/0/9"), server.ObserveOptions{})
 			if err != nil || ob == nil || !or.Success() {
 				t.Fatalf("observe: %v %+v", err, or)
 			}
@@ -118,7 +120,10 @@ func TestWebSocketRegistrationDMObserve(t *testing.T) {
 
 			ur, err := c.Update(h.ctx, []string{"lt=600"})
 			mustCode(t, ur, err, "2.04")
-			h.ev.wait(t, func(e Event) bool { u, ok := e.(Updated); return ok && u.Registration.Endpoint == "ws-ep" })
+			h.ev.wait(t, func(e server.Event) bool {
+				u, ok := e.(server.Updated)
+				return ok && u.Registration.Endpoint == "ws-ep"
+			})
 			dr, err := c.Deregister(h.ctx)
 			mustCode(t, dr, err, "2.02")
 			if _, ok := h.srv.Store().ByEndpoint("ws-ep"); ok {

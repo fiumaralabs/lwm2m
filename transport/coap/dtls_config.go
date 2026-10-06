@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m/security/dtls"
+	"github.com/fiumaralabs/lwm2m/server"
 )
 
 // CertificateModes are the certificate-based security modes of a DTLS
@@ -47,7 +48,7 @@ const DTLSExtensions uint32 = 1<<0 | 1<<12
 // X509 for its CN; an RPK client needs a key stored for exactly one
 // endpoint. Anything else fails the handshake with bad_certificate (42),
 // a "Fail" alert for the client (T Tbl 5.2.10-1).
-func (s *Server) DTLSConfig(m CertificateModes) *piondtls.Config {
+func (b *Binding) DTLSConfig(m CertificateModes) *piondtls.Config {
 	cas := m.ClientCAs
 	if cas == nil {
 		cas = x509.NewCertPool()
@@ -75,7 +76,7 @@ func (s *Server) DTLSConfig(m CertificateModes) *piondtls.Config {
 		serverTypes = append(serverTypes, piondtls.CertificateTypeX509)
 	}
 	return &piondtls.Config{
-		PSK:                    s.pskLookup,
+		PSK:                    b.pskLookup,
 		Certificates:           m.Certificates,
 		CustomCipherSuites:     dtls.Custom, // 0xC023
 		ClientAuth:             piondtls.RequireAndVerifyClientCert,
@@ -83,18 +84,18 @@ func (s *Server) DTLSConfig(m CertificateModes) *piondtls.Config {
 		ClientCertificateTypes: []piondtls.CertificateType{piondtls.CertificateTypeRawPublicKey, piondtls.CertificateTypeX509},
 		ServerCertificateTypes: serverTypes,
 		VerifyPeerCertificate: func(raw [][]byte, chains [][]*x509.Certificate) error {
-			return s.verifyPeer(raw, chains, own)
+			return b.verifyPeer(raw, chains, own)
 		},
 		SessionStore: newSessionStore(ttl, 100_000, time.Now),
 	}
 }
 
-var errPeerCredential = errors.New("server: client credential not accepted")
+var errPeerCredential = errors.New("coap: client credential not accepted")
 
 // verifyPeer authenticates a certificate-mode client during the handshake
 // (SEC-01). pion has already verified X.509 chains against ClientCAs and
 // the CertificateVerify signature for both kinds.
-func (s *Server) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]byte) error {
+func (b *Binding) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]byte) error {
 	if len(raw) == 0 {
 		return errPeerCredential
 	}
@@ -103,7 +104,7 @@ func (s *Server) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]
 		if !strongKey(leaf.PublicKey) || isOwn(leaf.RawSubjectPublicKeyInfo, own) {
 			return errPeerCredential
 		}
-		if si, ok := s.security.ByEndpoint(leaf.Subject.CommonName); !ok || !si.X509 {
+		if si, ok := b.srv.Security().ByEndpoint(leaf.Subject.CommonName); !ok || !si.X509 {
 			return errPeerCredential
 		}
 		return nil
@@ -116,7 +117,7 @@ func (s *Server) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][]
 	if isOwn(raw[0], own) {
 		return errPeerCredential
 	}
-	if lk, ok := s.security.(PublicKeyLookup); ok {
+	if lk, ok := b.srv.Security().(server.PublicKeyLookup); ok {
 		if _, ok := lk.ByPublicKey(raw[0]); !ok {
 			return errPeerCredential
 		}

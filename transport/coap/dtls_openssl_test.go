@@ -1,4 +1,4 @@
-package server
+package coap
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -115,7 +117,7 @@ func TestOpenSSLInterop(t *testing.T) {
 	// RPK: s_client needs a certificate file, but sends only its SPKI.
 	rpkCert := s.pki.issue(t, "ignored")
 	k := rpkCert.PrivateKey.(*ecdsa.PrivateKey)
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: "ossl-rpk", PublicKey: spkiOf(t, k)}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "ossl-rpk", PublicKey: spkiOf(t, k)}); err != nil {
 		t.Fatal(err)
 	}
 	der, _ := x509.MarshalPKCS8PrivateKey(k)
@@ -123,10 +125,10 @@ func TestOpenSSLInterop(t *testing.T) {
 		"-enable_client_rpk", "-enable_server_rpk", "-cipher", "ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0",
 		"-cert", writePEM(t, dir, "rpk.pem", "CERTIFICATE", rpkCert.Certificate[0]),
 		"-key", writePEM(t, dir, "rpk.key", "PRIVATE KEY", der)); code != 0x41 {
-		t.Fatalf("RPK Register: code %s", CodeString(codes.Code(code)))
+		t.Fatalf("RPK Register: code %s", server.CodeString(codes.Code(code)))
 	}
 	reg, ok := s.srv.Store().ByEndpoint("ossl-rpk")
-	if !ok || reg.Identity.Mode != ModeRPK {
+	if !ok || reg.Identity.Mode != server.ModeRPK {
 		t.Fatalf("RPK registration %v %+v", ok, reg)
 	}
 
@@ -137,18 +139,18 @@ func TestOpenSSLInterop(t *testing.T) {
 		"-cert", writePEM(t, dir, "x.pem", "CERTIFICATE", xc.Certificate[0]),
 		"-cert_chain", writePEM(t, dir, "chain.pem", "CERTIFICATE", xc.Certificate[1]),
 		"-key", writePEM(t, dir, "x.key", "PRIVATE KEY", der)); code != 0x41 {
-		t.Fatalf("X.509 Register: code %s", CodeString(codes.Code(code)))
+		t.Fatalf("X.509 Register: code %s", server.CodeString(codes.Code(code)))
 	}
-	if reg, ok := s.srv.Store().ByEndpoint("ossl-x509"); !ok || reg.Identity.Mode != ModeX509 {
+	if reg, ok := s.srv.Store().ByEndpoint("ossl-x509"); !ok || reg.Identity.Mode != server.ModeX509 {
 		t.Fatalf("X.509 registration %v", ok)
 	}
 
 	// PSK over 0x00AE.
-	if err := s.srv.Security().Put(SecurityInfo{Endpoint: "ossl-psk", PSKIdentity: "ossl-psk", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "ossl-psk", PSKIdentity: "ossl-psk", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	if code := opensslRegister(t, bin, s.addr, "ossl-psk", "-cipher", "PSK-AES128-CBC-SHA256",
 		"-psk_identity", "ossl-psk", "-psk", "30313233343536373839616263646566"); code != 0x41 {
-		t.Fatalf("PSK Register: code %s", CodeString(codes.Code(code)))
+		t.Fatalf("PSK Register: code %s", server.CodeString(codes.Code(code)))
 	}
 }

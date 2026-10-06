@@ -1,4 +1,4 @@
-package server
+package coap
 
 import "fmt"
 
@@ -26,10 +26,10 @@ const SupportedTLS13Features = TLS13Certificate
 func CheckTLS13Features(v uint32) error {
 	f := TLS13Feature(v)
 	if f&^tls13Defined != 0 {
-		return fmt.Errorf("server: /0/x/22 reserved bits set: %#x", v)
+		return fmt.Errorf("coap: /0/x/22 reserved bits set: %#x", v)
 	}
 	if f&^SupportedTLS13Features != 0 {
-		return fmt.Errorf("server: /0/x/22 requests TLS 1.3 features %#x this server does not offer", uint32(f&^SupportedTLS13Features))
+		return fmt.Errorf("coap: /0/x/22 requests TLS 1.3 features %#x this server does not offer", uint32(f&^SupportedTLS13Features))
 	}
 	return nil
 }

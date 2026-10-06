@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/link"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
@@ -18,7 +19,7 @@ type slowPeer struct {
 	inFlight, max atomic.Int32
 }
 
-func (p *slowPeer) Exchange(ctx context.Context, req *Message) (*Message, error) {
+func (p *slowPeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
 	n := p.inFlight.Add(1)
 	defer p.inFlight.Add(-1)
 	for {
@@ -28,9 +29,11 @@ func (p *slowPeer) Exchange(ctx context.Context, req *Message) (*Message, error)
 		}
 	}
 	time.Sleep(30 * time.Millisecond)
-	return &Message{Code: codes.Content}, nil
+	return &server.Message{Code: codes.Content}, nil
 }
-func (p *slowPeer) Identity() Identity   { return Identity{Mode: ModeNoSec, Addr: "fake"} }
+func (p *slowPeer) Identity() server.Identity {
+	return server.Identity{Mode: server.ModeNoSec, Addr: "fake"}
+}
 func (p *slowPeer) RemoteAddr() net.Addr { return &net.UDPAddr{} }
 func (p *slowPeer) Binding() string      { return "U" }
 
@@ -42,9 +45,10 @@ func TestQueueSerialisesRequests(t *testing.T) {
 	for _, queue := range []bool{true, false} {
 		h := newHarness(t)
 		peer := &slowPeer{}
-		reg := &Registration{ID: "q1", Endpoint: "ser", Version: "1.1", QueueMode: queue,
-			Objects: []link.Object{{ID: 3, Instances: []uint16{0}}}, peer: peer,
+		reg := &server.Registration{ID: "q1", Endpoint: "ser", Version: "1.1", QueueMode: queue,
+			Objects:      []link.Object{{ID: 3, Instances: []uint16{0}}},
 			RegisteredAt: h.clock.Now(), LastUpdate: h.clock.Now()}
+		server.SetPeer(reg, peer)
 		h.srv.Store().Add(reg)
 		if queue {
 			h.clock.Add(time.Hour) // asleep: requests are held
@@ -54,7 +58,7 @@ func TestQueueSerialisesRequests(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				if _, err := h.srv.Read(h.ctx, "ser", p("/3/0/0"), ReadOptions{}); err != nil {
+				if _, err := h.srv.Read(h.ctx, "ser", p("/3/0/0"), server.ReadOptions{}); err != nil {
 					t.Error(err)
 				}
 			}()
@@ -81,8 +85,8 @@ func TestQueueSerialisesRequests(t *testing.T) {
 // actions ran (regression: a CI-only race in leshanapi's TestQueueModeBlocks).
 func TestAwakeImmediatelyAfterRegister(t *testing.T) {
 	h := newHarness(t)
-	reg := &Registration{ID: "aw", Endpoint: "aw", QueueMode: true}
-	wasAsleep := h.srv.queues.markAwake(reg)
+	reg := &server.Registration{ID: "aw", Endpoint: "aw", QueueMode: true}
+	wasAsleep := h.srv.MarkAwake(reg)
 	if !wasAsleep {
 		t.Fatal("a new client must count as asleep before its first message")
 	}

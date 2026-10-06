@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/model"
@@ -43,12 +45,13 @@ func newEnv(t *testing.T, mod func(*server.Config, *Options)) *env {
 	cfg.OnEvent = e.api.OnEvent
 	e.srv = server.New(cfg)
 	e.api.Attach(e.srv)
-	a, err := e.srv.ListenUDP("127.0.0.1:0")
+	cb := coap.New(e.srv)
+	a, err := cb.ListenUDP("127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.udp = a.String()
-	d, err := e.srv.ListenDTLS("127.0.0.1:0", server.DTLSConfig{CIDLength: 6})
+	d, err := cb.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{CIDLength: 6})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +63,7 @@ func newEnv(t *testing.T, mod func(*server.Config, *Options)) *env {
 		cancel()
 		e.http.CloseClientConnections()
 		e.http.Close()
+		_ = cb.Close()
 		_ = e.srv.Close()
 	})
 	e.l = newLeshan(t, e.http.URL+"/api")

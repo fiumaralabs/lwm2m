@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/link"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -35,7 +36,7 @@ func TestRegisterAllParameters(t *testing.T) {
 	if reg.Addr.String() != c.LocalAddr().String() {
 		t.Fatalf("addr %v, want %v", reg.Addr, c.LocalAddr())
 	}
-	resp, err := h.srv.Read(h.ctx, "urn:dev:all", p("/3/0/0"), ReadOptions{})
+	resp, err := h.srv.Read(h.ctx, "urn:dev:all", p("/3/0/0"), server.ReadOptions{})
 	mustResp(t, resp, err, "2.05")
 }
 
@@ -62,8 +63,8 @@ func TestRegisterRejectsBadParameters(t *testing.T) {
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		if CodeString(r.Code) != "4.00" {
-			t.Errorf("%s: code %s, want 4.00", name, CodeString(r.Code))
+		if server.CodeString(r.Code) != "4.00" {
+			t.Errorf("%s: code %s, want 4.00", name, server.CodeString(r.Code))
 		}
 	}
 	// A payload that is not link-format (REG-07).
@@ -106,7 +107,7 @@ func TestReRegisterReplaces(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("rereg")
 	first := c.Location()
-	ob, _, err := h.srv.Observe(h.ctx, "rereg", p("/3/0/9"), ObserveOptions{})
+	ob, _, err := h.srv.Observe(h.ctx, "rereg", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil || ob == nil {
 		t.Fatal(err)
 	}
@@ -118,11 +119,11 @@ func TestReRegisterReplaces(t *testing.T) {
 	if _, ok := h.srv.Store().ByID(first); ok {
 		t.Fatal("old registration kept")
 	}
-	if n := len(h.srv.Observations("rereg")); n != 0 || h.srv.KnownObservation(ob.token) {
+	if n := len(h.srv.Observations("rereg")); n != 0 || h.srv.KnownObservation(server.ObservationToken(ob)) {
 		t.Fatalf("%d observations survived re-register", n)
 	}
-	ev := h.ev.wait(t, func(e Event) bool { x, ok := e.(Registered); return ok && x.Replaced != nil })
-	if ev.(Registered).Replaced.ID != first {
+	ev := h.ev.wait(t, func(e server.Event) bool { x, ok := e.(server.Registered); return ok && x.Replaced != nil })
+	if ev.(server.Registered).Replaced.ID != first {
 		t.Fatal("wrong replaced registration")
 	}
 	// The old location is gone (REG-13 wording: later Update gets 4.04).
@@ -130,11 +131,11 @@ func TestReRegisterReplaces(t *testing.T) {
 	mustCode(t, old, err, "4.04")
 	// OBS-03: the server re-initiates the observation on the new
 	// registration; the client sees a fresh Observe request.
-	ob2, resp, err := h.srv.Observe(h.ctx, "rereg", p("/3/0/9"), ObserveOptions{})
+	ob2, resp, err := h.srv.Observe(h.ctx, "rereg", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil || ob2 == nil || !resp.Success() {
 		t.Fatalf("re-observe: %v %+v", err, resp)
 	}
-	if ob2.RegistrationID != c.Location() || string(ob2.token) == string(ob.token) || c.Observers() != 1 {
+	if ob2.RegistrationID != c.Location() || string(server.ObservationToken(ob2)) == string(server.ObservationToken(ob)) || c.Observers() != 1 {
 		t.Fatalf("re-initiated observation %+v, client observers %d", ob2, c.Observers())
 	}
 }
@@ -146,7 +147,7 @@ func TestLifetimeExpiry(t *testing.T) {
 	h := newHarness(t)
 	c := h.device(testclient.Config{Endpoint: "exp", Lifetime: 60})
 	mustCode(mustRegister(h, c))
-	if _, _, err := h.srv.Observe(h.ctx, "exp", p("/3/0/9"), ObserveOptions{}); err != nil {
+	if _, _, err := h.srv.Observe(h.ctx, "exp", p("/3/0/9"), server.ObserveOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	inf := h.device(testclient.Config{Endpoint: "inf"})
@@ -154,24 +155,27 @@ func TestLifetimeExpiry(t *testing.T) {
 	mustCode(t, r, err, "2.01")
 
 	h.clock.Add(59 * time.Second)
-	h.srv.expireNow()
+	h.srv.ExpireNow()
 	if _, ok := h.srv.Store().ByEndpoint("exp"); !ok {
 		t.Fatal("expired early")
 	}
 	h.clock.Add(2 * time.Second)
-	h.srv.expireNow()
+	h.srv.ExpireNow()
 	if _, ok := h.srv.Store().ByEndpoint("exp"); ok {
 		t.Fatal("not expired")
 	}
-	if len(h.srv.Observations("exp")) != 0 || len(h.srv.obs.forRegistration(c.Location())) != 0 {
+	if len(h.srv.Observations("exp")) != 0 || h.srv.ObservationsOf(c.Location()) != 0 {
 		t.Fatal("observations survived expiry")
 	}
-	h.ev.wait(t, func(e Event) bool { x, ok := e.(Deregistered); return ok && x.Reason == ReasonExpired })
+	h.ev.wait(t, func(e server.Event) bool {
+		x, ok := e.(server.Deregistered)
+		return ok && x.Reason == server.ReasonExpired
+	})
 	u, err := c.Update(h.ctx, nil, nil)
 	mustCode(t, u, err, "4.04")
 
 	h.clock.Add(1000 * time.Hour)
-	h.srv.expireNow()
+	h.srv.ExpireNow()
 	if _, ok := h.srv.Store().ByEndpoint("inf"); !ok {
 		t.Fatal("lt=0 registration expired")
 	}
@@ -196,7 +200,7 @@ func TestUpdate(t *testing.T) {
 	r, err := c.Update(h.ctx, nil, nil) // empty Update: lifetime refresh
 	mustCode(t, r, err, "2.04")
 	h.clock.Add(90 * time.Second)
-	h.srv.expireNow()
+	h.srv.ExpireNow()
 	reg, ok := h.srv.Store().ByEndpoint("upd")
 	if !ok {
 		t.Fatal("empty Update did not refresh the lifetime")
@@ -217,8 +221,8 @@ func TestUpdate(t *testing.T) {
 	if len(reg.Objects) != 1 || reg.HasObject(1) {
 		t.Fatal("object list was merged, not replaced")
 	}
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(Updated); return ok })
-	if ev.(Updated).Registration.Endpoint != "upd" {
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.Updated); return ok })
+	if ev.(server.Updated).Registration.Endpoint != "upd" {
 		t.Fatal("event")
 	}
 	// REG-08: unknown objects and versions do not block an Update.
@@ -245,17 +249,20 @@ func TestUpdate(t *testing.T) {
 func TestDeregister(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("dereg")
-	ob, _, err := h.srv.Observe(h.ctx, "dereg", p("/3/0/9"), ObserveOptions{})
+	ob, _, err := h.srv.Observe(h.ctx, "dereg", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	loc := c.Location()
 	r, err := c.Deregister(h.ctx)
 	mustCode(t, r, err, "2.02")
-	if _, ok := h.srv.Store().ByID(loc); ok || len(h.srv.obs.forRegistration(loc)) != 0 || h.srv.KnownObservation(ob.token) {
+	if _, ok := h.srv.Store().ByID(loc); ok || h.srv.ObservationsOf(loc) != 0 || h.srv.KnownObservation(server.ObservationToken(ob)) {
 		t.Fatal("registration or observations kept")
 	}
-	h.ev.wait(t, func(e Event) bool { x, ok := e.(Deregistered); return ok && x.Reason == ReasonDeregistered })
+	h.ev.wait(t, func(e server.Event) bool {
+		x, ok := e.(server.Deregistered)
+		return ok && x.Reason == server.ReasonDeregistered
+	})
 	r, err = c.Deregister(h.ctx)
 	mustCode(t, r, err, "4.04")
 }
@@ -281,7 +288,7 @@ func TestNoSecAddressChange(t *testing.T) {
 // client has none, so it is refused.
 func TestEndpointFromIdentity(t *testing.T) {
 	h := newHarness(t)
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "urn:imei:1", PSKIdentity: "id-1", PSKKey: []byte("0123456789abcdef")}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "urn:imei:1", PSKIdentity: "id-1", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
 	c := h.device(testclient.Config{PSKIdentity: "id-1", PSKKey: []byte("0123456789abcdef")})
@@ -306,7 +313,7 @@ func TestEndpointIdentityBinding(t *testing.T) {
 	for i := range longKey {
 		longKey[i] = byte(i)
 	}
-	for _, si := range []SecurityInfo{
+	for _, si := range []server.SecurityInfo{
 		{Endpoint: "a", PSKIdentity: "id-a", PSKKey: []byte("aaaaaaaaaaaaaaaa")},
 		{Endpoint: "b", PSKIdentity: "id-b", PSKKey: []byte("bbbbbbbbbbbbbbbb")},
 		{Endpoint: "long", PSKIdentity: longID, PSKKey: longKey},
@@ -323,7 +330,7 @@ func TestEndpointIdentityBinding(t *testing.T) {
 	r, err = ok.Register(h.ctx)
 	mustCode(t, r, err, "2.01")
 	reg, _ := h.srv.Store().ByEndpoint("a")
-	if reg.Identity.Mode != ModePSK || reg.Identity.PSKIdentity != "id-a" {
+	if reg.Identity.Mode != server.ModePSK || reg.Identity.PSKIdentity != "id-a" {
 		t.Fatalf("identity %+v", reg.Identity)
 	}
 	// NoSec registration for an endpoint with credentials.
@@ -354,7 +361,9 @@ func make128() []byte {
 // Proves: REG-06
 // An Authorize policy refusing an authenticated endpoint answers 4.03.
 func TestRegisterForbidden(t *testing.T) {
-	h := newHarness(t, func(c *Config) { c.Authorize = func(ep string, _ Identity) bool { return ep != "banned" } })
+	h := newHarness(t, func(c *server.Config) {
+		c.Authorize = func(ep string, _ server.Identity) bool { return ep != "banned" }
+	})
 	c := h.device(testclient.Config{Endpoint: "banned"})
 	r, err := c.Register(h.ctx)
 	mustCode(t, r, err, "4.03")
@@ -367,7 +376,7 @@ func TestRegisterForbidden(t *testing.T) {
 // Register with neither list nor pid is 4.09; /0 /21 /23 never enter the
 // resolved list.
 func TestProfileIDs(t *testing.T) {
-	h := newHarness(t, func(c *Config) {
+	h := newHarness(t, func(c *server.Config) {
 		c.Profiles = map[string][]link.Object{
 			"v:tracker":   {{ID: 6, Instances: []uint16{0}}},
 			"oma:sensors": {{ID: 3303, Instances: []uint16{0, 1}}},
@@ -404,7 +413,7 @@ func TestProfileIDs(t *testing.T) {
 		t.Fatalf("instances not combined: %+v", reg.Objects)
 	}
 	// The learned list is not altered by a later merge.
-	if l, _ := h.srv.resolveProfiles([]string{"6:00aabbcc"}); len(l) != 2 {
+	if l, _ := h.srv.ResolveProfiles([]string{"6:00aabbcc"}); len(l) != 2 {
 		t.Fatalf("cached profile changed: %+v", l)
 	}
 	// PROF-04: an oma: pre-configured ID alone.
@@ -432,15 +441,15 @@ func TestProfileIDs(t *testing.T) {
 // issued from the event handler reaches a client that knows it is
 // registered.
 func TestDMAfterRegisterReply(t *testing.T) {
-	var srv *Server
-	got := make(chan *Response, 1)
-	h := newHarness(t, func(c *Config) {
+	var srv *server.Server
+	got := make(chan *server.Response, 1)
+	h := newHarness(t, func(c *server.Config) {
 		prev := c.OnEvent
-		c.OnEvent = func(e Event) {
+		c.OnEvent = func(e server.Event) {
 			prev(e)
-			if r, ok := e.(Registered); ok {
+			if r, ok := e.(server.Registered); ok {
 				go func() {
-					resp, _ := srv.Read(context.Background(), r.Registration.Endpoint, p("/3/0/0"), ReadOptions{})
+					resp, _ := srv.Read(context.Background(), r.Registration.Endpoint, p("/3/0/0"), server.ReadOptions{})
 					got <- resp
 				}()
 			}
@@ -466,7 +475,7 @@ func TestDMAfterRegisterReply(t *testing.T) {
 	// response is written.
 	h2 := newHarness(t)
 	cf := lwm2m.FormatLinkFormat
-	resp, after := h2.srv.HandleUplink(fakePeer{}, &Message{Code: codes.POST, Path: "/rd",
+	resp, after := h2.srv.HandleUplink(fakePeer{}, &server.Message{Code: codes.POST, Path: "/rd",
 		Query: []string{"ep=deferred", "lt=60", "lwm2m=1.1"}, Format: &cf, Payload: []byte("</3/0>")})
 	if resp == nil || resp.Code != codes.Created {
 		t.Fatalf("response %+v", resp)
@@ -475,7 +484,7 @@ func TestDMAfterRegisterReply(t *testing.T) {
 		h2.ev.mu.Lock()
 		defer h2.ev.mu.Unlock()
 		for _, e := range h2.ev.l {
-			if _, ok := e.(Registered); ok {
+			if _, ok := e.(server.Registered); ok {
 				return true
 			}
 		}
@@ -493,10 +502,12 @@ func TestDMAfterRegisterReply(t *testing.T) {
 // fakePeer is a NoSec transport session that cannot carry requests.
 type fakePeer struct{}
 
-func (fakePeer) Exchange(context.Context, *Message) (*Message, error) {
+func (fakePeer) Exchange(context.Context, *server.Message) (*server.Message, error) {
 	return nil, errors.New("fakePeer: no transport")
 }
-func (fakePeer) Identity() Identity   { return Identity{Mode: ModeNoSec, Addr: "192.0.2.1:5683"} }
+func (fakePeer) Identity() server.Identity {
+	return server.Identity{Mode: server.ModeNoSec, Addr: "192.0.2.1:5683"}
+}
 func (fakePeer) RemoteAddr() net.Addr { return &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 5683} }
 func (fakePeer) Binding() string      { return "U" }
 
@@ -542,7 +553,7 @@ func TestSetLifetime(t *testing.T) {
 		t.Fatal("negative lifetime accepted")
 	}
 	h.clock.Add(31 * time.Second)
-	h.srv.expireNow()
+	h.srv.ExpireNow()
 	if _, ok := h.srv.Store().ByEndpoint("lt"); ok {
 		t.Fatal("written lifetime not applied")
 	}

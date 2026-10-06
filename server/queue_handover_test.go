@@ -1,9 +1,10 @@
-package server
+package server_test
 
 import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
@@ -18,10 +19,10 @@ func TestQueuedRequestFollowsReRegister(t *testing.T) {
 	mustCode(mustRegister(h, c))
 	old, _ := h.srv.Store().ByEndpoint("qr")
 	h.clock.Add(time.Hour) // asleep
-	done := make(chan *Response, 1)
+	done := make(chan *server.Response, 1)
 	errc := make(chan error, 1)
 	go func() {
-		r, err := h.srv.Read(h.ctx, "qr", p("/3/0/9"), ReadOptions{})
+		r, err := h.srv.Read(h.ctx, "qr", p("/3/0/9"), server.ReadOptions{})
 		if err != nil {
 			errc <- err
 			return
@@ -39,7 +40,7 @@ func TestQueuedRequestFollowsReRegister(t *testing.T) {
 	select {
 	case r := <-done:
 		if !r.Success() {
-			t.Fatalf("queued read after re-Register: %s", CodeString(r.Code))
+			t.Fatalf("queued read after re-Register: %s", server.CodeString(r.Code))
 		}
 	case err := <-errc:
 		t.Fatalf("queued read dropped on re-Register: %v", err)

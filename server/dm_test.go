@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -25,7 +26,7 @@ func TestReadEveryFormat(t *testing.T) {
 		ep := "fmt-" + cf.String()
 		c := h.device(testclient.Config{Endpoint: ep, Format: cf})
 		mustCode(mustRegister(h, c))
-		r := expect(t, "2.05")(h.srv.Read(h.ctx, ep, p("/3/0"), ReadOptions{}))
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, ep, p("/3/0"), server.ReadOptions{}))
 		if r.ContentFormat != cf || r.DecodeErr != nil || !lwm2m.NodesEqual(r.Nodes, c.Nodes(p("/3/0"))) {
 			t.Fatalf("%v: decoded %v (err %v), want\n%s", cf, lwm2m.FormatNodes(r.Nodes), r.DecodeErr, lwm2m.FormatNodes(c.Nodes(p("/3/0"))))
 		}
@@ -36,14 +37,14 @@ func TestReadEveryFormat(t *testing.T) {
 	}
 	c := h.registered("single")
 	for path, want := range map[string]lwm2m.ContentFormat{"/3/0/0": lwm2m.FormatText, "/3/0/11/0": lwm2m.FormatText} {
-		r := expect(t, "2.05")(h.srv.Read(h.ctx, "single", p(path), ReadOptions{}))
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, "single", p(path), server.ReadOptions{}))
 		if r.ContentFormat != want || len(r.Nodes) != 1 || !r.Nodes[0].Value.Equal(must(c.Get(p(path)))) {
 			t.Fatalf("%s: %v %v", path, r.ContentFormat, r.Nodes)
 		}
 	}
 	for _, acc := range []lwm2m.ContentFormat{lwm2m.FormatCBOR, lwm2m.FormatOpaque} {
 		c.Set(p("/5/0/0"), lwm2m.Opaque([]byte{1, 2, 3}))
-		r := expect(t, "2.05")(h.srv.Read(h.ctx, "single", p("/5/0/0"), ReadOptions{Accept: &acc}))
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, "single", p("/5/0/0"), server.ReadOptions{Accept: &acc}))
 		req, _ := c.LastRequest()
 		if req.Accept == nil || *req.Accept != acc || r.ContentFormat != acc || len(r.Nodes) != 1 {
 			t.Fatalf("accept %v: %+v %v", acc, req, r.Nodes)
@@ -53,19 +54,19 @@ func TestReadEveryFormat(t *testing.T) {
 		return codes.NotAcceptable, nil, nil, r.Accept != nil
 	})
 	acc := lwm2m.FormatTLV
-	expect(t, "4.06")(h.srv.Read(h.ctx, "single", p("/3/0"), ReadOptions{Accept: &acc}))
+	expect(t, "4.06")(h.srv.Read(h.ctx, "single", p("/3/0"), server.ReadOptions{Accept: &acc}))
 	c.SetOverride(nil)
 	// An object without instances is an empty 2.05 (DM-02).
 	c.AddObject(6)
-	r := expect(t, "2.05")(h.srv.Read(h.ctx, "single", p("/6"), ReadOptions{}))
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "single", p("/6"), server.ReadOptions{}))
 	if len(r.Nodes) != 0 {
 		t.Fatalf("nodes %v", r.Nodes)
 	}
 }
 
 // expect returns a checker for a downlink result with the given code.
-func expect(t *testing.T, want string) func(*Response, error) *Response {
-	return func(r *Response, err error) *Response {
+func expect(t *testing.T, want string) func(*server.Response, error) *server.Response {
+	return func(r *server.Response, err error) *server.Response {
 		t.Helper()
 		return mustResp(t, r, err, want)
 	}
@@ -89,16 +90,16 @@ func TestConfirmableRequestsNONUplinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := h.ctx
-	_, _ = h.srv.Read(ctx, "con", p("/3/0/0"), ReadOptions{})
+	_, _ = h.srv.Read(ctx, "con", p("/3/0/0"), server.ReadOptions{})
 	_, _ = h.srv.Discover(ctx, "con", p("/3/0"), nil)
-	_, _ = h.srv.Write(ctx, "con", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(60))}, WriteOptions{})
+	_, _ = h.srv.Write(ctx, "con", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(60))}, server.WriteOptions{})
 	_, _ = h.srv.WriteAttributes(ctx, "con", p("/3/0/9"), []string{"pmin=1"})
 	_, _ = h.srv.Execute(ctx, "con", p("/3/0/4"), "")
 	_, _ = h.srv.Create(ctx, "con", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/0"), lwm2m.String("x"))}, nil)
 	_, _ = h.srv.Delete(ctx, "con", p("/16/0"))
-	_, _ = h.srv.ReadComposite(ctx, "con", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{})
+	_, _ = h.srv.ReadComposite(ctx, "con", []lwm2m.Path{p("/3/0/0")}, server.CompositeOptions{})
 	_, _ = h.srv.WriteComposite(ctx, "con", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(61))}, nil)
-	ob, _, err := h.srv.Observe(ctx, "con", p("/3/0/9"), ObserveOptions{})
+	ob, _, err := h.srv.Observe(ctx, "con", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +113,7 @@ func TestConfirmableRequestsNONUplinks(t *testing.T) {
 		}
 	}
 	c.Set(p("/3/0/9"), lwm2m.Integer(42))
-	if err := c.NotifyNON(ctx, ob.token); err != nil {
+	if err := c.NotifyNON(ctx, server.ObservationToken(ob)); err != nil {
 		t.Fatal(err)
 	}
 	if n := notification(t, h, ob); !n.Response.Nodes[0].Value.Equal(lwm2m.Integer(42)) {
@@ -121,7 +122,7 @@ func TestConfirmableRequestsNONUplinks(t *testing.T) {
 	nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(7))}
 	r, err := c.SendNON(ctx, nodes, lwm2m.FormatSenMLCBOR)
 	mustCode(t, r, err, "2.04")
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 	if !lwm2m.NodesEqual(ev.Nodes, nodes) {
 		t.Fatalf("NON send %s", lwm2m.FormatNodes(ev.Nodes))
 	}
@@ -137,7 +138,7 @@ func TestReadUnknownResources(t *testing.T) {
 	c.Set(p("/30000/0/1"), lwm2m.Integer(7))
 	for _, cf := range []lwm2m.ContentFormat{lwm2m.FormatTLV, lwm2m.FormatOMAJSON, lwm2m.FormatSenMLJSON, lwm2m.FormatSenMLCBOR, lwm2m.FormatLwM2MCBOR} {
 		acc := cf
-		r := expect(t, "2.05")(h.srv.Read(h.ctx, "extra", p("/3/0"), ReadOptions{Accept: &acc}))
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, "extra", p("/3/0"), server.ReadOptions{Accept: &acc}))
 		if r.DecodeErr != nil || !slices.ContainsFunc(r.Nodes, func(n lwm2m.Node) bool { return n.Path == p("/3/0/9999") }) {
 			t.Fatalf("%v: unknown resource lost: %v %v", cf, r.DecodeErr, r.Nodes)
 		}
@@ -146,7 +147,7 @@ func TestReadUnknownResources(t *testing.T) {
 	nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(5)), lwm2m.ValueNode(p("/3/0/9999"), lwm2m.String("vendor"))}
 	sr, err := c.Send(h.ctx, nodes, lwm2m.FormatSenMLCBOR)
 	mustCode(t, sr, err, "2.04")
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 	if !lwm2m.NodesEqual(ev.Nodes, nodes) {
 		t.Fatalf("send: %s", lwm2m.FormatNodes(ev.Nodes))
 	}
@@ -166,28 +167,28 @@ func TestServerValidatesTargets(t *testing.T) {
 	c := h.registered("val")
 	ctx := h.ctx
 	checks := []error{
-		second(h.srv.Read(ctx, "val", p("/0/0"), ReadOptions{})),
-		second(h.srv.Read(ctx, "val", p("/21"), ReadOptions{})),
-		second(h.srv.Read(ctx, "val", p("/23/0"), ReadOptions{})),
-		second(h.srv.Read(ctx, "val", lwm2m.Root, ReadOptions{})),
+		second(h.srv.Read(ctx, "val", p("/0/0"), server.ReadOptions{})),
+		second(h.srv.Read(ctx, "val", p("/21"), server.ReadOptions{})),
+		second(h.srv.Read(ctx, "val", p("/23/0"), server.ReadOptions{})),
+		second(h.srv.Read(ctx, "val", lwm2m.Root, server.ReadOptions{})),
 		second(h.srv.Execute(ctx, "val", p("/3/0"), "")),
 		second(h.srv.Execute(ctx, "val", p("/3/0/4/0"), "")),
 		second(h.srv.Delete(ctx, "val", p("/3/0/1"))),
 		second(h.srv.Delete(ctx, "val", p("/3/0"))),
-		second(h.srv.Write(ctx, "val", p("/3"), nil, WriteOptions{})),
-		second(h.srv.Write(ctx, "val", p("/3/0/13/0"), nil, WriteOptions{Mode: PartialUpdate})),
+		second(h.srv.Write(ctx, "val", p("/3"), nil, server.WriteOptions{})),
+		second(h.srv.Write(ctx, "val", p("/3/0/13/0"), nil, server.WriteOptions{Mode: server.PartialUpdate})),
 		second(h.srv.WriteAttributes(ctx, "val", lwm2m.Root, []string{"pmin=1"})),
-		second(h.srv.ReadComposite(ctx, "val", []lwm2m.Path{p("/0/0")}, CompositeOptions{})),
-		second(h.srv.Write(ctx, "val", p("/0/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/0/0/1"), lwm2m.Boolean(false))}, WriteOptions{})),
+		second(h.srv.ReadComposite(ctx, "val", []lwm2m.Path{p("/0/0")}, server.CompositeOptions{})),
+		second(h.srv.Write(ctx, "val", p("/0/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/0/0/1"), lwm2m.Boolean(false))}, server.WriteOptions{})),
 		second(h.srv.Discover(ctx, "val", p("/21"), nil)),
 		second(h.srv.Execute(ctx, "val", p("/23/0/1"), "")),
 		second(h.srv.Delete(ctx, "val", p("/0/1"))),
 		second(h.srv.WriteAttributes(ctx, "val", p("/0/0"), []string{"pmin=1"})),
-		third(h.srv.Observe(ctx, "val", p("/21/0"), ObserveOptions{})),
+		third(h.srv.Observe(ctx, "val", p("/21/0"), server.ObserveOptions{})),
 		second(h.srv.WriteComposite(ctx, "val", []lwm2m.Node{lwm2m.ValueNode(p("/23/0/0"), lwm2m.Integer(1))}, nil)),
 	}
 	for i, err := range checks {
-		if !errors.Is(err, ErrBadRequest) {
+		if !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("check %d: err %v, want ErrBadRequest", i, err)
 		}
 	}
@@ -198,7 +199,7 @@ func TestServerValidatesTargets(t *testing.T) {
 	c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
 		return codes.Unauthorized, nil, nil, true
 	})
-	expect(t, "4.01")(h.srv.Read(ctx, "val", p("/3/0"), ReadOptions{}))
+	expect(t, "4.01")(h.srv.Read(ctx, "val", p("/3/0"), server.ReadOptions{}))
 }
 
 func second[A, B any](_ A, b B) B { return b }
@@ -214,7 +215,7 @@ func TestWrite(t *testing.T) {
 	h := newHarness(t)
 	c := h.device(testclient.Config{Endpoint: "w", Formats: []lwm2m.ContentFormat{lwm2m.FormatTLV}})
 	mustCode(mustRegister(h, c))
-	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, WriteOptions{}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(300))}, server.WriteOptions{}))
 	req, _ := c.LastRequest()
 	if req.Code != codes.PUT || req.Format == nil || *req.Format != lwm2m.FormatText || string(req.Body) != "300" {
 		t.Fatalf("single write %+v", req)
@@ -223,7 +224,7 @@ func TestWrite(t *testing.T) {
 		lwm2m.ValueNode(p("/1/0/2"), lwm2m.Integer(5)),
 		lwm2m.ValueNode(p("/1/0/3"), lwm2m.Integer(60)),
 	}
-	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/1/0"), nodes, WriteOptions{Mode: PartialUpdate}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/1/0"), nodes, server.WriteOptions{Mode: server.PartialUpdate}))
 	reqs := c.Requests()
 	var formats []lwm2m.ContentFormat
 	for _, r := range reqs[1:] {
@@ -239,7 +240,7 @@ func TestWrite(t *testing.T) {
 		t.Fatal("partial update removed other resources")
 	}
 	before := len(c.Requests())
-	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/1/0"), nodes, WriteOptions{Mode: PartialUpdate}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/1/0"), nodes, server.WriteOptions{Mode: server.PartialUpdate}))
 	if got := c.Requests()[before:]; len(got) != 1 || *got[0].Format != lwm2m.FormatTLV {
 		t.Fatalf("learned format not reused: %+v", got)
 	}
@@ -249,7 +250,7 @@ func TestWrite(t *testing.T) {
 	if r, err := c.Update(h.ctx, nil, []byte(c.ObjectLinks())); err != nil || r.Code != codes.Changed {
 		t.Fatal(r, err)
 	}
-	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/16/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/0"), lwm2m.String("z"))}, WriteOptions{}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/16/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/0"), lwm2m.String("z"))}, server.WriteOptions{}))
 	if req, _ := c.LastRequest(); req.Code != codes.PUT {
 		t.Fatalf("replace sent %v", req.Code)
 	}
@@ -257,15 +258,15 @@ func TestWrite(t *testing.T) {
 		t.Fatal("replace kept an old resource instance")
 	}
 	// Partial Update of a multi-instance resource is POST on /o/i/r.
-	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/16/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/1"), lwm2m.String("y"))}, WriteOptions{Mode: PartialUpdate}))
+	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/16/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/1"), lwm2m.String("y"))}, server.WriteOptions{Mode: server.PartialUpdate}))
 	if req, _ := c.LastRequest(); req.Code != codes.POST || req.Path != "/16/0/0" || !slices.Contains(postFormats, *req.Format) {
 		t.Fatalf("partial update of a resource sent %+v", req)
 	}
 	// Model validation (DM-06): wrong type, read-only resource.
-	if _, err := h.srv.Write(h.ctx, "w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.String("x"))}, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Write(h.ctx, "w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.String("x"))}, server.WriteOptions{}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("wrong type sent: %v", err)
 	}
-	if _, err := h.srv.Write(h.ctx, "w", p("/3/0/9"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(1))}, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Write(h.ctx, "w", p("/3/0/9"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(1))}, server.WriteOptions{}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("read-only write sent: %v", err)
 	}
 }
@@ -287,7 +288,7 @@ func TestExecute(t *testing.T) {
 	}
 	// Arguments outside the §6.3.5 arglist, or a repeated digit, are not sent.
 	for _, bad := range []string{"1,1", "0=a", "a", "0='x'y", "0='it's'", "1,"} {
-		if _, err := h.srv.Execute(h.ctx, "x", p("/3/0/4"), bad); !errors.Is(err, ErrBadRequest) {
+		if _, err := h.srv.Execute(h.ctx, "x", p("/3/0/4"), bad); !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("args %q: %v", bad, err)
 		}
 	}
@@ -304,11 +305,11 @@ func TestCreateDelete(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("cd")
 	// A valid instance of an object the client did not register is refused.
-	if _, err := h.srv.Create(h.ctx, "cd", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/1/0/0"), lwm2m.String("x"))}, nil); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Create(h.ctx, "cd", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/1/0/0"), lwm2m.String("x"))}, nil); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("create on unregistered object: %v", err)
 	}
 	c.AddObject(16)
-	expect(t, "2.05")(h.srv.Read(h.ctx, "cd", p("/3/0/0"), ReadOptions{})) // keep registration fresh
+	expect(t, "2.05")(h.srv.Read(h.ctx, "cd", p("/3/0/0"), server.ReadOptions{})) // keep registration fresh
 	if _, err := c.Update(h.ctx, nil, []byte(c.ObjectLinks())); err != nil {
 		t.Fatal(err)
 	}
@@ -324,10 +325,10 @@ func TestCreateDelete(t *testing.T) {
 	if v, ok := c.Get(p("/16/1/0/0")); !ok || !v.Equal(lwm2m.String("Host Device ID #2")) {
 		t.Fatal("instance not created")
 	}
-	if _, err := h.srv.Create(h.ctx, "cd", p("/9"), nil, nil); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Create(h.ctx, "cd", p("/9"), nil, nil); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("create on unregistered object: %v", err)
 	}
-	if _, err := h.srv.Create(h.ctx, "cd", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/2/9"), lwm2m.String("x"))}, nil); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Create(h.ctx, "cd", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/2/9"), lwm2m.String("x"))}, nil); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("create without mandatory resources: %v", err)
 	}
 	// Delete of a resource instance (1.1+) is DELETE on /o/i/r/ri.
@@ -342,7 +343,7 @@ func TestCreateDelete(t *testing.T) {
 	if _, ok := c.Get(p("/16/1/0/0")); ok {
 		t.Fatal("not deleted")
 	}
-	if _, err := h.srv.Delete(h.ctx, "cd", p("/3/0")); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Delete(h.ctx, "cd", p("/3/0")); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatal("/3/0 delete sent")
 	}
 }
@@ -358,9 +359,9 @@ func TestComposite(t *testing.T) {
 	mustCode(mustRegister(h, c))
 	for _, cf := range []lwm2m.ContentFormat{lwm2m.FormatSenMLCBOR, lwm2m.FormatSenMLJSON, lwm2m.FormatSenMLETCHCBOR, lwm2m.FormatSenMLETCHJSON} {
 		f := cf
-		r := expect(t, "2.05")(h.srv.ReadComposite(h.ctx, "comp", []lwm2m.Path{p("/3/0/0"), p("/1/0/1"), p("/3/0/5")}, CompositeOptions{Format: &f}))
+		r := expect(t, "2.05")(h.srv.ReadComposite(h.ctx, "comp", []lwm2m.Path{p("/3/0/0"), p("/1/0/1"), p("/3/0/5")}, server.CompositeOptions{Format: &f}))
 		req, _ := c.LastRequest()
-		if req.Code != codeFETCH || req.Path != "/" || len(req.Queries) != 0 || *req.Format != cf {
+		if req.Code != server.CodeFETCH || req.Path != "/" || len(req.Queries) != 0 || *req.Format != cf {
 			t.Fatalf("%v: request %+v", cf, req)
 		}
 		if len(r.Nodes) != 2 {
@@ -372,7 +373,7 @@ func TestComposite(t *testing.T) {
 		lwm2m.ValueNode(p("/1/0/6"), lwm2m.Boolean(true)),
 	}, nil))
 	req, _ := c.LastRequest()
-	if req.Code != codeIPATCH || req.Path != "/" || len(req.Queries) != 0 || *req.Format != lwm2m.FormatSenMLCBOR {
+	if req.Code != server.CodeIPATCH || req.Path != "/" || len(req.Queries) != 0 || *req.Format != lwm2m.FormatSenMLCBOR {
 		t.Fatalf("iPATCH %+v", req)
 	}
 	if v, _ := c.Get(p("/1/0/6")); !v.Equal(lwm2m.Boolean(true)) {
@@ -381,21 +382,21 @@ func TestComposite(t *testing.T) {
 	// A Patch Pack may be LwM2M CBOR (CBOR-09); a Fetch Pack may not.
 	lw := lwm2m.FormatLwM2MCBOR
 	expect(t, "2.04")(h.srv.WriteComposite(h.ctx, "comp", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(121))}, &lw))
-	if req, _ := c.LastRequest(); req.Code != codeIPATCH || *req.Format != lw {
+	if req, _ := c.LastRequest(); req.Code != server.CodeIPATCH || *req.Format != lw {
 		t.Fatalf("LwM2M CBOR iPATCH %+v", req)
 	}
 	if v, _ := c.Get(p("/1/0/1")); !v.Equal(lwm2m.Integer(121)) {
 		t.Fatal("LwM2M CBOR write-composite not applied")
 	}
 	before := len(c.Requests())
-	if _, err := h.srv.ReadComposite(h.ctx, "comp", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{Format: &lw}); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.ReadComposite(h.ctx, "comp", []lwm2m.Path{p("/3/0/0")}, server.CompositeOptions{Format: &lw}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("LwM2M CBOR Fetch Pack: %v", err)
 	}
 	if len(c.Requests()) != before {
 		t.Fatal("LwM2M CBOR Fetch Pack sent")
 	}
 	c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
-		return codes.BadRequest, nil, nil, r.Code == codeIPATCH
+		return codes.BadRequest, nil, nil, r.Code == server.CodeIPATCH
 	})
 	expect(t, "4.00")(h.srv.WriteComposite(h.ctx, "comp", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(1))}, nil))
 }
@@ -411,8 +412,8 @@ func TestAlternatePath(t *testing.T) {
 	if reg.RootPath != "/lwm2m" || !reg.HasInstance(3, 0) {
 		t.Fatalf("registration %+v", reg)
 	}
-	_, _ = h.srv.Read(h.ctx, "alt", p("/3/0/0"), ReadOptions{})
-	_, _ = h.srv.ReadComposite(h.ctx, "alt", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{})
+	_, _ = h.srv.Read(h.ctx, "alt", p("/3/0/0"), server.ReadOptions{})
+	_, _ = h.srv.ReadComposite(h.ctx, "alt", []lwm2m.Path{p("/3/0/0")}, server.CompositeOptions{})
 	reqs := c.Requests()
 	if len(reqs) != 2 || reqs[0].Path != "/lwm2m/3/0/0" || reqs[1].Path != "/lwm2m" {
 		t.Fatalf("paths %+v", reqs)
@@ -422,14 +423,14 @@ func TestAlternatePath(t *testing.T) {
 		t.Fatalf("Fetch Pack names %q", reqs[1].Body)
 	}
 	c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
-		if r.Code == codeIPATCH {
+		if r.Code == server.CodeIPATCH {
 			return codes.Changed, nil, nil, true
 		}
 		cf := lwm2m.FormatSenMLJSON
 		return codes.Content, &cf, []byte(`[{"n":"/lwm2m/3/0/0","vs":"OMA"}]`), true
 	})
 	sj := lwm2m.FormatSenMLJSON
-	rr := expect(t, "2.05")(h.srv.Read(h.ctx, "alt", p("/3/0/0"), ReadOptions{Accept: &sj}))
+	rr := expect(t, "2.05")(h.srv.Read(h.ctx, "alt", p("/3/0/0"), server.ReadOptions{Accept: &sj}))
 	if rr.DecodeErr != nil || !lwm2m.NodesEqual(rr.Nodes, []lwm2m.Node{lwm2m.ValueNode(p("/3/0/0"), lwm2m.String("OMA"))}) {
 		t.Fatalf("prefixed SenML response: %v %s", rr.DecodeErr, lwm2m.FormatNodes(rr.Nodes))
 	}
@@ -440,7 +441,7 @@ func TestAlternatePath(t *testing.T) {
 	sf := lwm2m.FormatSenMLJSON
 	sr, err := c.Raw(h.ctx, codes.POST, "/dp", nil, &sf, []byte(`[{"n":"/lwm2m/3/0/9","v":5}]`))
 	mustCode(t, sr, err, "2.04")
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 	if !lwm2m.NodesEqual(ev.Nodes, []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(5))}) {
 		t.Fatalf("prefixed Send: %s", lwm2m.FormatNodes(ev.Nodes))
 	}
@@ -462,7 +463,7 @@ func TestDiscoverRequest(t *testing.T) {
 		t.Fatalf("request %+v", req)
 	}
 	bad := 4
-	if _, err := h.srv.Discover(h.ctx, "disc", p("/3"), &bad); !errors.Is(err, ErrBadRequest) {
+	if _, err := h.srv.Discover(h.ctx, "disc", p("/3"), &bad); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatal("depth 4 sent")
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/transport/coap"
+
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/internal/coapwire"
 	"github.com/fiumaralabs/lwm2m/security/oscore"
@@ -36,7 +38,7 @@ func newSMSOSCORE(t *testing.T, sec Security, seal func([]byte) SMS, open func(S
 	srv := server.New(server.Config{OnEvent: func(e server.Event) { ev <- e }})
 	t.Cleanup(func() { srv.Close() })
 	cp := oscore.Params{MasterSecret: []byte("0123456789abcdef"), MasterSalt: []byte("salt"), SenderID: []byte("c1"), RecipientID: []byte("srv")}
-	o := srv.EnableOSCORE()
+	o := coap.New(srv).EnableOSCORE()
 	if err := o.Put("osc", cp.Reverse()); err != nil {
 		t.Fatal(err)
 	}

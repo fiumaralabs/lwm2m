@@ -1,9 +1,11 @@
-package server
+package coap
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"testing"
+
+	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
@@ -13,12 +15,12 @@ import (
 // 1.3 registers a TLS 1.3 client and refuses a TLS 1.2-only one.
 func TestTLS13Binding(t *testing.T) {
 	h := newTCPHarness(t)
-	a, err := h.srv.ListenTLS("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{h.pki.server},
+	a, err := h.b.ListenTLS("127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{h.pki.server},
 		ClientCAs: h.pki.pool, ClientAuth: tls.RequireAndVerifyClientCert, MinVersion: tls.VersionTLS13})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.srv.Security().Put(SecurityInfo{Endpoint: "tls13", X509: true}); err != nil {
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "tls13", X509: true}); err != nil {
 		t.Fatal(err)
 	}
 	leaf := h.pki.leaf(t, "tls13", x509.ExtKeyUsageClientAuth)

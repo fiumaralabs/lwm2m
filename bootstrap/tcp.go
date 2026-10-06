@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"net"
 
-	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 
 	"github.com/plgd-dev/go-coap/v3/mux"
 	coapnet "github.com/plgd-dev/go-coap/v3/net"
@@ -39,7 +39,7 @@ func (s *Server) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := tcp.NewServer(options.WithMux(mux.HandlerFunc(s.serveTCP)), options.WithBlockwise(true, server.BlockSZX, s.cfg.RequestTimeout))
+	srv := tcp.NewServer(options.WithMux(mux.HandlerFunc(s.serveTCP)), options.WithBlockwise(true, coap.BlockSZX, s.cfg.RequestTimeout))
 	s.mu.Lock()
 	s.closers = append(s.closers, func() error { srv.Stop(); return nil })
 	s.mu.Unlock()

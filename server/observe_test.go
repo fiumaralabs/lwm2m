@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -10,16 +10,17 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
-func notification(t *testing.T, h *harness, ob *Observation) Notification {
+func notification(t *testing.T, h *harness, ob *server.Observation) server.Notification {
 	t.Helper()
-	return h.ev.wait(t, func(e Event) bool {
-		n, ok := e.(Notification)
+	return h.ev.wait(t, func(e server.Event) bool {
+		n, ok := e.(server.Notification)
 		return ok && n.Observation.ID == ob.ID
-	}).(Notification)
+	}).(server.Notification)
 }
 
 // Proves: OBS-01, OBS-04, GEN-04
@@ -28,7 +29,7 @@ func notification(t *testing.T, h *harness, ob *Observation) Notification {
 func TestObserveNotify(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("obs")
-	ob, r, err := h.srv.Observe(h.ctx, "obs", p("/3/0/9"), ObserveOptions{})
+	ob, r, err := h.srv.Observe(h.ctx, "obs", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil || ob == nil || !r.Success() || !r.Nodes[0].Value.Equal(lwm2m.Integer(100)) {
 		t.Fatalf("observe: %v %+v", err, r)
 	}
@@ -46,7 +47,7 @@ func TestObserveNotify(t *testing.T) {
 		t.Fatalf("notification not ACKed: %v %v", res, err)
 	}
 	// A client refusal creates no observation.
-	_, r, err = h.srv.Observe(h.ctx, "obs", p("/3/0/99"), ObserveOptions{})
+	_, r, err = h.srv.Observe(h.ctx, "obs", p("/3/0/99"), server.ObserveOptions{})
 	if err != nil || r.Code != codes.NotFound || len(h.srv.Observations("obs")) != 1 {
 		t.Fatalf("refused observe: %v %+v %d", err, r, len(h.srv.Observations("obs")))
 	}
@@ -58,7 +59,7 @@ func TestObserveNotify(t *testing.T) {
 func TestCancelObservation(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("cancel")
-	ob, _, err := h.srv.Observe(h.ctx, "cancel", p("/3/0/9"), ObserveOptions{})
+	ob, _, err := h.srv.Observe(h.ctx, "cancel", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestCancelObservation(t *testing.T) {
 		t.Fatalf("forgotten observation: %v %v, want Reset", res, err)
 	}
 
-	ob2, _, err := h.srv.Observe(h.ctx, "cancel", p("/3/0/9"), ObserveOptions{})
+	ob2, _, err := h.srv.Observe(h.ctx, "cancel", p("/3/0/9"), server.ObserveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,12 +98,12 @@ func TestObserveComposite(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("oc")
 	paths := []lwm2m.Path{p("/3/0/9"), p("/1/0/1")}
-	ob, r, err := h.srv.ObserveComposite(h.ctx, "oc", paths, CompositeOptions{})
+	ob, r, err := h.srv.ObserveComposite(h.ctx, "oc", paths, server.CompositeOptions{})
 	if err != nil || !r.Success() || len(r.Nodes) != 2 {
 		t.Fatal(err, r)
 	}
 	first, _ := c.LastRequest()
-	if first.Code != codeFETCH || first.Path != "/" || *first.Observe != 0 {
+	if first.Code != server.CodeFETCH || first.Path != "/" || *first.Observe != 0 {
 		t.Fatalf("request %+v", first)
 	}
 	c.Set(p("/3/0/9"), lwm2m.Integer(7))
@@ -114,13 +115,13 @@ func TestObserveComposite(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel, _ := c.LastRequest()
-	if cancel.Code != codeFETCH || *cancel.Observe != 1 || string(cancel.Body) != string(first.Body) || string(cancel.Token) != string(first.Token) {
+	if cancel.Code != server.CodeFETCH || *cancel.Observe != 1 || string(cancel.Body) != string(first.Body) || string(cancel.Token) != string(first.Token) {
 		t.Fatalf("cancel %+v vs %+v", cancel, first)
 	}
 	// A SenML-ETCH body works too; a response format other than LwM2M
 	// CBOR or SenML is refused before sending.
 	etch := lwm2m.FormatSenMLETCHJSON
-	if _, r, err := h.srv.ObserveComposite(h.ctx, "oc", paths, CompositeOptions{Format: &etch}); err != nil || !r.Success() {
+	if _, r, err := h.srv.ObserveComposite(h.ctx, "oc", paths, server.CompositeOptions{Format: &etch}); err != nil || !r.Success() {
 		t.Fatal("ETCH Observe-Composite", err, r)
 	}
 	if req, _ := c.LastRequest(); req.Format == nil || *req.Format != etch || req.Accept == nil || *req.Accept != lwm2m.FormatSenMLJSON {
@@ -128,7 +129,7 @@ func TestObserveComposite(t *testing.T) {
 	}
 	sent := len(c.Requests())
 	for _, acc := range []lwm2m.ContentFormat{lwm2m.FormatTLV, lwm2m.FormatText, lwm2m.FormatSenMLETCHCBOR} {
-		if _, _, err := h.srv.ObserveComposite(h.ctx, "oc", paths, CompositeOptions{Accept: &acc}); !errors.Is(err, ErrBadRequest) {
+		if _, _, err := h.srv.ObserveComposite(h.ctx, "oc", paths, server.CompositeOptions{Accept: &acc}); !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("Accept %v: %v, want ErrBadRequest", acc, err)
 		}
 	}
@@ -146,7 +147,7 @@ func TestObserveWithAttributes(t *testing.T) {
 	h := newHarness(t)
 	c12 := h.device(testclient.Config{Endpoint: "o12", Version: "1.2"})
 	mustCode(mustRegister(h, c12))
-	if _, _, err := h.srv.Observe(h.ctx, "o12", p("/3/0/9"), ObserveOptions{Query: []string{"pmin=5", "pmax=60"}}); err != nil {
+	if _, _, err := h.srv.Observe(h.ctx, "o12", p("/3/0/9"), server.ObserveOptions{Query: []string{"pmin=5", "pmax=60"}}); err != nil {
 		t.Fatal(err)
 	}
 	req, _ := c12.LastRequest()
@@ -158,7 +159,7 @@ func TestObserveWithAttributes(t *testing.T) {
 	}
 	n := len(c12.Requests())
 	for _, q := range [][]string{{"lt=10", "gt=30", "st=10"}, {"gt=5", "lt=5"}, {"pmin=10", "pmax=5"}, {"dim=1"}} {
-		if _, _, err := h.srv.Observe(h.ctx, "o12", p("/3/0/9"), ObserveOptions{Query: q}); !errors.Is(err, ErrBadRequest) {
+		if _, _, err := h.srv.Observe(h.ctx, "o12", p("/3/0/9"), server.ObserveOptions{Query: q}); !errors.Is(err, server.ErrBadRequest) {
 			t.Errorf("%v: %v, want ErrBadRequest", q, err)
 		}
 	}
@@ -166,7 +167,7 @@ func TestObserveWithAttributes(t *testing.T) {
 		t.Fatal("refused Observe was sent")
 	}
 	h.registered("o11")
-	if _, _, err := h.srv.Observe(h.ctx, "o11", p("/3/0/9"), ObserveOptions{Query: []string{"pmin=5"}}); !errors.Is(err, ErrBadRequest) {
+	if _, _, err := h.srv.Observe(h.ctx, "o11", p("/3/0/9"), server.ObserveOptions{Query: []string{"pmin=5"}}); !errors.Is(err, server.ErrBadRequest) {
 		t.Fatalf("attributes sent to a 1.1 client: %v", err)
 	}
 }
@@ -181,7 +182,7 @@ func TestBlockwise(t *testing.T) {
 	big := strings.Repeat("0123456789", 300)
 	c.Set(p("/3/0/0"), lwm2m.String(big))
 	before := len(c.RawRequests())
-	r := expect(t, "2.05")(h.srv.Read(h.ctx, "blk", p("/3/0/0"), ReadOptions{}))
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "blk", p("/3/0/0"), server.ReadOptions{}))
 	if len(r.Nodes) != 1 || r.Nodes[0].Value.Str != big {
 		t.Fatalf("block-wise read: %d nodes", len(r.Nodes))
 	}
@@ -191,7 +192,7 @@ func TestBlockwise(t *testing.T) {
 	nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/0"), lwm2m.String(big))}
 	sr, err := c.Send(h.ctx, nodes, lwm2m.FormatSenMLJSON)
 	mustCode(t, sr, err, "2.04")
-	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 	if !lwm2m.NodesEqual(ev.Nodes, nodes) {
 		t.Fatal("block-wise Send not reassembled")
 	}
@@ -212,7 +213,7 @@ func TestNotificationReordering(t *testing.T) {
 		{1<<24 - 1, 3, 0, true}, // wrap-around
 		{5, 4, 129 * time.Second, true},
 	} {
-		if got := newerNotification(tc.v1, tc.v2, now, now.Add(tc.dt)); got != tc.newer {
+		if got := server.NewerNotification(tc.v1, tc.v2, now, now.Add(tc.dt)); got != tc.newer {
 			t.Errorf("%d→%d after %v: newer=%v", tc.v1, tc.v2, tc.dt, got)
 		}
 	}
@@ -230,7 +231,7 @@ func TestSend(t *testing.T) {
 	for _, cf := range []lwm2m.ContentFormat{lwm2m.FormatSenMLJSON, lwm2m.FormatSenMLCBOR, lwm2m.FormatLwM2MCBOR} {
 		r, err := c.Send(h.ctx, nodes, cf)
 		mustCode(t, r, err, "2.04")
-		ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+		ev := h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok }).(server.SendReceived)
 		if ev.ContentFormat != cf || !lwm2m.NodesEqual(ev.Nodes, nodes) {
 			t.Fatalf("%v: event %+v", cf, ev)
 		}
@@ -247,7 +248,7 @@ func TestSend(t *testing.T) {
 	// An unknown optional resource of a registered instance is no error.
 	r, err = c.Send(h.ctx, []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(1)), lwm2m.ValueNode(p("/3/0/4242"), lwm2m.Integer(7))}, lwm2m.FormatSenMLCBOR)
 	mustCode(t, r, err, "2.04")
-	h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok })
+	h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.SendReceived); return ok })
 	stranger := h.device(testclient.Config{Endpoint: "stranger"})
 	r, err = stranger.Send(h.ctx, nodes, lwm2m.FormatSenMLCBOR)
 	mustCode(t, r, err, "4.00")
@@ -290,10 +291,10 @@ func TestQueueMode(t *testing.T) {
 		}()
 		return codes.Empty, nil, nil, true
 	})
-	done := make(chan *Response, 2)
+	done := make(chan *server.Response, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			r, _ := h.srv.Read(h.ctx, "q", p("/3/0/9"), ReadOptions{})
+			r, _ := h.srv.Read(h.ctx, "q", p("/3/0/9"), server.ReadOptions{})
 			done <- r
 		}()
 	}
@@ -317,17 +318,17 @@ func TestQueueMode(t *testing.T) {
 		t.Fatalf("%d queued requests in flight at once", peak.Load())
 	}
 	c.SetOverride(nil)
-	h.ev.wait(t, func(e Event) bool { _, ok := e.(Awake); return ok })
+	h.ev.wait(t, func(e server.Event) bool { _, ok := e.(server.Awake); return ok })
 
 	h.clock.Add(94 * time.Second)
 	ctx, cancel := context.WithTimeout(h.ctx, 200*time.Millisecond)
 	defer cancel()
-	if _, err := h.srv.Read(ctx, "q", p("/3/0/9"), ReadOptions{}); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := h.srv.Read(ctx, "q", p("/3/0/9"), server.ReadOptions{}); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("timed-out queued request: %v", err)
 	}
 	waiting := make(chan error, 1)
 	go func() {
-		_, err := h.srv.Read(h.ctx, "q", p("/3/0/9"), ReadOptions{})
+		_, err := h.srv.Read(h.ctx, "q", p("/3/0/9"), server.ReadOptions{})
 		waiting <- err
 	}()
 	time.Sleep(50 * time.Millisecond)
@@ -345,13 +346,13 @@ func TestQueueMode(t *testing.T) {
 
 	// QM-04: an awake queue-mode client that never answers (retransmission
 	// failure) is reported to the caller as an error, not as a wait.
-	h2 := newHarness(t, func(cfg *Config) { cfg.RequestTimeout = 300 * time.Millisecond })
+	h2 := newHarness(t, func(cfg *server.Config) { cfg.RequestTimeout = 300 * time.Millisecond })
 	gone := h2.device(testclient.Config{Endpoint: "gone", Queue: true})
 	mustCode(mustRegister(h2, gone))
 	_ = gone.Close()
 	ctx2, cancel2 := context.WithTimeout(h2.ctx, 3*time.Second)
 	defer cancel2()
-	if _, err := h2.srv.Read(ctx2, "gone", p("/3/0/9"), ReadOptions{}); err == nil || errors.Is(err, context.DeadlineExceeded) && ctx2.Err() != nil {
+	if _, err := h2.srv.Read(ctx2, "gone", p("/3/0/9"), server.ReadOptions{}); err == nil || errors.Is(err, context.DeadlineExceeded) && ctx2.Err() != nil {
 		t.Fatalf("unanswered queued request: %v", err)
 	}
 }
