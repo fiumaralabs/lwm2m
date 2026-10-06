@@ -2,7 +2,6 @@ package lwm2mcbor
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -23,14 +22,15 @@ func TestRegistered(t *testing.T) {
 // Proves: CBOR-02, CBOR-04, CBOR-05
 func TestEncodeMatchesSpecExamples(t *testing.T) {
 	want := map[string]bool{
-		"spec-lwcbor-read-3-0-0-array-key":    true,  // §7.5.4.1
-		"spec-lwcbor-read-3-0-0-nested-maps":  false, // §7.5.4.1 "also valid"
-		"spec-lwcbor-read-3-0-6":              true,  // §7.5.4.2
-		"spec-lwcbor-read-3-0":                true,  // §7.5.4.3
-		"spec-lwcbor-read-1":                  true,  // §7.5.4.4
-		"spec-lwcbor-composite-response":      true,  // §7.5.4.5
-		"spec-lwcbor-create-2-instance-5":     false, // §7.5.4.6 uses [2,102] inside the instance map
-		"spec-lwcbor-create-2-no-instance-id": false,
+		"spec-lwcbor-read-3-0-0-array-key":     true,  // §7.5.4.1
+		"spec-lwcbor-read-3-0-0-nested-maps":   false, // §7.5.4.1 "also valid"
+		"spec-lwcbor-read-3-0-6":               true,  // §7.5.4.2
+		"spec-lwcbor-read-3-0":                 true,  // §7.5.4.3
+		"spec-lwcbor-read-1":                   true,  // §7.5.4.4
+		"spec-lwcbor-composite-response":       true,  // §7.5.4.5
+		"spec-lwcbor-create-2-instance-5":      false, // §7.5.4.6 uses [2,102] inside the instance map
+		"spec-lwcbor-create-2-no-instance-id":  false,
+		"spec-lwcbor-gateway-prefix-composite": true, // GW §10
 	}
 	vs, err := vectors.Load("spec-examples")
 	if err != nil {
@@ -45,7 +45,7 @@ func TestEncodeMatchesSpecExamples(t *testing.T) {
 		seen++
 		_, base := testPath(t, v.Path)
 		payload, _ := v.Payload()
-		enc, err := Codec{}.Encode(base, expected(t, v)[""])
+		enc, err := Codec{}.Encode(base, expected(t, v))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,11 +103,19 @@ func TestDecodeTypeChecks(t *testing.T) {
 	}
 }
 
-// Gateway TS §9 prefixes need DecodePrefixed; Decode refuses to drop them.
-func TestDecodeRejectsPrefixWithoutPrefixAPI(t *testing.T) {
-	_, err := Codec{}.Decode(lwm2m.Root, []byte{0xa1, 0x61, 'd', 0xa1, 3, 0xa1, 0, 0xa1, 0, 1}, nil)
-	if !errors.Is(err, ErrPrefix) {
-		t.Fatalf("got %v, want ErrPrefix", err)
+// Gateway TS §9 prefixes decode into Node.Prefix and encode back.
+// Proves: CBOR-11
+func TestPrefixRoundTrip(t *testing.T) {
+	in := []byte{0xa1, 0x61, 'd', 0xa1, 3, 0xa1, 0, 0xa1, 0, 1}
+	got, err := Codec{}.Decode(lwm2m.Root, in, nil)
+	want := []lwm2m.Node{{Prefix: "d", Path: lwm2m.MustParsePath("/3/0/0"), Value: lwm2m.Integer(1)}}
+	if err != nil || !lwm2m.NodesEqual(got, want) {
+		t.Fatalf("decode: %v %v", got, err)
+	}
+	enc, err := Codec{}.Encode(lwm2m.Root, append(want, lwm2m.ValueNode(lwm2m.MustParsePath("/3/0/9"), lwm2m.Integer(5))))
+	// {["d", 3, 0, 0]: 1, [3, 0, 9]: 5}
+	if wantEnc := []byte{0xa2, 0x84, 0x61, 'd', 3, 0, 0, 1, 0x83, 3, 0, 9, 5}; err != nil || !bytes.Equal(enc, wantEnc) {
+		t.Fatalf("encode: %x %v, want %x", enc, err, wantEnc)
 	}
 }
 

@@ -45,6 +45,7 @@ func CodeString(c codes.Code) string { return fmt.Sprintf("%d.%02d", c>>5, c&0x1
 // request is a prepared downlink exchange.
 type request struct {
 	method   codes.Code
+	prefix   string // Gateway end-device prefix (GW §8.3.1), "" = the client itself
 	path     lwm2m.Path
 	root     bool // send to the alternate path root even when path is "/"
 	query    []string
@@ -65,15 +66,16 @@ func (s *Server) lookup(ep string) (*Registration, error) {
 	return r, nil
 }
 
-// uriPath builds the request path, prefixing the alternate path (GEN-08).
-func uriPath(reg *Registration, p lwm2m.Path) string {
+// uriPath builds the request path, prefixing the alternate path (GEN-08)
+// and after it the end-device prefix, itself an alternate path (GW §8.3.1).
+func uriPath(reg *Registration, prefix string, p lwm2m.Path) string {
 	if reg.RootPath == "" {
-		return p.String()
+		return lwm2m.PrefixedPath(prefix, p)
 	}
-	if p.IsRoot() {
+	if prefix == "" && p.IsRoot() {
 		return reg.RootPath
 	}
-	return strings.TrimSuffix(reg.RootPath, "/") + p.String()
+	return strings.TrimSuffix(reg.RootPath, "/") + lwm2m.PrefixedPath(prefix, p)
 }
 
 // exchange sends one request to reg, honouring queue mode (QM-02), and
@@ -117,7 +119,7 @@ func (s *Server) transmit(ctx context.Context, reg *Registration, rq request) (*
 	}
 	res, err := reg.peer.Exchange(ctx, &Message{
 		Code:    rq.method,
-		Path:    uriPath(reg, rq.path),
+		Path:    uriPath(reg, rq.prefix, rq.path),
 		Query:   rq.query,
 		Format:  rq.cf,
 		Accept:  rq.accept,
@@ -128,11 +130,13 @@ func (s *Server) transmit(ctx context.Context, reg *Registration, rq request) (*
 	if err != nil {
 		return nil, err
 	}
-	return s.decodeResponse(reg, res, rq.schemaOf), nil
+	return s.decodeResponse(reg, res, rq.prefix, rq.schemaOf), nil
 }
 
-// decodeResponse decodes data formats with the registration's schema.
-func (s *Server) decodeResponse(reg *Registration, res *Message, base lwm2m.Path) *Response {
+// decodeResponse decodes data formats with the registration's schema. The
+// nodes of a request on an end-device prefix belong to that device, also
+// in formats without names (TLV, text, opaque, CBOR).
+func (s *Server) decodeResponse(reg *Registration, res *Message, prefix string, base lwm2m.Path) *Response {
 	out := &Response{Code: res.Code, Payload: res.Payload, Location: res.Location}
 	if res.Format != nil {
 		out.ContentFormat, out.HasFormat = *res.Format, true
@@ -140,6 +144,7 @@ func (s *Server) decodeResponse(reg *Registration, res *Message, base lwm2m.Path
 	if out.HasFormat && len(out.Payload) > 0 && out.ContentFormat != lwm2m.FormatLinkFormat {
 		if c, err := codec.For(out.ContentFormat); err == nil {
 			out.Nodes, out.DecodeErr = c.Decode(base, out.Payload, s.schema(reg))
+			out.DecodeErr = errors.Join(out.DecodeErr, ownPrefix(out.Nodes, prefix))
 		} else {
 			out.DecodeErr = err
 		}
@@ -157,9 +162,11 @@ func (s *Server) schema(reg *Registration) lwm2m.Schema {
 
 // ReadOptions selects the response format. A zero value sends no Accept:
 // the server decodes every format and the client uses its preferred one
-// (C §7.5).
+// (C §7.5). Prefix reads an object of that end device of a gateway (GW
+// §8.3.1, see gateway.go).
 type ReadOptions struct {
 	Accept *lwm2m.ContentFormat
+	Prefix string
 }
 
 func fmtPtr(f lwm2m.ContentFormat) *lwm2m.ContentFormat { return &f }
@@ -173,7 +180,10 @@ func (s *Server) Read(ctx context.Context, ep string, p lwm2m.Path, o ReadOption
 	if p.IsRoot() {
 		return nil, fmt.Errorf("%w: Read on / (use ReadComposite)", ErrBadRequest)
 	}
-	return s.exchange(ctx, reg, request{method: codes.GET, path: p, accept: o.Accept, schemaOf: p})
+	if err := checkEndDevice(reg, o.Prefix); err != nil {
+		return nil, err
+	}
+	return s.exchange(ctx, reg, request{method: codes.GET, prefix: o.Prefix, path: p, accept: o.Accept, schemaOf: p})
 }
 
 // Discover returns the link-format description of p (DM-04). depth, when

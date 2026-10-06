@@ -196,3 +196,53 @@ func (p *Path) UnmarshalText(b []byte) error {
 	*p = q
 	return nil
 }
+
+// ValidPrefix accepts a Gateway end-device prefix (GW §8.3.1): one URI path
+// segment that cannot be mistaken for an object ID.
+func ValidPrefix(p string) error {
+	if p == "" || strings.Trim(p, "0123456789") == "" || strings.ContainsAny(p, "/?#") {
+		return fmt.Errorf("%w: prefix %q", ErrInvalidPath, p)
+	}
+	return nil
+}
+
+// SplitPrefix cuts a leading end-device prefix, a first segment that is not
+// a decimal ID, off a path string: "/d01/3/0" gives "d01", "/3/0". Without
+// one prefix is "" and rest is s.
+func SplitPrefix(s string) (prefix, rest string) {
+	head, tail, _ := strings.Cut(strings.TrimPrefix(s, "/"), "/")
+	if head == "" || strings.Trim(head, "0123456789") == "" {
+		return "", s
+	}
+	return head, "/" + tail
+}
+
+// ParsePrefixedPath parses "/3/0" (the client itself) or "/d01/3303/0" (an
+// object of the end device d01, GW §8.3.1). A prefixed path needs an
+// object ID.
+func ParsePrefixedPath(s string) (string, Path, error) {
+	prefix, rest := SplitPrefix(s)
+	if prefix == "" {
+		p, err := ParsePath(s)
+		return "", p, err
+	}
+	if err := ValidPrefix(prefix); err != nil {
+		return "", Path{}, err
+	}
+	p, err := ParsePath(rest)
+	if err != nil || p.IsRoot() {
+		return "", Path{}, fmt.Errorf("%w: %q: an end-device path needs an object ID", ErrInvalidPath, s)
+	}
+	return prefix, p, nil
+}
+
+// PrefixedPath renders p under prefix: "/d01/3/0", or p alone for "".
+func PrefixedPath(prefix string, p Path) string {
+	switch {
+	case prefix == "":
+		return p.String()
+	case p.IsRoot():
+		return "/" + prefix
+	}
+	return "/" + prefix + p.String()
+}

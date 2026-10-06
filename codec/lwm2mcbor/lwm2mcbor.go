@@ -1,6 +1,6 @@
 // Package lwm2mcbor implements LwM2M CBOR, application/vnd.oma.lwm2m+cbor,
 // Content-Format 11544 (Core 1.2.2 §7.5.4, Appendix C Table C-2), with the
-// Gateway prefix extension on input (Gateway TS 1.1.1 §9).
+// Gateway prefix extension (Gateway TS 1.1.1 §9) carried in Node.Prefix.
 package lwm2mcbor
 
 import (
@@ -23,12 +23,7 @@ type Codec struct{}
 
 func (Codec) Format() lwm2m.ContentFormat { return lwm2m.FormatLwM2MCBOR }
 
-var (
-	errFormat = errors.New("lwm2mcbor: invalid payload")
-	// ErrPrefix: the payload carries Gateway end-device prefixes, which
-	// lwm2m.Node cannot hold. Use DecodePrefixed.
-	ErrPrefix = errors.New("lwm2mcbor: gateway prefix in payload, use DecodePrefixed")
-)
+var errFormat = errors.New("lwm2mcbor: invalid payload")
 
 func fail(format string, a ...any) error {
 	return fmt.Errorf("%w: %s", errFormat, fmt.Sprintf(format, a...))
@@ -39,34 +34,13 @@ var (
 	em, _ = cbor.EncOptions{ShortestFloat: cbor.ShortestFloat16}.EncMode()
 )
 
-// PrefixedNode is a node of a Gateway end device ("" = the gateway itself).
-type PrefixedNode struct {
-	Prefix string
-	lwm2m.Node
-}
-
 // Decode accepts every layout of the §7.5.4 grammar: definite or indefinite
 // maps and array keys, uint or array keys, nesting at any depth, mixed in
 // one payload. It rejects duplicate paths (A-8) and paths outside base.
+// A text PREFIX as a top-level key or as the first element of a top-level
+// array key (Gateway TS §9, CBOR-11) sets Node.Prefix; base and s apply to
+// the path inside the end device.
 func (Codec) Decode(base lwm2m.Path, data []byte, s lwm2m.Schema) ([]lwm2m.Node, error) {
-	pns, err := DecodePrefixed(base, data, s)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]lwm2m.Node, len(pns))
-	for i, pn := range pns {
-		if pn.Prefix != "" {
-			return nil, ErrPrefix
-		}
-		out[i] = pn.Node
-	}
-	return out, nil
-}
-
-// DecodePrefixed is Decode that also accepts a text PREFIX as a top-level key
-// or as the first element of a top-level array key (Gateway TS §9). base and
-// s apply to the path inside the end device.
-func DecodePrefixed(base lwm2m.Path, data []byte, s lwm2m.Schema) ([]PrefixedNode, error) {
 	d := &decoder{base: base, s: s, seen: map[string]lwm2m.Kind{}}
 	rest, err := d.mapValue(data, "", nil, true)
 	if err != nil {
@@ -89,7 +63,7 @@ type decoder struct {
 	base lwm2m.Path
 	s    lwm2m.Schema
 	seen map[string]lwm2m.Kind
-	out  []PrefixedNode
+	out  []lwm2m.Node
 }
 
 var errTrunc = fail("truncated")
@@ -247,7 +221,8 @@ func (d *decoder) add(prefix string, n lwm2m.Node) error {
 		return fail("duplicate path %s", n.Path)
 	}
 	d.seen[k] = n.Kind
-	d.out = append(d.out, PrefixedNode{prefix, n})
+	n.Prefix = prefix
+	d.out = append(d.out, n)
 	return nil
 }
 
@@ -426,13 +401,22 @@ func cast(x any, t lwm2m.Type, known bool) (lwm2m.Value, error) {
 // This reproduces the Core §7.5.4.1-§7.5.4.5 examples byte for byte. Values
 // use preferred serialization (shortest exact float), Time as a plain
 // integer, Objlnk as "oid:iid", none as null. An empty instance or
-// multi-instance resource is written as an empty map.
+// multi-instance resource is written as an empty map. Nodes with a Prefix
+// get it as the first element of their top-level key: ["d01", 3, 0]
+// (Gateway TS §9, CBOR-11), devices in order of first appearance.
 func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
 	if len(nodes) == 0 {
 		return nil, fail("nothing to encode (the grammar requires at least one entry)")
 	}
-	root := &tnode{}
+	var prefixes []string
+	trees := map[string]*tnode{}
 	for _, n := range nodes {
+		root, ok := trees[n.Prefix]
+		if !ok {
+			root = &tnode{}
+			trees[n.Prefix] = root
+			prefixes = append(prefixes, n.Prefix)
+		}
 		if !n.Path.HasPrefix(base) {
 			return nil, fail("%s is outside %s", n.Path, base)
 		}
@@ -460,21 +444,32 @@ func (Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
 		}
 	}
 	var buf bytes.Buffer
-	writeHead(&buf, 5, uint64(len(root.kids)))
-	for _, k := range root.kids {
-		ids := []uint16{k.id}
-		for !k.set && len(k.kids) == 1 {
-			k = k.kids[0]
-			ids = append(ids, k.id)
-		}
-		if len(ids) > 1 {
-			writeHead(&buf, 4, uint64(len(ids)))
-		}
-		for _, id := range ids {
-			writeHead(&buf, 0, uint64(id))
-		}
-		if err := k.write(&buf); err != nil {
-			return nil, err
+	count := 0
+	for _, pre := range prefixes {
+		count += len(trees[pre].kids)
+	}
+	writeHead(&buf, 5, uint64(count))
+	for _, pre := range prefixes {
+		for _, k := range trees[pre].kids {
+			ids := []uint16{k.id}
+			for !k.set && len(k.kids) == 1 {
+				k = k.kids[0]
+				ids = append(ids, k.id)
+			}
+			switch {
+			case pre != "":
+				writeHead(&buf, 4, uint64(len(ids)+1))
+				writeHead(&buf, 3, uint64(len(pre)))
+				buf.WriteString(pre)
+			case len(ids) > 1:
+				writeHead(&buf, 4, uint64(len(ids)))
+			}
+			for _, id := range ids {
+				writeHead(&buf, 0, uint64(id))
+			}
+			if err := k.write(&buf); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return buf.Bytes(), nil

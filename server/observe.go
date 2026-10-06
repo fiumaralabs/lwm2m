@@ -16,6 +16,7 @@ type Observation struct {
 	ID             string // token, hex
 	RegistrationID string
 	Endpoint       string
+	Prefix         string       // Gateway end-device prefix of Paths[0], "" = the client (GW §8.3.1)
 	Paths          []lwm2m.Path // one path, or the composite list
 	Composite      bool
 	Format         lwm2m.ContentFormat // composite request body format
@@ -92,10 +93,12 @@ func (s *Server) Observations(ep string) []*Observation {
 }
 
 // ObserveOptions: Accept selects the notification format; Query carries
-// 1.2 notification attributes in the request (OBS-06, OBS-05).
+// 1.2 notification attributes in the request (OBS-06, OBS-05). Prefix
+// observes an object of that end device of a gateway (GW §8.3.1).
 type ObserveOptions struct {
 	Accept *lwm2m.ContentFormat
 	Query  []string
+	Prefix string
 }
 
 // Observe starts observing p (OBS-01). The first response carries the
@@ -111,10 +114,13 @@ func (s *Server) Observe(ctx context.Context, ep string, p lwm2m.Path, o Observe
 	if len(o.Query) > 0 && reg.Version != "1.2" {
 		return nil, nil, fmt.Errorf("%w: attributes in Observe need a 1.2 client (OBS-06)", ErrBadRequest)
 	}
+	if err := checkEndDevice(reg, o.Prefix); err != nil {
+		return nil, nil, err
+	}
 	ob := s.newObservation(reg, []lwm2m.Path{p}, false)
-	ob.Accept, ob.Query = o.Accept, o.Query
+	ob.Accept, ob.Query, ob.Prefix = o.Accept, o.Query, o.Prefix
 	zero := uint32(0)
-	return s.startObservation(ctx, reg, ob, request{method: codes.GET, path: p, query: o.Query, accept: o.Accept, observe: &zero, token: ob.token, schemaOf: p})
+	return s.startObservation(ctx, reg, ob, request{method: codes.GET, prefix: o.Prefix, path: p, query: o.Query, accept: o.Accept, observe: &zero, token: ob.token, schemaOf: p})
 }
 
 // ObserveComposite observes several paths with FETCH on / (OBS-05).
@@ -197,7 +203,7 @@ func (s *Server) CancelObservation(ctx context.Context, ob *Observation, active 
 		cf := ob.Format
 		return s.exchange(ctx, reg, request{method: codeFETCH, path: lwm2m.Root, cf: &cf, accept: ob.Accept, body: body, observe: &one, token: ob.token, schemaOf: lwm2m.Root})
 	}
-	return s.exchange(ctx, reg, request{method: codes.GET, path: ob.Paths[0], accept: ob.Accept, observe: &one, token: ob.token, schemaOf: ob.Paths[0]})
+	return s.exchange(ctx, reg, request{method: codes.GET, prefix: ob.Prefix, path: ob.Paths[0], accept: ob.Accept, observe: &one, token: ob.token, schemaOf: ob.Paths[0]})
 }
 
 // handleNotification processes a notification for a known observation;
@@ -229,7 +235,7 @@ func (s *Server) handleNotification(_ Peer, m *Message) {
 	if !ob.Composite {
 		base = ob.Paths[0]
 	}
-	resp := s.decodeResponse(reg, m, base)
+	resp := s.decodeResponse(reg, m, ob.Prefix, base)
 	s.queues.wake(reg) // a notification means the client is awake (QM-03)
 	s.emit(Notification{Registration: reg, Observation: ob, Response: resp})
 	if !resp.Success() {

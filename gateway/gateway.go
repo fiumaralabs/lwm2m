@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/codec/lwm2mcbor"
 	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/server"
 )
@@ -25,7 +24,7 @@ const (
 
 // Node is a payload node of the gateway itself (Prefix "") or of the end
 // device with that prefix.
-type Node = lwm2mcbor.PrefixedNode
+type Node = lwm2m.Node
 
 // Path addresses a gateway object (Prefix "") or an object of the end
 // device with Prefix (GW §8.3.1).
@@ -34,45 +33,20 @@ type Path struct {
 	lwm2m.Path
 }
 
-var ErrPath = errors.New("gateway: invalid path")
+var ErrPath = lwm2m.ErrInvalidPath
 
 // ParsePath parses "/3/0" (gateway) or "/d01/3303/0" (end device). A
 // prefix is a first segment that is not a decimal ID.
 func ParsePath(s string) (Path, error) {
-	rest := strings.TrimPrefix(s, "/")
-	head, tail, _ := strings.Cut(rest, "/")
-	if head == "" || strings.Trim(head, "0123456789") == "" {
-		p, err := lwm2m.ParsePath(s)
-		return Path{Path: p}, err
-	}
-	if err := ValidPrefix(head); err != nil {
-		return Path{}, err
-	}
-	p, err := lwm2m.ParsePath("/" + tail)
-	if err != nil || p.IsRoot() {
-		return Path{}, fmt.Errorf("%w: %q: an end-device path needs an object ID", ErrPath, s)
-	}
-	return Path{head, p}, nil
+	pre, p, err := lwm2m.ParsePrefixedPath(s)
+	return Path{pre, p}, err
 }
 
 // ValidPrefix accepts a prefix usable as one URI path segment that cannot
 // be mistaken for an object ID.
-func ValidPrefix(p string) error {
-	if p == "" || strings.Trim(p, "0123456789") == "" || strings.ContainsAny(p, "/?#") {
-		return fmt.Errorf("%w: prefix %q", ErrPath, p)
-	}
-	return nil
-}
+func ValidPrefix(p string) error { return lwm2m.ValidPrefix(p) }
 
-func (p Path) String() string {
-	if p.Prefix == "" {
-		return p.Path.String()
-	}
-	if p.IsRoot() {
-		return "/" + p.Prefix
-	}
-	return "/" + p.Prefix + p.Path.String()
-}
+func (p Path) String() string { return lwm2m.PrefixedPath(p.Prefix, p.Path) }
 
 // URI is the request path: the prefix treated as an alternate path, after
 // the gateway's own alternate path root when it has one (GW §8.3.1).
@@ -217,7 +191,7 @@ func CheckBootstrap(targets []Path, nodes []Node) error {
 	}
 	for _, n := range nodes {
 		if n.Prefix != "" {
-			return fmt.Errorf("%w: /%s%s", ErrBootstrap, n.Prefix, n.Path)
+			return fmt.Errorf("%w: %s", ErrBootstrap, n.PathString())
 		}
 	}
 	return nil

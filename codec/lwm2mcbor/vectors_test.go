@@ -18,11 +18,8 @@ var nonCanonical = map[string]string{}
 
 // noEncode lists vectors that cannot go through Encode at all.
 var noEncode = map[string]string{
-	"spec-lwcbor-gateway-prefix-composite": "Gateway prefixes: lwm2m.Node has no prefix, encoding not implemented",
-	"lwcbor-own-gateway-bare-prefix":       "Gateway prefixes: lwm2m.Node has no prefix, encoding not implemented",
-	"lwcbor-own-gateway-prefix-and-local":  "Gateway prefixes: lwm2m.Node has no prefix, encoding not implemented",
-	"lwcbor-own-empty-top-definite":        "no nodes: the encoder refuses an empty map (grammar 1*(ID, VALUE))",
-	"lwcbor-own-empty-top-indef":           "no nodes: the encoder refuses an empty map (grammar 1*(ID, VALUE))",
+	"lwcbor-own-empty-top-definite": "no nodes: the encoder refuses an empty map (grammar 1*(ID, VALUE))",
+	"lwcbor-own-empty-top-indef":    "no nodes: the encoder refuses an empty map (grammar 1*(ID, VALUE))",
 }
 
 func loadVectors(t *testing.T) []vectors.Vector {
@@ -65,14 +62,14 @@ func testPath(t *testing.T, s string) (string, lwm2m.Path) {
 	return prefix, lwm2m.NewPath(ids...)
 }
 
-// expected returns the vector's nodes grouped by Gateway prefix.
-func expected(t *testing.T, v vectors.Vector) map[string][]lwm2m.Node {
+// expected returns the vector's nodes, Gateway prefixes in Node.Prefix.
+func expected(t *testing.T, v vectors.Vector) []lwm2m.Node {
 	t.Helper()
 	var js []vectors.JSONNode
 	if err := json.Unmarshal(v.Expected, &js); err != nil {
 		t.Fatal(err)
 	}
-	out := map[string][]lwm2m.Node{"": {}}
+	out := []lwm2m.Node{}
 	for _, j := range js {
 		prefix, p := testPath(t, j.Path)
 		if j.Prefix != "" {
@@ -83,30 +80,10 @@ func expected(t *testing.T, v vectors.Vector) map[string][]lwm2m.Node {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n.Path = p
-		out[prefix] = append(out[prefix], n)
+		n.Prefix, n.Path = prefix, p
+		out = append(out, n)
 	}
 	return out
-}
-
-func group(pns []PrefixedNode) map[string][]lwm2m.Node {
-	out := map[string][]lwm2m.Node{"": {}}
-	for _, pn := range pns {
-		out[pn.Prefix] = append(out[pn.Prefix], pn.Node)
-	}
-	return out
-}
-
-func groupsEqual(a, b map[string][]lwm2m.Node) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, ns := range a {
-		if !lwm2m.NodesEqual(ns, b[k]) {
-			return false
-		}
-	}
-	return true
 }
 
 // Proves: CBOR-01, CBOR-02, CBOR-03, CBOR-04, CBOR-05, CBOR-06, CBOR-07, CBOR-08
@@ -127,7 +104,7 @@ func TestVectors(t *testing.T) {
 				if !v.Decodes() {
 					t.Fatal("error vector must be decode")
 				}
-				got, err := DecodePrefixed(base, payload, nil)
+				got, err := c.Decode(base, payload, nil)
 				if err == nil {
 					t.Fatalf("decode succeeded, want error: %v", got)
 				}
@@ -138,32 +115,24 @@ func TestVectors(t *testing.T) {
 				t.Fatalf("unhandled expected shape %q", v.ExpectedShape())
 			}
 			want := expected(t, v)
-			var all []lwm2m.Node
-			for _, ns := range want {
-				all = append(all, ns...)
-			}
-			s := vectors.Schema(all)
+			s := vectors.Schema(want)
 			if v.Decodes() {
-				got, err := DecodePrefixed(base, payload, s)
+				got, err := c.Decode(base, payload, s)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !groupsEqual(group(got), want) {
-					t.Fatalf("decode:\n got %v\nwant %v", group(got), want)
+				if !lwm2m.NodesEqual(got, want) {
+					t.Fatalf("decode:\n got %v\nwant %v", got, want)
 				}
 			}
 			if reason, ok := noEncode[v.ID]; ok {
 				used[v.ID] = true
-				if len(want) > 1 {
-					if _, err := c.Decode(base, payload, s); err != ErrPrefix {
-						t.Fatalf("Decode of a prefixed payload: got %v, want ErrPrefix", err)
-					}
-				} else if enc, err := c.Encode(base, want[""]); err == nil {
+				if enc, err := c.Encode(base, want); err == nil {
 					t.Fatalf("listed in noEncode (%s) but encodes to %x", reason, enc)
 				}
 				return
 			}
-			enc, err := c.Encode(base, want[""])
+			enc, err := c.Encode(base, want)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -178,7 +147,7 @@ func TestVectors(t *testing.T) {
 			}
 			if !exact {
 				got, err := c.Decode(base, enc, s)
-				if err != nil || !lwm2m.NodesEqual(got, want[""]) {
+				if err != nil || !lwm2m.NodesEqual(got, want) {
 					t.Fatalf("round trip of %x: %v\n%s", enc, err, lwm2m.FormatNodes(got))
 				}
 			}

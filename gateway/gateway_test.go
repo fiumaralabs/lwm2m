@@ -33,7 +33,7 @@ func vector(t *testing.T, id string) vectors.Vector {
 }
 
 func pn(prefix, path string, v lwm2m.Value) Node {
-	return Node{Prefix: prefix, Node: lwm2m.ValueNode(lwm2m.MustParsePath(path), v)}
+	return Node{Prefix: prefix, Path: lwm2m.MustParsePath(path), Value: v}
 }
 
 func same(t *testing.T, got, want []Node) {
@@ -42,8 +42,8 @@ func same(t *testing.T, got, want []Node) {
 		t.Fatalf("got %v\nwant %v", got, want)
 	}
 	for i := range got {
-		if got[i].Prefix != want[i].Prefix || !got[i].Node.Equal(want[i].Node) {
-			t.Fatalf("node %d: got %v %v, want %v %v", i, got[i].Prefix, got[i].Node, want[i].Prefix, want[i].Node)
+		if !got[i].Equal(want[i]) {
+			t.Fatalf("node %d: got %v, want %v", i, got[i], want[i])
 		}
 	}
 }

@@ -24,7 +24,12 @@ const (
 //
 // Time is an optional SenML/JSON timestamp in seconds (absolute after base
 // time resolution); HasTime says whether it is set.
+//
+// Prefix is the LwM2M Gateway end-device prefix (Gateway TS 1.1.1 §8.3.1,
+// §9): "" for the client (the gateway) itself, else the device whose
+// object Path addresses ("d01" for /d01/3/0/0).
 type Node struct {
+	Prefix  string
 	Path    Path
 	Kind    Kind
 	Value   Value
@@ -34,14 +39,17 @@ type Node struct {
 
 func ValueNode(p Path, v Value) Node { return Node{Path: p, Value: v} }
 
+// PathString is the path with its prefix: "/3/0/0" or "/d01/3/0/0".
+func (n Node) PathString() string { return PrefixedPath(n.Prefix, n.Path) }
+
 func (n Node) String() string {
 	switch n.Kind {
 	case KindEmptyInstance:
-		return n.Path.String() + " (empty instance)"
+		return n.PathString() + " (empty instance)"
 	case KindEmptyMultiple:
-		return n.Path.String() + " (empty multiple)"
+		return n.PathString() + " (empty multiple)"
 	}
-	s := n.Path.String() + "=" + n.Value.String() + ":" + n.Value.Type.String()
+	s := n.PathString() + "=" + n.Value.String() + ":" + n.Value.Type.String()
 	if n.HasTime {
 		s += fmt.Sprintf("@%g", n.Time)
 	}
@@ -50,14 +58,17 @@ func (n Node) String() string {
 
 // Equal compares two nodes exactly.
 func (n Node) Equal(m Node) bool {
-	return n.Path == m.Path && n.Kind == m.Kind && n.HasTime == m.HasTime &&
+	return n.Prefix == m.Prefix && n.Path == m.Path && n.Kind == m.Kind && n.HasTime == m.HasTime &&
 		(!n.HasTime || n.Time == m.Time) && (n.Kind != KindValue || n.Value.Equal(m.Value))
 }
 
-// SortNodes orders nodes by path, then by time (SenML may carry several
+// SortNodes orders nodes by prefix, then path, then by time (SenML may carry several
 // timestamped values for one path), keeping input order otherwise.
 func SortNodes(ns []Node) {
 	sort.SliceStable(ns, func(i, j int) bool {
+		if ns[i].Prefix != ns[j].Prefix {
+			return ns[i].Prefix < ns[j].Prefix
+		}
 		if c := ns[i].Path.Compare(ns[j].Path); c != 0 {
 			return c < 0
 		}

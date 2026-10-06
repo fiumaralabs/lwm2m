@@ -196,6 +196,34 @@ func TestRootPath(t *testing.T) {
 	roundTrip(t, c, p("/3/0"), ns)
 }
 
+// GW §9: a leading non-numeric name segment is an end-device prefix,
+// carried in Node.Prefix, after the alternate path when there is one.
+//
+// Proves: GW-08
+func TestNodePrefix(t *testing.T) {
+	ns := []lwm2m.Node{
+		lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(80)),
+		{Prefix: "d01", Path: p("/3303/0/5700"), Value: lwm2m.Float(22.5)},
+	}
+	c := JSON.WithRootPath("/lwm2m")
+	if got := string(mustEncode(t, c, lwm2m.Root, ns)); got != `[{"n":"/lwm2m/3/0/9","v":80},{"n":"/lwm2m/d01/3303/0/5700","v":22.5}]` {
+		t.Errorf("root: %s", got)
+	}
+	roundTrip(t, c, lwm2m.Root, ns)
+	roundTrip(t, CBOR, lwm2m.Root, ns)
+	one := ns[1:]
+	if got := string(mustEncode(t, JSON, p("/3303/0"), one)); got != `[{"bn":"/d01/3303/0/","n":"5700","v":22.5}]` {
+		t.Errorf("instance: %s", got)
+	}
+	roundTrip(t, JSON, p("/3303/0"), one)
+	if b, err := JSON.Encode(p("/3303/0"), []lwm2m.Node{lwm2m.ValueNode(p("/3303/0/1"), lwm2m.Integer(1)), ns[1]}); err == nil {
+		t.Errorf("two prefixes under one base name: %s", b)
+	}
+	if ps, err := JSON.DecodePaths([]byte(`[{"n":"/d01/3/0"}]`)); err == nil {
+		t.Errorf("prefixed path list accepted: %v", ps)
+	}
+}
+
 // RFC 8790 §7.1, Core Table 7.5-3: both ETCH formats are registered.
 //
 // Proves: ETCH-01

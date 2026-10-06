@@ -55,7 +55,7 @@ type Record struct {
 // Codec is one of the four SenML codecs. RootPath is the client's
 // alternate path (T §6.4.1, e.g. "/lwm2m") or a gateway end-device prefix
 // (GW §9, e.g. "/d01"): it is prepended to every emitted name and stripped
-// from decoded names that carry it.
+// from decoded names that carry it. Per-node prefixes use Node.Prefix.
 type Codec struct {
 	format   lwm2m.ContentFormat
 	RootPath string
@@ -133,8 +133,9 @@ func resolve(rs []Record) []resolved {
 	return out
 }
 
-// path turns a resolved name into a path, stripping RootPath when present.
-func (c Codec) path(name string) (lwm2m.Path, error) {
+// name turns a resolved name into a Gateway prefix (GW §9, "" for none)
+// and a path, stripping RootPath when present.
+func (c Codec) name(name string) (string, lwm2m.Path, error) {
 	if c.RootPath != "" {
 		if rest, ok := strings.CutPrefix(name, c.RootPath); ok && (rest == "" || rest[0] == '/') {
 			name = rest
@@ -143,14 +144,31 @@ func (c Codec) path(name string) (lwm2m.Path, error) {
 			}
 		}
 	}
-	p, err := lwm2m.ParsePath(name)
-	if err != nil {
-		return p, fmt.Errorf("%w: name %q: %v", errSenML, name, err)
+	prefix, rest := lwm2m.SplitPrefix(name)
+	if prefix != "" {
+		if err := lwm2m.ValidPrefix(prefix); err != nil {
+			return "", lwm2m.Path{}, fmt.Errorf("%w: name %q: %v", errSenML, name, err)
+		}
 	}
-	return p, nil
+	p, err := lwm2m.ParsePath(rest)
+	if err != nil {
+		return "", p, fmt.Errorf("%w: name %q: %v", errSenML, name, err)
+	}
+	return prefix, p, nil
 }
 
-// Decode resolves the pack into value nodes. Numeric "v" values are typed by
+// path is name for path lists, which carry no prefix.
+func (c Codec) path(name string) (lwm2m.Path, error) {
+	prefix, p, err := c.name(name)
+	if err == nil && prefix != "" {
+		err = fmt.Errorf("%w: name %q: prefix in a path list", errSenML, name)
+	}
+	return p, err
+}
+
+// Decode resolves the pack into value nodes. A name whose first segment
+// (after RootPath) is not a decimal ID is a Gateway end-device prefix (GW
+// §9): "/d01/3/0/0" decodes to Prefix "d01", Path /3/0/0. Numeric "v" values are typed by
 // the schema (Integer, Unsigned, Float, Time), else inferred (integer
 // literal -> Integer, or Unsigned above MaxInt64; fraction/exponent ->
 // Float). Tolerated on input: bn="/o/i/" + n="r" splits, "vlo" or "vs" or a
@@ -175,7 +193,7 @@ func (c Codec) Decode(base lwm2m.Path, data []byte, s lwm2m.Schema) ([]lwm2m.Nod
 	}
 	out := make([]lwm2m.Node, 0, len(rs))
 	for _, r := range resolve(rs) {
-		p, err := c.path(r.name)
+		prefix, p, err := c.name(r.name)
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +225,7 @@ func (c Codec) Decode(base lwm2m.Path, data []byte, s lwm2m.Schema) ([]lwm2m.Nod
 				return nil, fmt.Errorf("%w: %v: %v", errSenML, p, err)
 			}
 		}
-		n := lwm2m.Node{Path: p, Value: v}
+		n := lwm2m.Node{Prefix: prefix, Path: p, Value: v}
 		if r.time != 0 {
 			n.Time, n.HasTime = r.time, true
 		}
@@ -234,6 +252,8 @@ func empty(base lwm2m.Path, s lwm2m.Schema) ([]lwm2m.Node, error) {
 // Empty-instance and empty-multiple markers have no SenML record and are
 // left out (an empty pack is the SenML form of an empty read). A TypeNone
 // value is emitted as "v": null in SenML-ETCH (delete) and refused otherwise.
+// A node Prefix goes after RootPath in its name ("/d01/3/0/0", GW §9);
+// nodes of several prefixes need base "/".
 func (c Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
 	var vals []lwm2m.Node
 	for _, n := range nodes {
@@ -253,19 +273,25 @@ func (c Codec) Encode(base lwm2m.Path, nodes []lwm2m.Node) ([]byte, error) {
 	rs := make([]Record, 0, len(vals))
 	bt, btSet := 0.0, false
 	for i, n := range vals {
+		root := c.RootPath
+		if n.Prefix != "" {
+			root += "/" + n.Prefix
+		}
 		var r Record
 		switch {
 		case base.IsRoot():
-			r.Name = c.RootPath + n.Path.String()
+			r.Name = root + n.Path.String()
+		case n.Prefix != vals[0].Prefix:
+			return nil, fmt.Errorf("%w: nodes of several prefixes under %v", errSenML, base)
 		case whole:
 			if i == 0 {
-				r.BaseName = c.RootPath + bs
+				r.BaseName = root + bs
 			}
 		case n.Path == base:
 			return nil, fmt.Errorf("%w: %v has both a value and children", errSenML, base)
 		default:
 			if i == 0 {
-				r.BaseName = c.RootPath + bs + "/"
+				r.BaseName = root + bs + "/"
 			}
 			r.Name = n.Path.String()[len(bs)+1:]
 		}
@@ -315,14 +341,18 @@ func (c Codec) field(v lwm2m.Value) (string, lwm2m.Value, error) {
 // appearance, and sorts by path inside it (stable: a time series of one
 // resource keeps its order).
 func order(ns []lwm2m.Node) []lwm2m.Node {
-	idx := map[lwm2m.Path]int{}
+	type inst struct {
+		prefix string
+		p      lwm2m.Path
+	}
+	idx := map[inst]int{}
 	for _, n := range ns {
-		if _, ok := idx[n.Path.Truncate(2)]; !ok {
-			idx[n.Path.Truncate(2)] = len(idx)
+		if _, ok := idx[inst{n.Prefix, n.Path.Truncate(2)}]; !ok {
+			idx[inst{n.Prefix, n.Path.Truncate(2)}] = len(idx)
 		}
 	}
 	sort.SliceStable(ns, func(i, j int) bool {
-		a, b := idx[ns[i].Path.Truncate(2)], idx[ns[j].Path.Truncate(2)]
+		a, b := idx[inst{ns[i].Prefix, ns[i].Path.Truncate(2)}], idx[inst{ns[j].Prefix, ns[j].Path.Truncate(2)}]
 		if a != b {
 			return a < b
 		}

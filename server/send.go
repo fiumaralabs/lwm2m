@@ -30,6 +30,14 @@ func (s *Server) send(peer Peer, m *Message) reply {
 		return replyCode(codes.BadRequest)
 	}
 	for _, n := range nodes {
+		if n.Prefix != "" {
+			// SEND-03: a gateway's Send may carry objects of its end devices,
+			// which are never registered (GW §8.3.3). Only a gateway has them.
+			if !isGateway(reg) {
+				return replyCode(codes.NotFound)
+			}
+			continue
+		}
 		if !sendTargetRegistered(reg, n.Path) {
 			return replyCode(codes.NotFound) // SEND-02: object (instance) not registered
 		}
