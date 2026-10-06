@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *" # nightly race stress run
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: |
+          out=$(gofmt -l $(git ls-files '*.go' | grep -v '^third_party/'))
+          if [ -n "$out" ]; then echo "unformatted:"; echo "$out"; exit 1; fi
+      - name: vet
+        run: go vet ./...
+      - name: test (race)
+        run: go test -race -count=1 ./...
+      - name: spec coverage
+        run: |
+          go test -count=1 -v -run TestSpecCoverage . | tee coverage.txt
+          grep -q "0 pending" coverage.txt || { echo "requirements still pending"; exit 1; }
+
+  race-stress:
+    # Repeats the concurrency-heavy packages under the race detector to
+    # surface rare races (one was seen once under load and not reproduced).
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race -count=20 ./server ./bootstrap ./fota ./mqttbinding ./compat
