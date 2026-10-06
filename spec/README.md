@@ -30,7 +30,7 @@ When sources disagree, they rank in this order:
 
 **1.2.x has no conformance tables.** Appendix B of 1.2.0–1.2.2 is "voided" (standards-1.2.md §2). Where 1.1.1's tables said M/O, the 1.2.2 **Core text** now governs. Read literally, that text makes Read-, Write- and Observe-Composite mandatory for the Server, and that is the reading we adopt. Where 1.2.x weakened a requirement (security modes became "if supported", CID has no keyword, `<PROPERTIES>` became SHOULD), we still implement the stronger form. Being compliant under both readings is the goal.
 
-The compat REST layer (§4) follows the interop harness's expectations. It is a test adapter and does not change core semantics.
+The Leshan-compatible REST layer (package `leshanapi`) (§4) follows the interop harness's expectations. It is a test adapter and does not change core semantics.
 
 ---
 
@@ -73,7 +73,7 @@ Each row is either **spec** (the spec decides, and the row records the reading) 
 |---|---|---|
 | C1 | **Register ep/identity mismatch code**: spec says 4.00 (REG-06, SEC-06), Leshan uses 4.03. | **4.00** per spec. 4.03 only for "ep not allowed" (policy). Zephyr only branches on success. |
 | C2 *(tolerance)* | **New DTLS session or new address.** Spec: the client re-registers (REG-17). Real clients differ: Zephyr sends an **Update** after re-handshaking; Anjay re-registers; Quectel sends nothing after an IP change. | Look up registrations by **CID, then (DTLS session, authenticated identity), never by address alone.** Accept an Update when the authenticated identity equals the registration's identity, and rebind the address. Otherwise reply 4.04. Note that Wakaama then gives up instead of re-registering, so the native API flags clients that go silent after a 4.04. |
-| C3 | **Queue mode**: the spec says the server holds downlink (QM-02); Leshan's REST returns `{"delayed":true}`, which breaks the interop harness. | The core queues per spec. The **compat REST** blocks until delivered or the request timeout, and never returns `delayed`. The **native API** exposes async queued commands. |
+| C3 | **Queue mode**: the spec says the server holds downlink (QM-02); Leshan's REST returns `{"delayed":true}`, which breaks the interop harness. | The core queues per spec. The **`leshanapi` REST** blocks until delivered or the request timeout, and never returns `delayed`. The **native API** exposes async queued commands. |
 | C4 | **Address change without DTLS** (NoSec): Leshan drops notifications and rejects Send from the new IP:port. | Same, since NoSec is dev-only. Exception: int-105, an unsecured De-register from any peer, is accepted when the endpoint has no security info. |
 | C5 | **Active cancel** (`?active`): Leshan keeps the stored observation after a successful CoAP cancel. | Remove it locally too. The interop tests don't depend on the Leshan behaviour. |
 | C6 | **Bootstrap-Read target** /1 or /2 (C vs T disagree, BS-06). | The BS server issues Bootstrap-Read only on /2 (valid under both readings); it accepts responses for either. Check the 1.2.2 text in standards-1.2.md. |
@@ -99,7 +99,7 @@ Two surfaces, one core.
    - Bootstrap config and security store REST live on :8081.
 2. **Native API**: designed later, not constrained by Leshan. It covers commands (sync, or async/queued), an event stream (registration, update, deregistration, notification, send, command result), and a security/device registry.
 
-The compat layer is a thin adapter over the native core. It is a test fixture first; offering it to users is optional.
+The `leshanapi` layer is a thin adapter over the native core. It is a test fixture first; offering it to users is optional.
 
 ---
 
@@ -262,8 +262,8 @@ A scriptable client built on our own CoAP and codec packages. It drives every ET
 | **M0c** | Codecs: **all** content formats incl. **LwM2M CBOR (11544) and SenML-ETCH (320/322)**, plus link-format, paths, attributes (incl. edge/con/hqmax). Object model loader (registry plus version_history plus runtime objects). | **All vectors** incl. `spec-examples.json` pass |
 | **M1** | DTLS 1.2 via pion/dtls: **PSK, RPK, X.509** suites per SEC-04/09/10, **server-assigned CID**, identity lookup, SNI, resumption, session store interface. Real Zephyr device on cellular in week 1 for CID plus NAT rebind. | Real-device handshake; rebind survives; RPK/X.509 handshakes vs reference clients |
 | **M2** | Registration incl. **Profile ID**, all binding syntaxes 1.0–1.2, expiry, ep↔identity binding (all modes), NoSec rules, registry store. | REG-*, PROF-*, SEC-06/07; int-101, int-105 |
-| **M2b** | Bootstrap server: Request, Write, Delete, Discover, Read, Finish, **Bootstrap-Pack-Request**, server-initiated, all security modes, compat bootstrap REST. | BS-*; int-0, 1, 4, 5, 6, 7 |
-| **M3** | All DM ops incl. Discover `depth` + compat REST + response mapping. | DM-*; int-102..104, 107, 201–228, 237, 241, 256, 1630, 1635 |
+| **M2b** | Bootstrap server: Request, Write, Delete, Discover, Read, Finish, **Bootstrap-Pack-Request**, server-initiated, all security modes, `leshanapi` bootstrap REST. | BS-*; int-0, 1, 4, 5, 6, 7 |
+| **M3** | All DM ops incl. Discover `depth` + `leshanapi` REST + response mapping. | DM-*; int-102..104, 107, 201–228, 237, 241, 256, 1630, 1635 |
 | **M4** | Observe + all attributes (incl. edge/con/hqmax, **attributes in the Observe request**) + events. | ATT-*, OBS-*; int-260, 261, 301–303, 312/313, att-* |
 | **M5** | Composite ops (SenML and ETCH, LwM2M CBOR) + Send. | DM-12, OBS-05, SEND-*; int-229..236, 257, 280, 281, 304–311 |
 | **M6** | Queue mode with real queue + hqmax-aware delivery + native async API. | QM-*; int-108, 109 |

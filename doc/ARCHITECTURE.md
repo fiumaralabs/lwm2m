@@ -27,7 +27,7 @@ transport/lorawan     LoRaWAN binding (T §6.8.4)
 security/oscore       OSCORE (RFC 8613) protocol: contexts, protect/unprotect, Echo
 security/est          EST over CoAPs (RFC 9148)
 security/cose         COSE_Encrypt0 (RFC 9052)
-security/dtls         extra DTLS cipher suites for pion (was dtlssuite)
+security/dtls         DTLS 1.2 pieces pion lacks: CBC suite, RPK credentials, cert checks (was dtlssuite)
 
 bootstrap             Bootstrap-Server, with its own CoAP adapter (see below)
 gateway               LwM2M Gateway (/25, /26)
@@ -48,12 +48,13 @@ interop/...           interop suites against real clients (build tag interop)
 Package names are the last path element (`coap`, `mqtt`, `http`, `sms`,
 `nidd`, `lorawan`, `oscore`, `est`, `cose`, `dtls`), as in go-kit's
 `transport/http`. Inside `transport/http` net/http is imported as
-`nethttp`; callers that need both alias one of them.
+`nethttp`, and inside `transport/mqtt` the Paho client as `paho`; callers
+that need both a binding and the package it shadows alias one of them.
 
 ## Decisions
 
-**The core is binding-neutral.** `server` imports no network listener,
-no pion and no go-coap server code. It still uses go-coap's `codes.Code`
+**The core is binding-neutral.** `server` opens no listener and imports
+neither pion/dtls nor go-coap's connection packages. It still uses go-coap's `codes.Code`
 in `Message`: CoAP numbering is the vocabulary of every LwM2M binding
 (MQTT and HTTP map onto it too). Every transport reaches the core through
 the same exported API:
@@ -79,7 +80,7 @@ Splitting the CoAP adapters out needed three more, added deliberately:
   timeout from it, so tests with a fake clock keep working.
 
 **`transport/coap` holds every go-coap adapter of the Server**, created
-with `coap.New(srv, coap.Config{})`: `ListenUDP`, `ListenDTLS`,
+with `coap.New(srv)`: `ListenUDP`, `ListenDTLS`,
 `DTLSConfig(CertificateModes)`, `ListenTCP`, `ListenTLS`,
 `WebSocketHandler`, `EnableOSCORE` and `Close`. Its state (per-connection
 peers, deferred `after`s, Block1 reassembly, held connections, the OSCORE
@@ -118,3 +119,17 @@ moved to `transport/coap`. The core tests stay in `server/` but run as
 the external package `server_test`, because they drive the core through
 `transport/coap`, which imports `server`; `server/export_test.go` exposes
 the few internals they check. `// Proves:` claims move with their tests.
+
+## Moved APIs
+
+| Before | After |
+|---|---|
+| `mqttbinding`, `httpbinding`, `smsbinding`, `niddbinding`, `lorawanbinding` | `transport/mqtt`, `transport/http`, `transport/sms`, `transport/nidd`, `transport/lorawan` |
+| `oscore`, `est`, `cose`, `dtlssuite` | `security/oscore`, `security/est`, `security/cose`, `security/dtls` |
+| `compat` | `leshanapi` |
+| `regparam` | `internal/regparam` (no longer public) |
+| `srv.ListenUDP`, `ListenDTLS`, `ListenTCP`, `ListenTLS`, `WebSocketHandler`, `DTLSConfig(m)`, `EnableOSCORE` | the same methods on `coap.New(srv)` |
+| `server.DTLSConfig`, `CertificateModes`, `OSCORE`, `CoAPWire`, `OSCOREIdentity`, `ErrDuplicateOSCORERecipient` | `coap.` the same names |
+| `server.IdentityOf`, `BlockSZX`, `CoAPMessage`, `MessageFromCoAP` | `coap.` the same names |
+| `server.DTLSExtensions`, `TLS13Feature` and its constants, `SupportedTLS13Features`, `CheckTLS13Features` | `coap.` the same names |
+| `srv.Close()` stopped listeners | `cb.Close()` stops them; then `srv.Close()` |

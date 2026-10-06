@@ -270,7 +270,7 @@ Restart the LwM2M client without rebooting the modem or board. On B:
 
 After the device logs that its RX window closed (B: state
 `ENGINE_REGISTRATION_DONE_RX_OFF`; A: `LwM2M queue mode RX window closed`
-or similar), the REST call below blocks. compat never answers "delayed";
+or similar), the REST call below blocks. leshanapi never answers "delayed";
 it waits for the device:
 
 ```sh

@@ -83,9 +83,9 @@ Server bugs the suite found, all fixed with Go regression tests:
 
 | Symptom in the suite | Root cause | Fix |
 |---|---|---|
-| int-109 never sees `Queue mode RX window closed`; every request after an idle period fails with `cannot write to connection: EOF` | go-coap's default inactivity monitor closes a UDP/DTLS conn after 16 s of silence, which drops the DTLS session and CID of a registered client | `server/keepconn.go`: conns that carry a live registration are never closed for inactivity |
-| `test_blockwise_1..3`: write to `/5/0/0` and `/19/0/0/0` times out at 93 s | downlink Block1 used 1024-byte blocks (a 1087-byte DTLS+CID datagram). The DUT has 8×128 B of RX net buffers and drops it silently | 512-byte blocks (SZX 5, Californium's default) on every listener, `server.BlockSZX` |
-| `test_blockwise_4`: 4 KiB Send gets 4.00 | go-coap reassembles Block1 by token; Zephyr uses a new token per block (allowed by RFC 7959), so only the last block reached the Send handler | `server/block1.go`: Block1 reassembly keyed by conn, method, Uri-Path and Request-Tag |
+| int-109 never sees `Queue mode RX window closed`; every request after an idle period fails with `cannot write to connection: EOF` | go-coap's default inactivity monitor closes a UDP/DTLS conn after 16 s of silence, which drops the DTLS session and CID of a registered client | `transport/coap/keepconn.go`: conns that carry a live registration are never closed for inactivity |
+| `test_blockwise_1..3`: write to `/5/0/0` and `/19/0/0/0` times out at 93 s | downlink Block1 used 1024-byte blocks (a 1087-byte DTLS+CID datagram). The DUT has 8×128 B of RX net buffers and drops it silently | 512-byte blocks (SZX 5, Californium's default) on every listener, `coap.BlockSZX` |
+| `test_blockwise_4`: 4 KiB Send gets 4.00 | go-coap reassembles Block1 by token; Zephyr uses a new token per block (allowed by RFC 7959), so only the last block reached the Send handler | `transport/coap/block1.go`: Block1 reassembly keyed by conn, method, Uri-Path and Request-Tag |
 
 Harness issues, not server issues:
 

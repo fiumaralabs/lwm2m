@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test -race -count=20 ./server ./bootstrap ./fota ./mqttbinding ./compat
+      - run: go test -race -count=20 ./server ./transport/coap ./bootstrap ./fota ./transport/mqtt ./leshanapi
 
   consumer:
     # Builds a throwaway module that requires this commit, importing every

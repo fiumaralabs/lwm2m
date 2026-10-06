@@ -25,8 +25,8 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
 
 - pion/dtls `main` is module `github.com/pion/dtls/v4` (tags `v4.0.0-rc.1` to `rc.3`, no stable release yet), so every branch here targets v4. Our fork, `lwm2m-v3` / `v3.1.11-lwm2m.1`, is v3, and so are pion/webrtc and go-coap (go-coap `main` still requires `pion/dtls/v3`).
 - If the patches land only in v4, we drop the fork by moving to `pion/dtls/v4`:
-  - **No `Config` struct in v4.** `dtls.Client`, `Server` and `Listen` take functional options (`ClientOption`, `ServerOption`). `server/dtls_config.go`, `server.go`/`bootstrap/server.go` (`DTLSConfig.Config *piondtls.Config` is public API), `testclient` and the tests all build `*piondtls.Config` today, so this is an API change for our users too.
-  - **`Listen` changed.** It now takes a `net.PacketConn` (`ListenAddr` for an address). `ConnectionState` and `SessionStore` still exist, so `server/identity.go` and `dtls_session.go` mostly carry over.
+  - **No `Config` struct in v4.** `dtls.Client`, `Server` and `Listen` take functional options (`ClientOption`, `ServerOption`). `transport/coap/dtls_config.go`, `transport/coap/coap.go`/`bootstrap/server.go` (`DTLSConfig.Config *piondtls.Config` is public API), `testclient` and the tests all build `*piondtls.Config` today, so this is an API change for our users too.
+  - **`Listen` changed.** It now takes a `net.PacketConn` (`ListenAddr` for an address). `ConnectionState` and `SessionStore` still exist, so `transport/coap/coap.go` (`IdentityOf`) and `transport/coap/dtls_session.go` mostly carry over.
   - **go-coap needs no fork.** `internal/dtlscoap` only uses go-coap's exported session and conn constructors, so it can wrap `pion/dtls/v4` the same way it wraps the fork today. Only that package's imports and `Listen`/`Dial` change.
   - **RPK is 1.2-only on the v4 branch.** LwM2M 1.2 uses DTLS 1.2, so that is enough for us.
 - If maintainers also take v3 backports (their README says DTLS 1.2 fixes go to `v3`), we can go back to upstream `pion/dtls/v3` with nothing to rewrite beyond the import path. That is the cheaper path for us, so ask for it.

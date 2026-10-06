@@ -17,21 +17,24 @@ The spec is fully implemented when `coverage-pending.txt` is empty. After adding
 
 ## Packages
 
+The layout and the reasons behind it are in [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md).
+
 | Package | What it is |
 |---|---|
 | `lwm2m` (root) | Paths, typed values, nodes, content formats |
 | `codec/...` | Every data format: text, opaque, TLV, CBOR, SenML JSON/CBOR, SenML-ETCH, OMA JSON, LwM2M CBOR (`codec/all` registers them) |
-| `link`, `attr`, `regparam` | CoRE link-format, notification attributes, Register/Update parameters |
+| `link`, `attr` | CoRE link-format, notification attributes |
 | `model` | OMA object registry (embedded objects 0–28 with version history), version resolution, validation |
-| `server` | LwM2M Server: Registration, Device Management, Information Reporting, queue mode, Send; CoAP over UDP, DTLS (PSK, RPK, X.509, CID), TCP/TLS, WebSockets; OSCORE |
+| `acl` | Access Control (/2) model |
+| `server` | LwM2M Server core, binding-neutral: Registration, Device Management, Information Reporting, queue mode, Send |
+| `transport/coap` | CoAP bindings for the Server: UDP, DTLS (PSK, RPK, X.509, CID), TCP/TLS, WebSockets; OSCORE |
+| `transport/mqtt`, `transport/http` | LwM2M over MQTT (M) and HTTP (H) |
+| `transport/sms`, `transport/nidd`, `transport/lorawan` | LwM2M over SMS (S), Non-IP/NIDD (N) and LoRaWAN |
+| `security/oscore`, `security/est`, `security/cose`, `security/dtls` | OSCORE (RFC 8613), EST over CoAPs (RFC 9148), COSE_Encrypt0, DTLS suites and checks pion lacks |
 | `bootstrap` | Bootstrap-Server: Bootstrap-Request, Pack-Request, server-initiated bootstrap |
-| `mqttbinding`, `httpbinding` | LwM2M over MQTT (M) and HTTP (H) |
-| `smsbinding`, `niddbinding`, `lorawanbinding` | LwM2M over SMS (S), Non-IP/NIDD (N) and LoRaWAN |
 | `gateway` | LwM2M Gateway (/25, /26): end devices behind a gateway |
 | `fota` | Firmware update orchestration (push and pull) and a block-wise file server |
-| `acl` | Access Control (/2) model |
-| `oscore`, `est`, `cose` | OSCORE (RFC 8613), EST over CoAPs (RFC 9148), COSE_Encrypt0 |
-| `compat` | Leshan-compatible REST API, so the Zephyr interop suite runs unchanged |
+| `leshanapi` | Leshan-compatible REST API, so the Zephyr interop suite runs unchanged |
 | `testclient` | Scriptable reference LwM2M client used to prove server behaviour |
 | `cmd/lwm2md` | Server binary |
 
@@ -40,8 +43,9 @@ The spec is fully implemented when `coverage-pending.txt` is empty. After adding
 ```go
 models := server.NewModels(model.Default())
 srv := server.New(server.Config{Schema: models.Schema, Validator: models})
-srv.ListenUDP(":5683")
-srv.ListenDTLS(":5684", server.DTLSConfig{})
+cb := coap.New(srv) // transport/coap
+cb.ListenUDP(":5683")
+cb.ListenDTLS(":5684", coap.DTLSConfig{})
 resp, err := srv.Read(ctx, "urn:imei:123", lwm2m.MustParsePath("/3/0"), server.ReadOptions{})
 ```
 
