@@ -237,9 +237,10 @@ func (s *Server) handleNotification(_ Peer, m *Message) {
 	}
 }
 
-// knownObservation reports whether a token belongs to an active
-// observation; the CoAP binding Resets notifications for others (OBS-02).
-func (s *Server) knownObservation(tok []byte) bool {
+// KnownObservation reports whether a token belongs to an active
+// observation. Bindings answer notifications for other tokens with their
+// cancel mechanism: Reset over CoAP/UDP, Cancel-Observe over MQTT (OBS-02).
+func (s *Server) KnownObservation(tok []byte) bool {
 	_, ok := s.obs.get(tok)
 	return ok
 }

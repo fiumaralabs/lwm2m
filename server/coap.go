@@ -195,7 +195,7 @@ func isResponseCode(c codes.Code) bool { return c >= 64 && c < 192 }
 // handler's deferred actions (GEN-10).
 func (s *Server) processUDP(req *pool.Message, cc *client.Conn, handler config.HandlerFunc[*client.Conn]) {
 	if isResponseCode(req.Code()) && req.HasOption(message.Observe) && len(req.Token()) > 0 &&
-		!s.knownObservation(req.Token()) && (req.Type() == message.Confirmable || req.Type() == message.NonConfirmable) {
+		!s.KnownObservation(req.Token()) && (req.Type() == message.Confirmable || req.Type() == message.NonConfirmable) {
 		rst := cc.AcquireMessage(cc.Context())
 		rst.SetType(message.Reset)
 		rst.SetCode(codes.Empty)
