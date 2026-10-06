@@ -3,9 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -34,41 +32,35 @@ import (
 // of the replay window. A Register is always the first request of a new
 // context, so it always goes through Echo.
 type OSCORE struct {
-	s *Server
-	// EchoLifetime is how long an Echo value proves freshness (RFC 9175
-	// §2.3). Default 60 s.
-	EchoLifetime time.Duration
+	*oscore.Responder // contexts, Echo freshness, Appendix B.2 (shared with the Bootstrap-Server)
+	s                 *Server
 
 	mu    sync.Mutex
-	byRID map[string][]*oscoreEntry // hex Recipient ID
-	byEP  map[string]*oscoreEntry
 	obs   map[string]*oscoreObs // token of an Observe registration
 	peers sync.Map              // oscorePeerKey -> *oscorePeer
 }
 
-type oscoreEntry struct {
-	ep  string
-	ctx *oscore.Context
-
-	mu     sync.Mutex
-	fresh  bool
-	echo   []byte
-	echoAt time.Time
-}
-
 type oscoreObs struct {
-	e *oscoreEntry
+	e *oscore.Entry
 	x *oscore.Exchange
 }
 
 // oscoreAddrPrefix marks the Identity of an OSCORE-only peer (see
-// oscorePeer.Identity).
+// OSCOREIdentity).
 const oscoreAddrPrefix = "oscore:"
+
+// OSCOREIdentity is the Identity of a peer authenticated only by OSCORE:
+// a NoSec identity that is stable across addresses and unique per context
+// (ID Context and Recipient ID of the provisioned parameters p).
+// ponytail: carried as NoSec + Addr until Identity has an OSCORE mode.
+func OSCOREIdentity(p oscore.Params) Identity {
+	return Identity{Mode: ModeNoSec, Addr: oscoreAddrPrefix + hex.EncodeToString(p.IDContext) + "/" + hex.EncodeToString(p.RecipientID)}
+}
 
 // EnableOSCORE turns the OSCORE layer on and returns it. Calling it again
 // returns the same layer.
 func (s *Server) EnableOSCORE() *OSCORE {
-	o := &OSCORE{s: s, EchoLifetime: time.Minute, byRID: map[string][]*oscoreEntry{}, byEP: map[string]*oscoreEntry{}, obs: map[string]*oscoreObs{}}
+	o := &OSCORE{Responder: &oscore.Responder{EchoLifetime: time.Minute, Now: s.cfg.Now}, s: s, obs: map[string]*oscoreObs{}}
 	if !s.coap.oscore.CompareAndSwap(nil, o) {
 		return s.coap.oscore.Load()
 	}
@@ -77,7 +69,7 @@ func (s *Server) EnableOSCORE() *OSCORE {
 
 // ErrDuplicateOSCORERecipient is returned when another endpoint already
 // uses the same Recipient ID and ID Context (RFC 8613 §3.3).
-var ErrDuplicateOSCORERecipient = errors.New("server: OSCORE Recipient ID already used by another endpoint")
+var ErrDuplicateOSCORERecipient = oscore.ErrDuplicateRecipient
 
 // Put adds or replaces the OSCORE context of endpoint ep. p is the server's
 // view: its Sender ID is the client's Recipient ID (/21/x/2) and its
@@ -89,81 +81,20 @@ func (o *OSCORE) Put(ep string, p oscore.Params) error {
 	if ep == "" {
 		ep = string(p.RecipientID)
 	}
-	c, err := oscore.New(p)
-	if err != nil {
-		return err
-	}
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	rid := hex.EncodeToString(p.RecipientID)
-	for _, e := range o.byRID[rid] {
-		if e.ep != ep && bytes.Equal(e.ctx.Params().IDContext, p.IDContext) {
-			return ErrDuplicateOSCORERecipient
-		}
-	}
-	o.removeLocked(ep)
-	e := &oscoreEntry{ep: ep, ctx: c}
-	o.byEP[ep] = e
-	o.byRID[rid] = append(o.byRID[rid], e)
-	return nil
-}
-
-// Remove deletes the context of ep.
-func (o *OSCORE) Remove(ep string) bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.removeLocked(ep)
-}
-
-func (o *OSCORE) removeLocked(ep string) bool {
-	old, ok := o.byEP[ep]
-	if !ok {
-		return false
-	}
-	delete(o.byEP, ep)
-	rid := hex.EncodeToString(old.ctx.Params().RecipientID)
-	l := o.byRID[rid][:0]
-	for _, e := range o.byRID[rid] {
-		if e != old {
-			l = append(l, e)
-		}
-	}
-	if len(l) == 0 {
-		delete(o.byRID, rid)
-	} else {
-		o.byRID[rid] = l
-	}
-	return true
+	return o.Responder.Put(ep, p)
 }
 
 // Context returns the security context of ep.
 func (o *OSCORE) Context(ep string) (*oscore.Context, bool) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	e, ok := o.byEP[ep]
+	e, ok := o.Get(ep)
 	if !ok {
 		return nil, false
 	}
-	return e.ctx, true
-}
-
-// candidates are the contexts matching a request's kid (and kid context).
-func (o *OSCORE) candidates(h oscore.Header) []*oscoreEntry {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	var out []*oscoreEntry
-	for _, e := range o.byRID[hex.EncodeToString(h.KID)] {
-		if h.KIDContext == nil || bytes.Equal(h.KIDContext, e.ctx.Params().IDContext) {
-			out = append(out, e)
-		}
-	}
-	return out
+	return e.Context(), true
 }
 
 func (o *OSCORE) bound(ep string) bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	_, ok := o.byEP[ep]
+	_, ok := o.Get(ep)
 	return ok
 }
 
@@ -220,69 +151,38 @@ func (o *OSCORE) guardPlain(w mux.ResponseWriter, m *mux.Message) bool {
 	return true
 }
 
-// plainError sends an unprotected OSCORE error (RFC 8613 §8.2) with Outer
-// Max-Age 0 so intermediaries do not cache it (§4.1.3.1).
+// plainError sends an unprotected OSCORE error (RFC 8613 §8.2).
 func plainError(w mux.ResponseWriter, code codes.Code, diag string) {
-	var body io.ReadSeeker
-	if diag != "" {
-		body = strings.NewReader(diag)
-	}
-	_ = w.SetResponse(code, message.TextPlain, body)
-	w.Message().Remove(message.ContentFormat)
-	w.Message().SetOptionUint32(message.MaxAge, 0)
+	writeCoAP(w, oscore.PlainError(code, diag))
 }
 
-// request verifies an OSCORE request (RFC 8613 §8.2), applies freshness
-// and the endpoint binding, runs it through the LwM2M core and protects
-// the response (§8.3).
+// writeCoAP sends m as the response, its options replacing go-coap's.
+func writeCoAP(w mux.ResponseWriter, m message.Message) {
+	var body io.ReadSeeker
+	if len(m.Payload) > 0 {
+		body = bytes.NewReader(m.Payload)
+	}
+	_ = w.SetResponse(m.Code, message.TextPlain, body)
+	w.Message().ResetOptionsTo(m.Options)
+}
+
+// request verifies an OSCORE request (RFC 8613 §8.2) with freshness
+// (OSC-04), applies the endpoint binding, runs it through the LwM2M core
+// and protects the response (§8.3).
 func (o *OSCORE) request(w mux.ResponseWriter, m *mux.Message, cc coapConn, in message.Message) {
-	v, _ := m.Options().GetBytes(oscore.OptionOSCORE)
-	h, err := oscore.ParseHeader(v)
-	if err != nil || h.KID == nil {
-		plainError(w, codes.BadOption, "Failed to decode COSE")
+	q, reply := o.Verify(in)
+	if q == nil {
+		writeCoAP(w, reply)
 		return
 	}
-	var e *oscoreEntry
-	var inner message.Message
-	var x *oscore.Exchange
-	err = oscore.ErrNoContext
-	for _, c := range o.candidates(h) {
-		if inner, x, err = c.ctx.UnprotectRequest(in); err == nil {
-			e = c
-			break
-		}
-		if !errors.Is(err, oscore.ErrDecrypt) {
-			break
-		}
-	}
-	switch {
-	case errors.Is(err, oscore.ErrNoContext):
-		plainError(w, codes.Unauthorized, "Security context not found")
-		return
-	case errors.Is(err, oscore.ErrReplay):
-		plainError(w, codes.Unauthorized, "Replay detected")
-		return
-	case errors.Is(err, oscore.ErrDecrypt):
-		plainError(w, codes.BadRequest, "Decryption failed")
-		return
-	case err != nil:
-		plainError(w, codes.BadOption, "Failed to decode COSE")
-		return
-	}
-	if echo, fresh := o.fresh(e, inner, x); !fresh {
-		// OSC-04, Appendix B.1.2: protected 4.01 with only Echo, with the
-		// server's own Partial IV.
-		o.respond(w, e, x, message.Message{Code: codes.Unauthorized, Options: message.Options{{ID: oscore.OptionEcho, Value: echo}}}, true)
-		return
-	}
-	msg, err := poolFromMessage(m.Message, inner)
+	msg, err := poolFromMessage(m.Message, q.Inner)
 	if err != nil {
 		plainError(w, codes.BadRequest, "")
 		return
 	}
-	peer := o.peer(cc, e)
-	if code := o.bind(msg, e, peer); code != 0 {
-		o.respond(w, e, x, message.Message{Code: code}, false)
+	peer := o.peer(cc, q.Entry)
+	if code := o.bind(msg, q.Entry, peer); code != 0 {
+		o.respond(w, q, message.Message{Code: code})
 		return
 	}
 	resp, after := o.s.HandleUplink(peer, msg)
@@ -290,50 +190,28 @@ func (o *OSCORE) request(w mux.ResponseWriter, m *mux.Message, cc coapConn, in m
 	if resp == nil {
 		resp = status(codes.Changed)
 	}
-	o.respond(w, e, x, toCoAPMessage(resp), false)
-}
-
-// fresh reports whether the context has proven freshness since it was
-// added; otherwise it checks the request's Echo against the one sent, and
-// returns a new Echo value to send when that fails.
-func (o *OSCORE) fresh(e *oscoreEntry, inner message.Message, x *oscore.Exchange) ([]byte, bool) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.fresh {
-		return nil, true
-	}
-	now := o.s.cfg.Now()
-	if got, err := inner.Options.GetBytes(oscore.OptionEcho); err == nil && e.echo != nil &&
-		bytes.Equal(got, e.echo) && !now.After(e.echoAt.Add(o.EchoLifetime)) {
-		e.fresh, e.echo = true, nil
-		e.ctx.ResetReplayWindow(x.RequestPIV())
-		return nil, true
-	}
-	e.echo = make([]byte, 8)
-	_, _ = rand.Read(e.echo)
-	e.echoAt = now
-	return e.echo, false
+	o.respond(w, q, toCoAPMessage(resp))
 }
 
 // bind enforces the endpoint ↔ Sender ID binding (OSC-05, SEC-15): a
 // Register's ep must be the context's endpoint (4.00 otherwise) and is
 // filled in when omitted; requests on a registration must come from the
 // context that registered it.
-func (o *OSCORE) bind(msg *Message, e *oscoreEntry, peer Peer) codes.Code {
+func (o *OSCORE) bind(msg *Message, e *oscore.Entry, peer Peer) codes.Code {
 	seg := msg.segments()
 	switch {
 	case len(seg) == 1 && seg[0] == "rd" && msg.Code == codes.POST:
 		found := false
 		for _, q := range msg.Query {
 			if v, ok := strings.CutPrefix(q, "ep="); ok {
-				if v != e.ep {
+				if v != e.Name {
 					return codes.BadRequest
 				}
 				found = true
 			}
 		}
 		if !found {
-			msg.Query = append(msg.Query, "ep="+e.ep)
+			msg.Query = append(msg.Query, "ep="+e.Name)
 		}
 	case len(seg) == 2 && seg[0] == "rd":
 		if reg, ok := o.s.store.ByID(seg[1]); ok && !reg.Identity.Equal(peer.Identity()) {
@@ -343,18 +221,13 @@ func (o *OSCORE) bind(msg *Message, e *oscoreEntry, peer Peer) codes.Code {
 	return 0
 }
 
-func (o *OSCORE) respond(w mux.ResponseWriter, e *oscoreEntry, x *oscore.Exchange, rm message.Message, newPIV bool) {
-	prot, err := e.ctx.ProtectResponse(rm, x, newPIV)
+func (o *OSCORE) respond(w mux.ResponseWriter, q *oscore.Request, rm message.Message) {
+	prot, err := q.Protect(rm)
 	if err != nil {
 		plainError(w, codes.InternalServerError, "")
 		return
 	}
-	var body io.ReadSeeker
-	if len(prot.Payload) > 0 {
-		body = bytes.NewReader(prot.Payload)
-	}
-	_ = w.SetResponse(prot.Code, message.TextPlain, body)
-	w.Message().ResetOptionsTo(prot.Options)
+	writeCoAP(w, prot)
 }
 
 // notification verifies a protected notification (RFC 8613 §8.4, §7.4.1)
@@ -374,7 +247,7 @@ func (o *OSCORE) notification(m *mux.Message, cc coapConn, in message.Message) {
 		o.mu.Unlock()
 		return
 	}
-	inner, err := b.e.ctx.UnprotectResponse(in, b.x)
+	inner, err := b.e.Context().UnprotectResponse(in, b.x)
 	if err != nil {
 		return
 	}
@@ -388,7 +261,7 @@ func (o *OSCORE) notification(m *mux.Message, cc coapConn, in message.Message) {
 
 // bindObservation keeps the request binding of an Observe registration
 // for its notifications (RFC 8613 §8) and forgets ended observations.
-func (o *OSCORE) bindObservation(tok []byte, e *oscoreEntry, x *oscore.Exchange) {
+func (o *OSCORE) bindObservation(tok []byte, e *oscore.Entry, x *oscore.Exchange) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	// ponytail: O(n) sweep per Observe registration; index by registration if fleets observe heavily.
@@ -402,10 +275,10 @@ func (o *OSCORE) bindObservation(tok []byte, e *oscoreEntry, x *oscore.Exchange)
 
 type oscorePeerKey struct {
 	cc coapConn
-	e  *oscoreEntry
+	e  *oscore.Entry
 }
 
-func (o *OSCORE) peer(cc coapConn, e *oscoreEntry) *oscorePeer {
+func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
 	k := oscorePeerKey{cc, e}
 	if p, ok := o.peers.Load(k); ok {
 		return p.(*oscorePeer)
@@ -426,100 +299,72 @@ type oscorePeer struct {
 	base Peer
 	cc   coapConn
 	o    *OSCORE
-	e    *oscoreEntry
+	e    *oscore.Entry
 }
 
 // Identity is the (D)TLS identity when the transport authenticated one
-// (OSCORE over DTLS, OSC-08), else the OSCORE context: a NoSec identity
-// that is stable across addresses and unique per context.
-// ponytail: carried as NoSec + Addr until Identity has an OSCORE mode.
+// (OSCORE over DTLS, OSC-08), else the OSCORE context's (OSCOREIdentity).
 func (p *oscorePeer) Identity() Identity {
 	if id := p.base.Identity(); id.Secure() {
 		return id
 	}
-	c := p.e.ctx.Params()
-	return Identity{Mode: ModeNoSec, Addr: oscoreAddrPrefix + hex.EncodeToString(c.IDContext) + "/" + hex.EncodeToString(c.RecipientID)}
+	return OSCOREIdentity(p.e.Params())
 }
 
 func (p *oscorePeer) RemoteAddr() net.Addr { return p.base.RemoteAddr() }
 func (p *oscorePeer) Binding() string      { return p.base.Binding() }
 
 // Exchange protects a request to the client (RFC 8613 §8.1) and verifies
-// its response (§8.4). A protected 4.01 with Echo (the client requires
-// freshness, RFC 9175 §2.3, OSC-04) is retried once with that Echo. An
-// unprotected error (the client's OSCORE layer refused it) is returned
-// as is.
+// its response (§8.4), with one Echo retry (oscore.RoundTrip, OSC-04).
 func (p *oscorePeer) Exchange(ctx context.Context, req *Message) (*Message, error) {
-	pm := p.cc.AcquireMessage(ctx)
-	defer p.cc.ReleaseMessage(pm)
-	if err := toPool(pm, req); err != nil {
-		return nil, err
-	}
-	pm.SetType(message.Confirmable)
-	plain, err := poolToMessage(pm)
+	plain, err := CoAPMessage(req)
 	if err != nil {
 		return nil, err
 	}
-	for attempt := 0; ; attempt++ {
-		prot, x, err := p.e.ctx.ProtectRequest(plain)
-		if err != nil {
-			return nil, err
-		}
+	inner, err := oscore.RoundTrip(p.e.Context(), plain, func(prot message.Message, x *oscore.Exchange) (message.Message, error) {
 		if x.Observe() {
 			p.o.bindObservation(prot.Token, p.e, x)
 		}
-		pm.SetMessageID(-1)
-		pm.ResetOptionsTo(prot.Options)
-		pm.SetCode(prot.Code)
-		pm.SetBody(bytes.NewReader(prot.Payload))
+		pm := p.cc.AcquireMessage(ctx)
+		defer p.cc.ReleaseMessage(pm)
+		prot.MessageID, prot.Type = -1, message.Confirmable
+		pm.SetMessage(prot)
 		res, err := p.cc.Do(pm)
 		if err != nil {
-			return nil, err
+			return message.Message{}, err
 		}
-		if !res.HasOption(oscore.OptionOSCORE) {
-			out, err := fromPool(res)
-			p.cc.ReleaseMessage(res)
-			return out, err
-		}
-		rm, err := poolToMessage(res)
-		if err != nil {
-			p.cc.ReleaseMessage(res)
-			return nil, err
-		}
-		inner, err := p.e.ctx.UnprotectResponse(rm, x)
-		if err != nil {
-			p.cc.ReleaseMessage(res)
-			return nil, fmt.Errorf("server: OSCORE response: %w", err)
-		}
-		if echo, e := inner.Options.GetBytes(oscore.OptionEcho); e == nil && inner.Code == codes.Unauthorized && attempt == 0 {
-			p.cc.ReleaseMessage(res)
-			plain.Options = setOption(plain.Options, message.Option{ID: oscore.OptionEcho, Value: echo})
-			continue
-		}
-		out, err := poolFromMessage(res, inner)
-		p.cc.ReleaseMessage(res)
-		return out, err
+		defer p.cc.ReleaseMessage(res)
+		return poolToMessage(res)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("server: OSCORE: %w", err)
 	}
+	return MessageFromCoAP(inner)
 }
 
-// setOption replaces or inserts opt, keeping options sorted.
-func setOption(opts message.Options, opt message.Option) message.Options {
-	out := message.Options{}
-	done := false
-	for _, o := range opts {
-		if o.ID == opt.ID {
-			continue
-		}
-		if !done && o.ID > opt.ID {
-			out = append(out, opt)
-			done = true
-		}
-		out = append(out, o)
+// CoAPMessage renders a Message as a plain CoAP message (a token is
+// generated when it has none), e.g. to protect it with OSCORE on another
+// binding.
+func CoAPMessage(m *Message) (message.Message, error) {
+	pm := pool.NewMessage(context.Background())
+	if err := toPool(pm, m); err != nil {
+		return message.Message{}, err
 	}
-	if !done {
-		out = append(out, opt)
+	if len(m.Token) == 0 {
+		tok, err := message.GetToken()
+		if err != nil {
+			return message.Message{}, err
+		}
+		pm.SetToken(tok)
 	}
-	return out
+	return poolToMessage(pm)
+}
+
+// MessageFromCoAP is the inverse of CoAPMessage.
+func MessageFromCoAP(m message.Message) (*Message, error) {
+	pm := pool.NewMessage(context.Background())
+	pm.SetToken(m.Token)
+	return poolFromMessage(pm, m)
 }
 
 // poolToMessage copies a go-coap pool message into a plain message.

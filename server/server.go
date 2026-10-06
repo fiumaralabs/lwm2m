@@ -53,6 +53,10 @@ type Config struct {
 	// Validator, if set, checks writes and creates against the client's
 	// model before they are sent (DM-06, DM-09).
 	Validator Validator
+	// OnQueued, if set, is called when a request has to wait for a sleeping
+	// queue-mode client, so the application can wake it (e.g. an SMS
+	// trigger, T §6.6). It must not block.
+	OnQueued func(*Registration)
 	// Now is the clock; tests replace it.
 	Now func() time.Time
 }

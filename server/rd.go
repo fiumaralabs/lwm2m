@@ -132,6 +132,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		SMS:            sms,
 		ProfileIDs:     pids,
 		Objects:        objs,
+		RawLinks:       string(payload),
 		RootPath:       root,
 		ContentFormats: cfs,
 		Identity:       id,
@@ -166,7 +167,7 @@ func (s *Server) authorizeEndpoint(ep string, id Identity) (string, codes.Code) 
 	}
 	si, has := s.security.ByEndpoint(ep)
 	if id.Secure() {
-		if !has || !si.matches(id) {
+		if !has || !si.Matches(id) {
 			return "", codes.BadRequest // SEC-06: ep does not match the authenticated identity
 		}
 	} else if has {
@@ -256,6 +257,7 @@ func (s *Server) update(peerConn Peer, m *Message, reg *Registration) reply {
 	}
 	if newList {
 		r.Objects = objs // REG-15: a list replaces, it is not a delta
+		r.RawLinks = string(payload)
 		r.RootPath = root
 		r.ContentFormats = cfs
 	}

@@ -53,8 +53,9 @@ func (a Identity) Equal(b Identity) bool {
 // Secure reports whether the identity was authenticated by (D)TLS.
 func (a Identity) Secure() bool { return a.Mode != ModeNoSec }
 
-// identityOf extracts the authenticated identity of a connection.
-func identityOf(nc net.Conn, remote net.Addr) Identity {
+// IdentityOf extracts the authenticated identity of a (D)TLS or plain UDP
+// connection. Bindings and the Bootstrap-Server share it.
+func IdentityOf(nc net.Conn, remote net.Addr) Identity {
 	dc, ok := nc.(*piondtls.Conn)
 	if !ok {
 		return Identity{Mode: ModeNoSec, Addr: remote.String()}

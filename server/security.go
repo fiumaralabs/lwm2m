@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"errors"
+	"sort"
 	"sync"
 )
 
@@ -24,6 +25,7 @@ type SecurityStore interface {
 	ByPSKIdentity(identity string) (SecurityInfo, bool)
 	Put(SecurityInfo) error
 	Remove(ep string) (SecurityInfo, bool)
+	All() []SecurityInfo
 }
 
 // MemorySecurityStore is an in-memory SecurityStore.
@@ -85,9 +87,9 @@ func (s *MemorySecurityStore) Remove(ep string) (SecurityInfo, bool) {
 	return si, ok
 }
 
-// matches reports whether an authenticated identity is the one stored for
+// Matches reports whether an authenticated identity is the one stored for
 // the endpoint (SEC-06: equality or lookup, never trust ep alone).
-func (si SecurityInfo) matches(id Identity) bool {
+func (si SecurityInfo) Matches(id Identity) bool {
 	switch id.Mode {
 	case ModePSK:
 		return si.PSKIdentity != "" && si.PSKIdentity == id.PSKIdentity
@@ -113,4 +115,16 @@ func endpointFromIdentity(store SecurityStore, id Identity) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// All returns every stored credential, ordered by endpoint.
+func (s *MemorySecurityStore) All() []SecurityInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]SecurityInfo, 0, len(s.byEP))
+	for _, si := range s.byEP {
+		out = append(out, si)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Endpoint < out[j].Endpoint })
+	return out
 }

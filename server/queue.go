@@ -95,6 +95,7 @@ func (q *queues) run(ctx context.Context, reg *Registration, fn func(*Registrati
 	cq := q.get(reg.ID)
 	cq.serial.Lock()
 	defer cq.serial.Unlock()
+	notified := false
 	for {
 		cq.mu.Lock()
 		dropped, awake, ch := cq.dropped, !q.s.cfg.Now().After(cq.awakeUntil), cq.wakeCh
@@ -104,6 +105,10 @@ func (q *queues) run(ctx context.Context, reg *Registration, fn func(*Registrati
 		}
 		if awake {
 			break
+		}
+		if q.s.cfg.OnQueued != nil && !notified {
+			notified = true
+			q.s.cfg.OnQueued(reg) // e.g. send an SMS Registration Update Trigger (T §6.6)
 		}
 		select {
 		case <-ch:

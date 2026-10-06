@@ -25,6 +25,7 @@ type Registration struct {
 	SMS            string        // sms= (REG-22)
 	ProfileIDs     []string      // pid= (PROF-02)
 	Objects        []link.Object // registered object list (REG-07)
+	RawLinks       string        // the object list payload as received
 	RootPath       string        // alternate path from rt="oma.lwm2m" (GEN-08), "" = none
 	ContentFormats []lwm2m.ContentFormat
 	Identity       Identity

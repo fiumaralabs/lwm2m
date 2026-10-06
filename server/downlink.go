@@ -482,7 +482,7 @@ func (s *Server) validateWrite(reg *Registration, nodes []lwm2m.Node) error {
 		return nil
 	}
 	if err := s.cfg.Validator.CheckWrite(reg, nodes); err != nil {
-		return fmt.Errorf("%w: %v", ErrBadRequest, err)
+		return fmt.Errorf("%w: %w", ErrBadRequest, err) // keep the model error for errors.Is
 	}
 	return nil
 }
@@ -492,7 +492,7 @@ func (s *Server) validateCreate(reg *Registration, p lwm2m.Path, nodes []lwm2m.N
 		return nil
 	}
 	if err := s.cfg.Validator.CheckCreate(reg, p.Object(), nodes); err != nil {
-		return fmt.Errorf("%w: %v", ErrBadRequest, err)
+		return fmt.Errorf("%w: %w", ErrBadRequest, err)
 	}
 	return nil
 }

@@ -29,6 +29,7 @@ type coapConn interface {
 	RemoteAddr() net.Addr
 	NetConn() net.Conn
 	Context() context.Context
+	Close() error
 }
 
 const (
@@ -50,7 +51,7 @@ type coapPeer struct {
 	binding string
 }
 
-func (p *coapPeer) Identity() Identity   { return identityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
+func (p *coapPeer) Identity() Identity   { return IdentityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
 func (p *coapPeer) RemoteAddr() net.Addr { return p.cc.RemoteAddr() }
 func (p *coapPeer) Binding() string      { return p.binding }
 
