@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/est"
+	"github.com/fiumaralabs/lwm2m/security/est"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"

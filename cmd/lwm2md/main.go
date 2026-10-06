@@ -1,6 +1,6 @@
 // Command lwm2md runs the LwM2M server: CoAP over UDP (NoSec) and DTLS
 // (PSK/RPK/X.509 per the security store, Connection ID on), optionally CoAP
-// over TCP, and the Leshan-compatible REST API (package compat), so the
+// over TCP, and the Leshan-compatible REST API (package leshanapi), so the
 // Zephyr interop harness can drive it as it drives the Leshan demo server.
 //
 // It also runs a Bootstrap-Server (package bootstrap) with Leshan's
@@ -26,8 +26,8 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/bootstrap"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
-	"github.com/fiumaralabs/lwm2m/compat"
 	"github.com/fiumaralabs/lwm2m/fota"
+	"github.com/fiumaralabs/lwm2m/leshanapi"
 	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
 )
@@ -49,7 +49,7 @@ func main() {
 	flag.Parse()
 
 	models := server.NewModels(model.Default())
-	api := compat.New(compat.Options{Prefix: *prefix, Schema: models.Schema})
+	api := leshanapi.New(leshanapi.Options{Prefix: *prefix, Schema: models.Schema})
 	// Schema only, no Validator: like Leshan, writes go to the device and
 	// its answer (e.g. 4.05 on a read-only resource, int-256) is reported.
 	onEvent := api.OnEvent
@@ -130,7 +130,7 @@ func main() {
 		}()
 	}
 	serve("rest", *httpAddr, api)
-	serve("bs rest", *bsHTTP, compat.NewBootstrap(*prefix, configs, bs.Security()))
+	serve("bs rest", *bsHTTP, leshanapi.NewBootstrap(*prefix, configs, bs.Security()))
 
 	<-ctx.Done()
 	log.Print("shutting down")

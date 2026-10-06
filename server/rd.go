@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/internal/regparam"
 	"github.com/fiumaralabs/lwm2m/link"
-	"github.com/fiumaralabs/lwm2m/regparam"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 

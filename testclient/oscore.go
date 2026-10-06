@@ -12,7 +12,7 @@ import (
 	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
-	"github.com/fiumaralabs/lwm2m/oscore"
+	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"

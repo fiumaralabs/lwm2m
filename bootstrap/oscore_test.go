@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/oscore"
+	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message"

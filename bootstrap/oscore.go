@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/fiumaralabs/lwm2m/oscore"
+	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"

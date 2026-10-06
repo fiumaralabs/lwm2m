@@ -10,7 +10,7 @@ import (
 	"time"
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
-	"github.com/fiumaralabs/lwm2m/dtlssuite"
+	"github.com/fiumaralabs/lwm2m/security/dtls"
 )
 
 // CertificateModes are the certificate-based security modes of a DTLS
@@ -18,7 +18,7 @@ import (
 // one listener serves security modes 0, 1 and 2 (SEC-03).
 type CertificateModes struct {
 	// Certificates are the server credentials: X.509 chains, chosen by the
-	// client's SNI when there are several (SEC-14), or dtlssuite.RawKey
+	// client's SNI when there are several (SEC-14), or dtls.RawKey
 	// keys. An RPK client gets the SubjectPublicKeyInfo of the selected
 	// credential's key, the value the Bootstrap-Server writes to /0/x/4
 	// (SEC-09).
@@ -77,7 +77,7 @@ func (s *Server) DTLSConfig(m CertificateModes) *piondtls.Config {
 	return &piondtls.Config{
 		PSK:                    s.pskLookup,
 		Certificates:           m.Certificates,
-		CustomCipherSuites:     dtlssuite.Custom, // 0xC023
+		CustomCipherSuites:     dtls.Custom, // 0xC023
 		ClientAuth:             piondtls.RequireAndVerifyClientCert,
 		ClientCAs:              cas,
 		ClientCertificateTypes: []piondtls.CertificateType{piondtls.CertificateTypeRawPublicKey, piondtls.CertificateTypeX509},

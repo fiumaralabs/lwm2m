@@ -4,7 +4,7 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"github.com/fiumaralabs/lwm2m/est"
+	"github.com/fiumaralabs/lwm2m/security/est"
 )
 
 // MountEST serves EST-coaps (RFC 9148) on the Bootstrap-Server's CoAP

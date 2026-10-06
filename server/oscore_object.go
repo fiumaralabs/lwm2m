@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/oscore"
+	"github.com/fiumaralabs/lwm2m/security/oscore"
 )
 
 // OSCOREParams reads the client's OSCORE input parameters from the nodes

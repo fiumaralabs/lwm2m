@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fiumaralabs/lwm2m/oscore"
+	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/message/pool"

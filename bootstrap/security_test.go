@@ -13,7 +13,7 @@ import (
 	"time"
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
-	"github.com/fiumaralabs/lwm2m/dtlssuite"
+	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -164,7 +164,7 @@ func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
 
 	// RPK (security mode 1).
 	srvKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	raw, err := dtlssuite.RawKey(srvKey)
+	raw, err := dtls.RawKey(srvKey)
 	if err != nil {
 		t.Fatal(err)
 	}

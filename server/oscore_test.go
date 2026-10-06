@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/oscore"
+	"github.com/fiumaralabs/lwm2m/security/oscore"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -316,7 +316,7 @@ func TestOSCOREObserve(t *testing.T) {
 // Proves: OSC-08
 // OSCORE over DTLS (Security Mode 0 plus OSCORE = both): the registration
 // carries the DTLS identity and still needs OSCORE. (OSCORE only over UDP:
-// TestOSCORERegisterEchoAndDM; over SMS: smsbinding TestOSCOREOverSMS*.)
+// TestOSCORERegisterEchoAndDM; over SMS: transport/sms TestOSCOREOverSMS*.)
 func TestOSCOREOverDTLS(t *testing.T) {
 	h := newHarness(t)
 	o := h.srv.EnableOSCORE()

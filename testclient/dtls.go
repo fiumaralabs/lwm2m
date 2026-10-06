@@ -7,8 +7,8 @@ import (
 	"time"
 
 	piondtls "github.com/fiumaralabs/dtls/v3"
-	"github.com/fiumaralabs/lwm2m/dtlssuite"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
+	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/plgd-dev/go-coap/v3/mux"
 	"github.com/plgd-dev/go-coap/v3/options"
 )
@@ -34,7 +34,7 @@ func (c *Client) DialDTLS(addr string, cfg *piondtls.Config) error {
 // RPKConfig is a client in RPK mode (security mode 1): key is /0/x/5,
 // serverSPKI is /0/x/4, exact match (SEC-09). suites nil offers CCM_8.
 func RPKConfig(key crypto.Signer, serverSPKI []byte, suites ...piondtls.CipherSuiteID) (*piondtls.Config, error) {
-	cert, err := dtlssuite.RawKey(key)
+	cert, err := dtls.RawKey(key)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func RPKConfig(key crypto.Signer, serverSPKI []byte, suites ...piondtls.CipherSu
 		Certificates:           []tls.Certificate{cert},
 		ClientCertificateTypes: rpk,
 		ServerCertificateTypes: rpk,
-		VerifyPeerCertificate:  dtlssuite.ExpectRawKey(serverSPKI),
+		VerifyPeerCertificate:  dtls.ExpectRawKey(serverSPKI),
 	}, suites), nil
 }
 
@@ -59,7 +59,7 @@ func X509Config(cert tls.Certificate, roots *x509.CertPool, serverName string, s
 }
 
 // withSuites makes cfg offer exactly suites (default ECDHE_ECDSA CCM_8).
-// 0xC023 comes from dtlssuite.Custom, which pion always offers first; to
+// 0xC023 comes from dtls.Custom, which pion always offers first; to
 // offer it alone, the ID list holds only a PSK suite, which pion drops for
 // a config without a PSK callback.
 func withSuites(cfg *piondtls.Config, suites []piondtls.CipherSuiteID) *piondtls.Config {
@@ -67,8 +67,8 @@ func withSuites(cfg *piondtls.Config, suites []piondtls.CipherSuiteID) *piondtls
 		suites = []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8}
 	}
 	for _, id := range suites {
-		if id == dtlssuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 {
-			cfg.CustomCipherSuites = dtlssuite.Custom
+		if id == dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 {
+			cfg.CustomCipherSuites = dtls.Custom
 		} else {
 			cfg.CipherSuites = append(cfg.CipherSuites, id)
 		}

@@ -78,7 +78,7 @@ func TestQueueSerialisesRequests(t *testing.T) {
 
 // TestAwakeImmediatelyAfterRegister: a queue-mode client is reported awake
 // as soon as its Register has been handled, not only once post-reply
-// actions ran (regression: a CI-only race in compat's TestQueueModeBlocks).
+// actions ran (regression: a CI-only race in leshanapi's TestQueueModeBlocks).
 func TestAwakeImmediatelyAfterRegister(t *testing.T) {
 	h := newHarness(t)
 	reg := &Registration{ID: "aw", Endpoint: "aw", QueueMode: true}

@@ -105,7 +105,7 @@ func opensslRegister(t *testing.T, bin, addr, ep string, args ...string) byte {
 // Interop with an independent DTLS stack (OpenSSL 3.2+ s_client as the
 // LwM2M client): the server negotiates RFC 7250 raw public keys in both
 // directions and registers the client by its exact key; an X.509 client
-// on TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 (0xC023, dtlssuite) and a PSK
+// on TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 (0xC023, security/dtls) and a PSK
 // client on TLS_PSK_WITH_AES_128_CBC_SHA256 register too.
 func TestOpenSSLInterop(t *testing.T) {
 	bin := opensslWithRPK(t)

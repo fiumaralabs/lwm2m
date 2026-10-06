@@ -18,7 +18,7 @@ import (
 	"github.com/fiumaralabs/dtls/v3/pkg/protocol/extension"
 	"github.com/fiumaralabs/dtls/v3/pkg/protocol/handshake"
 	"github.com/fiumaralabs/lwm2m"
-	"github.com/fiumaralabs/lwm2m/dtlssuite"
+	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
@@ -74,7 +74,7 @@ func TestSecurityModesOnePort(t *testing.T) {
 	rk, _ := s.rpkClient("rpk")
 	xc := s.x509Client("x509")
 
-	values := dtlssuite.Resource16(cfg)
+	values := dtls.Resource16(cfg)
 	for _, want := range []uint32{0xC0A8, 0x00AE, 0xC0AE, 0xC023} {
 		if !containsU32(values, want) {
 			t.Fatalf("/0/x/16 values %x lack mandatory suite %#x", values, want)
@@ -84,7 +84,7 @@ func TestSecurityModesOnePort(t *testing.T) {
 	for _, v := range values {
 		id := piondtls.CipherSuiteID(v)
 		name := piondtls.CipherSuiteName(id)
-		if id == dtlssuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 {
+		if id == dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 {
 			name = "ECDHE-ECDSA-AES-128-CBC-SHA256"
 		}
 		t.Run(name, func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestRPKMode(t *testing.T) {
 	s := newSecure(t)
 	k, spki := s.rpkClient("dev-rpk")
 	s.rpkClient("other")
-	for _, suite := range []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtlssuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
+	for _, suite := range []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
 		cfg, _ := testclient.RPKConfig(k, s.serverSPKI, suite)
 		s.mustRegisterSecure(testclient.Config{Endpoint: "dev-rpk"}, s.addr, cfg)
 	}
@@ -158,7 +158,7 @@ func TestX509Mode(t *testing.T) {
 	s := newSecure(t)
 	xc := s.x509Client("urn:dev:x509")
 	s.x509Client("urn:dev:other")
-	for _, suite := range []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtlssuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
+	for _, suite := range []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
 		s.mustRegisterSecure(testclient.Config{Endpoint: "urn:dev:x509"}, s.addr, testclient.X509Config(xc, s.pki.pool, "lwm2m.test", suite))
 	}
 	reg, _ := s.srv.Store().ByEndpoint("urn:dev:x509")
@@ -223,34 +223,34 @@ func TestSNICertificateSelection(t *testing.T) {
 // Proves: SEC-19
 // The server's chain (leaf + intermediate) satisfies every /0/x/15
 // certificate usage with the matching /0/x/13 types the Bootstrap-Server
-// may provision, checked the way a client does (dtlssuite); a /0/x/4 that
+// may provision, checked the way a client does (security/dtls); a /0/x/4 that
 // does not match the server fails the handshake.
 func TestCertificateUsage(t *testing.T) {
 	s := newSecure(t)
 	xc := s.x509Client("cu-dev")
 	leaf, inter := s.serverCert.Certificate[0], s.serverCert.Certificate[1]
-	sha256 := func(b []byte) []byte { return hash(dtlssuite.MatchSHA256, b) }
+	sha256 := func(b []byte) []byte { return hash(dtls.MatchSHA256, b) }
 	cases := []struct {
-		usage dtlssuite.CertificateUsage
-		match dtlssuite.MatchingType
+		usage dtls.CertificateUsage
+		match dtls.MatchingType
 		assoc []byte
 		ok    bool
 	}{
-		{dtlssuite.UsageCAConstraint, dtlssuite.MatchExact, s.pki.root.Raw, true},
-		{dtlssuite.UsageCAConstraint, dtlssuite.MatchSHA256, sha256(inter), true},
-		{dtlssuite.UsageServiceCertConstraint, dtlssuite.MatchExact, leaf, true},
-		{dtlssuite.UsageTrustAnchorAssertion, dtlssuite.MatchSHA256, sha256(inter), true},
-		{dtlssuite.UsageTrustAnchorAssertion, dtlssuite.MatchExact, s.pki.root.Raw, true},
-		{dtlssuite.UsageDomainIssued, dtlssuite.MatchSHA512, hash(dtlssuite.MatchSHA512, leaf), true},
-		{dtlssuite.UsageDomainIssued, dtlssuite.MatchSHA384, hash(dtlssuite.MatchSHA384, leaf), true},
-		{dtlssuite.UsageDomainIssued, dtlssuite.MatchExact, inter, false},
-		{dtlssuite.UsageServiceCertConstraint, dtlssuite.MatchExact, inter, false},
+		{dtls.UsageCAConstraint, dtls.MatchExact, s.pki.root.Raw, true},
+		{dtls.UsageCAConstraint, dtls.MatchSHA256, sha256(inter), true},
+		{dtls.UsageServiceCertConstraint, dtls.MatchExact, leaf, true},
+		{dtls.UsageTrustAnchorAssertion, dtls.MatchSHA256, sha256(inter), true},
+		{dtls.UsageTrustAnchorAssertion, dtls.MatchExact, s.pki.root.Raw, true},
+		{dtls.UsageDomainIssued, dtls.MatchSHA512, hash(dtls.MatchSHA512, leaf), true},
+		{dtls.UsageDomainIssued, dtls.MatchSHA384, hash(dtls.MatchSHA384, leaf), true},
+		{dtls.UsageDomainIssued, dtls.MatchExact, inter, false},
+		{dtls.UsageServiceCertConstraint, dtls.MatchExact, inter, false},
 	}
 	for _, c := range cases {
 		cfg := testclient.X509Config(xc, nil, "lwm2m.test")
 		cfg.InsecureSkipVerify = true // the usage check below is the client's whole server validation
 		cfg.VerifyPeerCertificate = func(raw [][]byte, _ [][]*x509.Certificate) error {
-			return dtlssuite.VerifyServerCertificate(c.usage, c.match, c.assoc, raw, s.pki.pool, "lwm2m.test", time.Now())
+			return dtls.VerifyServerCertificate(c.usage, c.match, c.assoc, raw, s.pki.pool, "lwm2m.test", time.Now())
 		}
 		if c.ok {
 			s.mustRegisterSecure(testclient.Config{Endpoint: "cu-dev"}, s.addr, cfg)
@@ -260,7 +260,7 @@ func TestCertificateUsage(t *testing.T) {
 	}
 }
 
-func hash(m dtlssuite.MatchingType, b []byte) []byte { return dtlssuite.Digest(m, b) }
+func hash(m dtls.MatchingType, b []byte) []byte { return dtls.Digest(m, b) }
 
 // Proves: CID-01, CID-02, CID-03, QM-05, TLS13-06
 // The server assigns an 8-byte Connection ID (RFC 9146) and advertises it
