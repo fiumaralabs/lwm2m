@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/attr"
 	"github.com/fiumaralabs/lwm2m/codec"
 	"github.com/fiumaralabs/lwm2m/codec/senml"
+	"github.com/fiumaralabs/lwm2m/codec/text"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -345,7 +347,29 @@ func (s *Server) WriteAttributes(ctx context.Context, ep string, p lwm2m.Path, q
 	if p.IsRoot() {
 		return nil, fmt.Errorf("%w: Write-Attributes on /", ErrBadRequest)
 	}
+	if err := checkAttributes(p, query); err != nil {
+		return nil, err
+	}
 	return s.exchange(ctx, reg, request{method: codes.PUT, path: p, query: query, schemaOf: p})
+}
+
+// checkAttributes refuses, before sending, a <NOTIFICATION> attribute set
+// the client would have to reject: unknown or read-only names, wrong
+// level, or an inconsistent set (DM-07, ATT-06, ATT-10). Applicability to
+// the resource's type (ATT-05, ATT-08) is left to the device, which knows
+// its own model (the Leshan REST API relays its answer).
+func checkAttributes(p lwm2m.Path, query []string) error {
+	if len(query) == 0 {
+		return nil
+	}
+	a, err := attr.ParseQuery(strings.Join(query, "&"))
+	if err == nil {
+		err = attr.Validate(p, lwm2m.TypeNone, a)
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrBadRequest, err)
+	}
+	return nil
 }
 
 // Execute executes resource p with optional plain-text arguments (DM-08).
@@ -356,6 +380,9 @@ func (s *Server) Execute(ctx context.Context, ep string, p lwm2m.Path, args stri
 	}
 	if !p.IsResource() {
 		return nil, fmt.Errorf("%w: Execute targets /o/i/r", ErrBadRequest)
+	}
+	if _, err := text.ParseExecArgs(args); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err) // DM-08 arglist
 	}
 	rq := request{method: codes.POST, path: p, schemaOf: p}
 	if args != "" {
@@ -384,14 +411,14 @@ func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lw
 	return s.writeWithFormat(ctx, reg, codes.POST, p, nodes, format, true)
 }
 
-// Delete deletes object instance p (DM-10).
+// Delete deletes object instance p, or (1.1+) resource instance p (DM-10).
 func (s *Server) Delete(ctx context.Context, ep string, p lwm2m.Path) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
 		return nil, err
 	}
-	if !p.IsInstance() {
-		return nil, fmt.Errorf("%w: Delete targets /o/i", ErrBadRequest)
+	if !p.IsInstance() && !(p.IsResourceInstance() && reg.Version != "1.0") {
+		return nil, fmt.Errorf("%w: Delete targets /o/i or, since 1.1, /o/i/r/ri", ErrBadRequest)
 	}
 	if p.Object() == 3 && p.Instance() == 0 {
 		return nil, fmt.Errorf("%w: /3/0 cannot be deleted (DM-10)", ErrBadRequest)
@@ -424,6 +451,12 @@ func (o CompositeOptions) formats(reg *Registration) (lwm2m.ContentFormat, lwm2m
 	return req, acc
 }
 
+// compositeAccept: Read-Composite and Observe-Composite responses are LwM2M
+// CBOR, SenML CBOR or SenML JSON (DM-12, OBS-05; T Tbl 6.4.4-1, 6.4.5-1).
+var compositeAccept = map[lwm2m.ContentFormat]bool{
+	lwm2m.FormatLwM2MCBOR: true, lwm2m.FormatSenMLCBOR: true, lwm2m.FormatSenMLJSON: true,
+}
+
 // encodePaths encodes a composite path list in a SenML or ETCH format.
 func encodePaths(reg *Registration, cf lwm2m.ContentFormat, paths []lwm2m.Path) ([]byte, error) {
 	c, err := codec.For(cf)
@@ -450,6 +483,9 @@ func (s *Server) ReadComposite(ctx context.Context, ep string, paths []lwm2m.Pat
 		}
 	}
 	reqCF, acc := o.formats(reg)
+	if !compositeAccept[acc] {
+		return nil, fmt.Errorf("%w: composite responses are LwM2M CBOR or SenML, not %v", ErrBadRequest, acc)
+	}
 	body, err := encodePaths(reg, reqCF, paths)
 	if err != nil {
 		return nil, err

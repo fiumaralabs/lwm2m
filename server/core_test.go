@@ -30,11 +30,20 @@ func TestObjectVersionResolution(t *testing.T) {
 	if _, err := h.srv.Write(h.ctx, "v10", p("/1/0/10"), write, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("write to a resource of another object version: %v", err)
 	}
+	// ver on the object link (0 or >=2 instances form, C §7.2.3).
+	obj := h.device(testclient.Config{Endpoint: "v10obj"})
+	r, err = obj.RegisterRaw(h.ctx, obj.RegisterQuery(), []byte("</1>;ver=1.0,</1/0>,</3/0>"), true)
+	mustCode(t, r, err, "2.01")
+	if _, err := h.srv.Write(h.ctx, "v10obj", p("/1/0/10"), write, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
+		t.Fatalf("object-link ver ignored: %v", err)
+	}
 }
 
 // Proves: DT-03
 // Objlnk values must name the null link, a registered object (oid:65535)
 // or a registered instance; anything else is refused before sending.
+// The Corelnk clause of Tbl C-2 is the receiving client's Write check
+// (C §6.3.3); the server does not parse Corelnk targets.
 func TestObjlnkTargets(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("lnk")
@@ -56,7 +65,7 @@ func TestObjlnkTargets(t *testing.T) {
 
 // Proves: DT-01, DT-02
 // Every data type is checked against the model before sending (a String
-// to an Integer resource, a Boolean to a Time, out-of-range values), and
+// to an Integer resource, a Boolean to a Time) and on values read back, and
 // accepted values are encoded per Tbl C-2: an Integer of 300 goes out as
 // a 2-byte TLV value, a Time as an Integer.
 func TestDataTypes(t *testing.T) {
@@ -86,6 +95,23 @@ func TestDataTypes(t *testing.T) {
 	if v, _ := c.Get(p("/3/0/13")); !v.Equal(lwm2m.Time(1700000000)) {
 		t.Fatalf("time stored as %v", v)
 	}
+	// Retrieved values are type-checked too: text for the Integer /3/0/9,
+	// a 2-byte TLV Boolean.
+	for _, bad := range []struct {
+		cf   lwm2m.ContentFormat
+		path string
+		body string
+	}{{lwm2m.FormatText, "/3/0/9", "abc"}, {lwm2m.FormatTLV, "/1/0/6", "\xc2\x06\x00\x01"}} {
+		cf := bad.cf
+		body := []byte(bad.body)
+		c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+			return codes.Content, &cf, body, true
+		})
+		if r, err := h.srv.Read(h.ctx, "dt", p(bad.path), ReadOptions{}); err != nil || r.DecodeErr == nil {
+			t.Errorf("%s %q decoded: %v %+v", bad.path, bad.body, err, r)
+		}
+	}
+	c.SetOverride(nil)
 }
 
 // Proves: FMT-06
@@ -257,11 +283,14 @@ func TestBatchedNotification(t *testing.T) {
 }
 
 // Proves: CBOR-09
-// LwM2M CBOR is used for Write, Create and Write-Composite and accepted for
-// Read-Composite responses, but never as a Read-Composite request body.
+// LwM2M CBOR is used for Write, Create and Write-Composite, accepted for
+// Read-Composite, Observe and Notify, but never as a Read-Composite request
+// body. Read responses: TestReadEveryFormat; Send: TestSend;
+// Bootstrap: bootstrap package tests.
 func TestLwM2MCBORUses(t *testing.T) {
 	h := newHarness(t)
 	c := h.device(testclient.Config{Endpoint: "lwcbor", Version: "1.2"})
+	c.AddObject(16)
 	mustCode(mustRegister(h, c))
 	cb := lwm2m.FormatLwM2MCBOR
 	if _, err := h.srv.ReadComposite(h.ctx, "lwcbor", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{Format: &cb}); !errors.Is(err, ErrBadRequest) {
@@ -275,5 +304,43 @@ func TestLwM2MCBORUses(t *testing.T) {
 	expect(t, "2.04")(h.srv.Write(h.ctx, "lwcbor", p("/1/0"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(98))}, WriteOptions{Mode: PartialUpdate, Format: &cb}))
 	if req, _ := c.LastRequest(); *req.Format != cb {
 		t.Fatalf("format %v", *req.Format)
+	}
+	expect(t, "2.01")(h.srv.Create(h.ctx, "lwcbor", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/0"), lwm2m.String("x"))}, &cb))
+	if req, _ := c.LastRequest(); req.Format == nil || *req.Format != cb || req.Code != codes.POST {
+		t.Fatalf("create %+v", req)
+	}
+	// Observe response and Notify in LwM2M CBOR.
+	ob, r, err := h.srv.Observe(h.ctx, "lwcbor", p("/3/0"), ObserveOptions{Accept: &cb})
+	if err != nil || r.ContentFormat != cb || !lwm2m.NodesEqual(r.Nodes, c.Nodes(p("/3/0"))) {
+		t.Fatalf("observe %v %+v", err, r)
+	}
+	req, _ := c.LastRequest()
+	c.Set(p("/3/0/9"), lwm2m.Integer(42))
+	if _, err := c.Notify(h.ctx, req.Token); err != nil {
+		t.Fatal(err)
+	}
+	if n := notification(t, h, ob); n.Response.ContentFormat != cb || !lwm2m.NodesEqual(n.Response.Nodes, c.Nodes(p("/3/0"))) {
+		t.Fatalf("notify %v %s", n.Response.ContentFormat, lwm2m.FormatNodes(n.Response.Nodes))
+	}
+}
+
+// Proves: FMT-10
+// OMA JSON from a 1.1 client is decoded, but the server never encodes it
+// towards a 1.1+ client: a write that every other format fails ends in
+// 4.15 without an OMA JSON attempt.
+func TestOMAJSONOnlyAccepted(t *testing.T) {
+	h := newHarness(t)
+	oj := lwm2m.FormatOMAJSON
+	c := h.device(testclient.Config{Endpoint: "oj", Version: "1.1", Format: oj, Formats: []lwm2m.ContentFormat{oj}})
+	mustCode(mustRegister(h, c))
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "oj", p("/3/0"), ReadOptions{}))
+	if r.ContentFormat != oj || !lwm2m.NodesEqual(r.Nodes, c.Nodes(p("/3/0"))) {
+		t.Fatalf("read %v %v", r.ContentFormat, r.DecodeErr)
+	}
+	expect(t, "4.15")(h.srv.Write(h.ctx, "oj", p("/1/0"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(5))}, WriteOptions{Mode: PartialUpdate}))
+	for _, req := range c.Requests() {
+		if req.Format != nil && *req.Format == oj {
+			t.Fatalf("server sent OMA JSON to a 1.1 client: %+v", req)
+		}
 	}
 }

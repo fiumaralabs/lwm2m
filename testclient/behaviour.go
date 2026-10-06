@@ -302,6 +302,9 @@ func (c *Client) store(o *observer) {
 	if o.composite {
 		return
 	}
+	if v, ok := c.Get(lwm2m.MustParsePath("/1/0/6")); !ok || !v.Bool {
+		return // storing needs Notification Storing /1/x/6 = true (ATT-08)
+	}
 	hq, _ := c.effectiveAttrs(o.paths[0], o.query).Get("hqmax").(uint64)
 	if hq == 0 {
 		return // only parts with hqmax > 0 are stored
@@ -341,6 +344,9 @@ func (c *Client) flushStored(o *observer) {
 	_, _ = c.NotifyRaw(context.Background(), o.token, lwm2m.FormatSenMLCBOR, body)
 }
 
+// NONNotifications counts the non-confirmable notifications sent.
+func (c *Client) NONNotifications() int64 { return c.nonSent.Load() }
+
 // NotifyNON sends a non-confirmable notification for token tok.
 func (c *Client) NotifyNON(ctx context.Context, tok message.Token) error {
 	c.mu.Lock()
@@ -362,6 +368,7 @@ func (c *Client) NotifyNON(ctx context.Context, tok message.Token) error {
 	m.SetType(message.NonConfirmable)
 	m.SetToken(tok)
 	m.SetObserve(seq)
+	c.nonSent.Add(1)
 	m.SetContentFormat(message.MediaType(*cf))
 	m.SetBody(strings.NewReader(string(body)))
 	m.SetMessageID(c.conn.GetMessageID())

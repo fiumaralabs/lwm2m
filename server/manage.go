@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -112,6 +113,28 @@ func (s *Server) SetBinding(ctx context.Context, ep, binding string) (*Response,
 	return s.writeServerResource(ctx, ep, 7, func(p lwm2m.Path) []lwm2m.Node {
 		return []lwm2m.Node{lwm2m.ValueNode(p, lwm2m.String(binding))}
 	})
+}
+
+// SetLifetime writes the Lifetime /1/x/1 (REG-03): on 2.04 the value
+// becomes the registration's lifetime at once, without waiting for the
+// client's Update (C §6.2). 0 means no expiry (REG-23).
+func (s *Server) SetLifetime(ctx context.Context, ep string, lifetime time.Duration) (*Response, error) {
+	secs := int64(lifetime / time.Second)
+	if secs < 0 || secs > 1<<32-1 {
+		return nil, fmt.Errorf("%w: lifetime %v out of range", ErrBadRequest, lifetime)
+	}
+	r, err := s.writeServerResource(ctx, ep, 1, func(p lwm2m.Path) []lwm2m.Node {
+		return []lwm2m.Node{lwm2m.ValueNode(p, lwm2m.Integer(secs))}
+	})
+	if err != nil || r.Code != codes.Changed {
+		return r, err
+	}
+	if reg, ok := s.store.ByEndpoint(ep); ok {
+		cp := *reg // stored registrations are immutable
+		cp.Lifetime = seconds(uint32(secs))
+		s.store.Update(&cp)
+	}
+	return r, nil
 }
 
 // SupportedVersions are the enabler versions this server implements,

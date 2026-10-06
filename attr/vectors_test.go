@@ -123,7 +123,9 @@ func TestVectors(t *testing.T) {
 	t.Logf("%d vectors: %d decode, %d encode, %d must-fail", len(all), nDecode, nEncode, nError)
 }
 
-// Proves: ATT-10, ATT-11
+// Proves: ATT-10, ATT-11, ATT-09
+// ATT-09: hqmax is accepted although Cond_Attr lacks it; Cond_Attr's band
+// is not an LwM2M attribute and is refused under either name.
 func TestParseValue(t *testing.T) {
 	ok := map[string]any{
 		"pmin=0": uint64(0), "hqmax=10": uint64(10), "epmax=5": uint64(5),
@@ -140,7 +142,7 @@ func TestParseValue(t *testing.T) {
 	}
 	for _, bad := range []string{"edge=2", "edge=true", "con=", "hqmax=-1", "ssid=0", "ssid=65535", "dim=65536",
 		"ver=1", "ver=1.x", "lwm2m=v1.0", "gt=0x10", "gt=inf", "gt=NaN", "gt=1_0", "lt=1.", "lt=.5", "st=-1",
-		"foo=1", "ssid", "uri", "ver", "lwm2m", "pmin=99999999999999999999"} {
+		"foo=1", "ssid", "uri", "ver", "lwm2m", "pmin=99999999999999999999", "band=1", "c.band=1"} {
 		if a, err := ParseQuery(bad); err == nil {
 			t.Errorf("%s: got %#v, want error", bad, a)
 		}

@@ -154,7 +154,7 @@ func TestParseUpdate(t *testing.T) {
 
 // Proves: PROF-02
 func TestParseProfileIDs(t *testing.T) {
-	for _, bad := range []string{"", "6", "6:", ":ab", "x:ab", "256:ab", "6:12G4", "oma:a_b", `"6:ab`, `"6:ab,"`, "-1:ab"} {
+	for _, bad := range []string{"", "6", "6:", ":ab", "x:ab", "256:ab", "6:12G4", "oma:a_b", `"6:ab`, `"6:ab,"`, "-1:ab", "oma:", "v:", "vendor:x", "v:a.b", `"6:ab,,v:x"`, "6:ab cd", "+6:ab"} {
 		if got, err := ParseProfileIDs(bad); err == nil {
 			t.Errorf("%q: got %+v want error", bad, got)
 		}

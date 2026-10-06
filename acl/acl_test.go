@@ -92,6 +92,9 @@ func TestDecide(t *testing.T) {
 	if !Allowed(insts, 103, OpWriteAttributes, p("/3"), false) || !Allowed(insts, 103, OpDiscover, p("/3/0"), false) {
 		t.Fatal("object-level Write-Attributes / Discover refused")
 	}
+	if !Allowed(insts, 103, OpRead, p("/3"), false) || !Allowed(insts, 103, OpObserve, p("/3"), false) {
+		t.Fatal("object-level Read / Observe refused: it aggregates the readable instances (C §8.2.3)")
+	}
 	if !Allowed(insts, 102, OpCreate, p("/6"), false) || Allowed(insts, 103, OpCreate, p("/6"), false) {
 		t.Fatal("Create needs C on /2 of the object")
 	}

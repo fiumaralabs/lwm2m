@@ -483,6 +483,8 @@ func TestCheckExecute(t *testing.T) {
 
 // Documents that break LWM2M.xsd / LWM2M-v1_1.xsd (C App. D) or the ID and
 // URN rules (C §7.3, §7.2.1) are rejected with ErrInvalidXML.
+//
+// Proves: VER-02, VER-04
 func TestMalformedXMLRejected(t *testing.T) {
 	item := func(id, ops, multi, mand, typ string) string {
 		return fmt.Sprintf(`<Item ID="%s"><Name>x</Name><Operations>%s</Operations><MultipleInstances>%s</MultipleInstances><Mandatory>%s</Mandatory><Type>%s</Type><RangeEnumeration/><Units/><Description/></Item>`, id, ops, multi, mand, typ)

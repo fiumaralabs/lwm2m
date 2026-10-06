@@ -122,3 +122,22 @@ func (c *Client) afterDelete(inst lwm2m.Path) {
 		}
 	}
 }
+
+// readableNodes keeps, for an object-level Read or Observe under access
+// control, only the instances the server may read (C §8.2.3, DM-13).
+func (c *Client) readableNodes(p lwm2m.Path, nodes []lwm2m.Node) []lwm2m.Node {
+	c.mu.Lock()
+	ssid := c.aclSSID
+	c.mu.Unlock()
+	if ssid == 0 || !p.IsObject() || p.Object() == 2 {
+		return nodes
+	}
+	insts := c.aclInstances()
+	var out []lwm2m.Node
+	for _, n := range nodes {
+		if acl.Decide(insts, ssid, n.Path.Object(), n.Path.Instance(), false)&acl.Read != 0 {
+			out = append(out, n)
+		}
+	}
+	return out
+}

@@ -19,6 +19,8 @@ func one(t lwm2m.Type, multiple bool) lwm2m.Schema {
 // Table C-2 (CBOR column) and RFC 8949: what we emit. Integers shortest
 // (§3.1), floats 64-bit, Time as tag 1 + epoch (§3.4.2), Objlnk "oid:iid"
 // without NUL, Opaque as a byte string (empty is 0x40, not null).
+//
+// Proves: CBOR-12
 func TestEncode(t *testing.T) {
 	for _, c := range []struct {
 		v    lwm2m.Value
@@ -55,6 +57,8 @@ func TestEncode(t *testing.T) {
 // Table C-2 (CBOR column, CBOR-06/CBOR-12): Time is an integer, tag 0
 // (RFC 3339, as Zephyr sends) or tag 1; floats of any width; Objlnk text
 // with a trailing NUL is tolerated (C7); integral floats fit integers.
+//
+// Proves: CBOR-12
 func TestDecode(t *testing.T) {
 	for _, c := range []struct {
 		hex  string
@@ -91,6 +95,8 @@ func TestDecode(t *testing.T) {
 }
 
 // DT-02: the server type-checks retrieved values; malformed CBOR fails.
+//
+// Proves: CBOR-12
 func TestDecodeRejects(t *testing.T) {
 	for _, c := range []struct {
 		hex string

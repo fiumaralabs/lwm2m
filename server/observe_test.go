@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -115,11 +117,31 @@ func TestObserveComposite(t *testing.T) {
 	if cancel.Code != codeFETCH || *cancel.Observe != 1 || string(cancel.Body) != string(first.Body) || string(cancel.Token) != string(first.Token) {
 		t.Fatalf("cancel %+v vs %+v", cancel, first)
 	}
+	// A SenML-ETCH body works too; a response format other than LwM2M
+	// CBOR or SenML is refused before sending.
+	etch := lwm2m.FormatSenMLETCHJSON
+	if _, r, err := h.srv.ObserveComposite(h.ctx, "oc", paths, CompositeOptions{Format: &etch}); err != nil || !r.Success() {
+		t.Fatal("ETCH Observe-Composite", err, r)
+	}
+	if req, _ := c.LastRequest(); req.Format == nil || *req.Format != etch || req.Accept == nil || *req.Accept != lwm2m.FormatSenMLJSON {
+		t.Fatalf("ETCH request %+v", req)
+	}
+	sent := len(c.Requests())
+	for _, acc := range []lwm2m.ContentFormat{lwm2m.FormatTLV, lwm2m.FormatText, lwm2m.FormatSenMLETCHCBOR} {
+		if _, _, err := h.srv.ObserveComposite(h.ctx, "oc", paths, CompositeOptions{Accept: &acc}); !errors.Is(err, ErrBadRequest) {
+			t.Errorf("Accept %v: %v, want ErrBadRequest", acc, err)
+		}
+	}
+	if len(c.Requests()) != sent {
+		t.Fatal("refused Observe-Composite was sent")
+	}
 }
 
-// Proves: OBS-06
+// Proves: OBS-06, ATT-06
 // 1.2 clients can take notification attributes in the Observe request; for
-// older clients the server refuses to send them.
+// older clients the server refuses to send them. They govern only that
+// observation and are not attached to the path (not in Discover). An
+// inconsistent set is refused before sending, as for Write-Attributes.
 func TestObserveWithAttributes(t *testing.T) {
 	h := newHarness(t)
 	c12 := h.device(testclient.Config{Endpoint: "o12", Version: "1.2"})
@@ -131,9 +153,47 @@ func TestObserveWithAttributes(t *testing.T) {
 	if !slices.Equal(req.Queries, []string{"pmin=5", "pmax=60"}) || *req.Observe != 0 {
 		t.Fatalf("request %+v", req)
 	}
+	if a := c12.Attributes(p("/3/0/9")); len(a) != 0 {
+		t.Fatalf("observation attributes attached to the path: %v", a)
+	}
+	n := len(c12.Requests())
+	for _, q := range [][]string{{"lt=10", "gt=30", "st=10"}, {"gt=5", "lt=5"}, {"pmin=10", "pmax=5"}, {"dim=1"}} {
+		if _, _, err := h.srv.Observe(h.ctx, "o12", p("/3/0/9"), ObserveOptions{Query: q}); !errors.Is(err, ErrBadRequest) {
+			t.Errorf("%v: %v, want ErrBadRequest", q, err)
+		}
+	}
+	if len(c12.Requests()) != n {
+		t.Fatal("refused Observe was sent")
+	}
 	h.registered("o11")
 	if _, _, err := h.srv.Observe(h.ctx, "o11", p("/3/0/9"), ObserveOptions{Query: []string{"pmin=5"}}); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("attributes sent to a 1.1 client: %v", err)
+	}
+}
+
+// Proves: GEN-04
+// Block-wise (RFC 7959) both ways: a Read response larger than a block
+// arrives through Block2 follow-up requests, and a Send larger than a block
+// is reassembled from Block1 blocks. Block1 downlink: TestRequestTagOnBlockwise.
+func TestBlockwise(t *testing.T) {
+	h := newHarness(t)
+	c := h.registered("blk")
+	big := strings.Repeat("0123456789", 300)
+	c.Set(p("/3/0/0"), lwm2m.String(big))
+	before := len(c.RawRequests())
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "blk", p("/3/0/0"), ReadOptions{}))
+	if len(r.Nodes) != 1 || r.Nodes[0].Value.Str != big {
+		t.Fatalf("block-wise read: %d nodes", len(r.Nodes))
+	}
+	if n := len(c.RawRequests()) - before; n < 3 {
+		t.Fatalf("%d GET datagrams, want Block2 follow-ups", n)
+	}
+	nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/0"), lwm2m.String(big))}
+	sr, err := c.Send(h.ctx, nodes, lwm2m.FormatSenMLJSON)
+	mustCode(t, sr, err, "2.04")
+	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	if !lwm2m.NodesEqual(ev.Nodes, nodes) {
+		t.Fatal("block-wise Send not reassembled")
 	}
 }
 
@@ -184,6 +244,10 @@ func TestSend(t *testing.T) {
 	mustCode(t, r, err, "4.04")
 	r, err = c.Send(h.ctx, []lwm2m.Node{lwm2m.ValueNode(p("/3/1/0"), lwm2m.String("x"))}, lwm2m.FormatSenMLCBOR)
 	mustCode(t, r, err, "4.04")
+	// An unknown optional resource of a registered instance is no error.
+	r, err = c.Send(h.ctx, []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(1)), lwm2m.ValueNode(p("/3/0/4242"), lwm2m.Integer(7))}, lwm2m.FormatSenMLCBOR)
+	mustCode(t, r, err, "2.04")
+	h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok })
 	stranger := h.device(testclient.Config{Endpoint: "stranger"})
 	r, err = stranger.Send(h.ctx, nodes, lwm2m.FormatSenMLCBOR)
 	mustCode(t, r, err, "4.00")
@@ -202,10 +266,30 @@ func TestQueueMode(t *testing.T) {
 	if !reg.QueueMode || !h.srv.Awake("q") {
 		t.Fatal("queue client not awake after Register")
 	}
-	h.clock.Add(94 * time.Second)
+	h.clock.Add(92 * time.Second)
+	if !h.srv.Awake("q") {
+		t.Fatal("asleep before MAX_TRANSMIT_WAIT (93 s)")
+	}
+	h.clock.Add(2 * time.Second)
 	if h.srv.Awake("q") {
 		t.Fatal("still awake after 93 s")
 	}
+	// NSTART=1: the client sees at most one request in flight. It ACKs at
+	// once and answers separately 100 ms later, so a second concurrent
+	// request would arrive while the first is open.
+	var inflight, peak atomic.Int32
+	c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+		if n := inflight.Add(1); n > peak.Load() {
+			peak.Store(n)
+		}
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			inflight.Add(-1)
+			cf := lwm2m.FormatText
+			_ = c.RespondSeparately(context.Background(), r.Token, codes.Content, &cf, []byte("100"), true)
+		}()
+		return codes.Empty, nil, nil, true
+	})
 	done := make(chan *Response, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
@@ -229,6 +313,10 @@ func TestQueueMode(t *testing.T) {
 			t.Fatal("queued request not delivered after wake-up")
 		}
 	}
+	if peak.Load() != 1 {
+		t.Fatalf("%d queued requests in flight at once", peak.Load())
+	}
+	c.SetOverride(nil)
 	h.ev.wait(t, func(e Event) bool { _, ok := e.(Awake); return ok })
 
 	h.clock.Add(94 * time.Second)
@@ -253,5 +341,17 @@ func TestQueueMode(t *testing.T) {
 	mustCode(mustRegister(h, q10))
 	if reg, _ := h.srv.Store().ByEndpoint("q10"); !reg.QueueMode {
 		t.Fatal("1.0 b=UQ not queue mode")
+	}
+
+	// QM-04: an awake queue-mode client that never answers (retransmission
+	// failure) is reported to the caller as an error, not as a wait.
+	h2 := newHarness(t, func(cfg *Config) { cfg.RequestTimeout = 300 * time.Millisecond })
+	gone := h2.device(testclient.Config{Endpoint: "gone", Queue: true})
+	mustCode(mustRegister(h2, gone))
+	_ = gone.Close()
+	ctx2, cancel2 := context.WithTimeout(h2.ctx, 3*time.Second)
+	defer cancel2()
+	if _, err := h2.srv.Read(ctx2, "gone", p("/3/0/9"), ReadOptions{}); err == nil || errors.Is(err, context.DeadlineExceeded) && ctx2.Err() != nil {
+		t.Fatalf("unanswered queued request: %v", err)
 	}
 }

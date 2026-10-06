@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -292,18 +293,23 @@ func (s *Server) deregister(reg *Registration, peer Identity) reply {
 	}}
 }
 
-// mergeObjects adds objects from b that are not already in a.
+// mergeObjects adds the objects and instances of b to a: every Profile ID
+// and the payload together make up the client's list (PROF-07). b is
+// never aliased, so cached profile lists stay intact.
 func mergeObjects(a, b []link.Object) []link.Object {
 	for _, o := range b {
-		dup := false
-		for _, x := range a {
-			if x.ID == o.ID {
-				dup = true
-				break
+		i := slices.IndexFunc(a, func(x link.Object) bool { return x.ID == o.ID })
+		if i < 0 {
+			a = append(a, link.Object{ID: o.ID, Version: o.Version, Instances: slices.Clone(o.Instances)})
+			continue
+		}
+		for _, iid := range o.Instances {
+			if !slices.Contains(a[i].Instances, iid) {
+				a[i].Instances = append(slices.Clip(a[i].Instances), iid)
 			}
 		}
-		if !dup {
-			a = append(a, o)
+		if a[i].Version == "" {
+			a[i].Version = o.Version
 		}
 	}
 	return a

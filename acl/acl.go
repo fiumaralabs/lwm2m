@@ -204,7 +204,7 @@ func Allowed(insts []Instance, ssid uint16, op Operation, p lwm2m.Path, single b
 		case OpCreate:
 			return Decide(insts, ssid, p.Object(), lwm2m.MaxID, single)&Create != 0
 		}
-		return single // object-level Read/Observe: aggregate readable instances
+		return true // object-level Read/Observe: performed, the caller keeps the Readable instances (C §8.2.3)
 	}
 	return Decide(insts, ssid, p.Object(), p.Instance(), single)&need != 0
 }

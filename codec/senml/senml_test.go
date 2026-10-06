@@ -280,6 +280,16 @@ func TestETCHFetchPack(t *testing.T) {
 	if got, err := alt.DecodePaths(b); err != nil || got[0] != p("/3/0/0") {
 		t.Errorf("alternate path decode: %v %v", got, err)
 	}
+	// ETCH-06, GW §9: a Patch Pack names the end-device prefix after the
+	// alternate path, and decodes it back into Node.Prefix.
+	pre := []lwm2m.Node{{Prefix: "d01", Path: p("/3303/0/5700"), Value: lwm2m.Float(22.5)}}
+	for _, c := range []Codec{ETCHJSON.WithRootPath("/lwm2m"), alt} {
+		b := mustEncode(t, c, lwm2m.Root, pre)
+		if !bytes.Contains(b, []byte("/lwm2m/d01/3303/0/5700")) {
+			t.Errorf("%v: prefix missing: %q", c.Format(), b)
+		}
+		roundTrip(t, c, lwm2m.Root, pre)
+	}
 }
 
 // RFC 8790 §3.2 (Patch Pack) and Core §7.5.6: every record carries a value;

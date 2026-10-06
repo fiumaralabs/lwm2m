@@ -46,6 +46,13 @@ func TestGatewaySendPrefixed(t *testing.T) {
 	body := []byte{0xa1, 0x83, 0x63, 'd', '0', '1', 3, 0, 0xa2, 0, 0x69, 'C', 'o', 'm', 'p', 'a', 'n', 'y', ' ', 'A', 9, 0x18, 100}
 	r, err := gw.Raw(h.ctx, codes.POST, "/dp", nil, &cf, body)
 	mustCode(t, r, err, "2.04")
+	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	if want := []lwm2m.Node{
+		{Prefix: "d01", Path: p("/3/0/0"), Value: lwm2m.String("Company A")},
+		{Prefix: "d01", Path: p("/3/0/9"), Value: lwm2m.Integer(100)},
+	}; !lwm2m.NodesEqual(ev.Nodes, want) {
+		t.Fatalf("spec example decoded to\n%s", lwm2m.FormatNodes(ev.Nodes))
+	}
 	r, err = gw.Send(h.ctx, []lwm2m.Node{lwm2m.ValueNode(p("/3303/0/5700"), lwm2m.Float(1))}, lwm2m.FormatSenMLCBOR)
 	mustCode(t, r, err, "4.04") // the gateway itself registered no /3303
 	plain := h.registered("plain")

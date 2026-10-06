@@ -12,7 +12,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
-// Proves: DM-01, DM-02, FMT-01, FMT-02, FMT-03, CBOR-09, CBOR-10, GEN-03
+// Proves: DM-01, DM-02, FMT-01, FMT-02, FMT-03, CBOR-09, CBOR-10
 // Read works whatever data format the client prefers: the server sends no
 // Accept unless asked (the client then picks, C §7.5) and decodes every
 // format the spec defines. All requests are Confirmable. An explicit
@@ -78,6 +78,55 @@ func must[T any](v T, ok bool) T {
 	return v
 }
 
+// Proves: GEN-03
+// Every request the server sends is Confirmable, whatever the operation;
+// the client's Notify and Send may be NON and are still taken.
+func TestConfirmableRequestsNONUplinks(t *testing.T) {
+	h := newHarness(t)
+	c := h.registered("con")
+	c.AddObject(16)
+	if _, err := c.Update(h.ctx, nil, []byte(c.ObjectLinks())); err != nil {
+		t.Fatal(err)
+	}
+	ctx := h.ctx
+	_, _ = h.srv.Read(ctx, "con", p("/3/0/0"), ReadOptions{})
+	_, _ = h.srv.Discover(ctx, "con", p("/3/0"), nil)
+	_, _ = h.srv.Write(ctx, "con", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(60))}, WriteOptions{})
+	_, _ = h.srv.WriteAttributes(ctx, "con", p("/3/0/9"), []string{"pmin=1"})
+	_, _ = h.srv.Execute(ctx, "con", p("/3/0/4"), "")
+	_, _ = h.srv.Create(ctx, "con", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/0"), lwm2m.String("x"))}, nil)
+	_, _ = h.srv.Delete(ctx, "con", p("/16/0"))
+	_, _ = h.srv.ReadComposite(ctx, "con", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{})
+	_, _ = h.srv.WriteComposite(ctx, "con", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(61))}, nil)
+	ob, _, err := h.srv.Observe(ctx, "con", p("/3/0/9"), ObserveOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := c.Requests()
+	if len(reqs) != 10 {
+		t.Fatalf("%d requests", len(reqs))
+	}
+	for _, r := range reqs {
+		if r.Type != message.Confirmable {
+			t.Errorf("%v %s sent as %v", r.Code, r.Path, r.Type)
+		}
+	}
+	c.Set(p("/3/0/9"), lwm2m.Integer(42))
+	if err := c.NotifyNON(ctx, ob.token); err != nil {
+		t.Fatal(err)
+	}
+	if n := notification(t, h, ob); !n.Response.Nodes[0].Value.Equal(lwm2m.Integer(42)) {
+		t.Fatalf("NON notification %+v", n.Response)
+	}
+	nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(7))}
+	r, err := c.SendNON(ctx, nodes, lwm2m.FormatSenMLCBOR)
+	mustCode(t, r, err, "2.04")
+	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	if !lwm2m.NodesEqual(ev.Nodes, nodes) {
+		t.Fatalf("NON send %s", lwm2m.FormatNodes(ev.Nodes))
+	}
+}
+
 // Proves: DM-03, GEN-02
 // A Read reply carrying resources the server's model doesn't know is not
 // an error: they are decoded and returned (C §6.3.1).
@@ -86,9 +135,25 @@ func TestReadUnknownResources(t *testing.T) {
 	c := h.registered("extra")
 	c.Set(p("/3/0/9999"), lwm2m.String("vendor"))
 	c.Set(p("/30000/0/1"), lwm2m.Integer(7))
-	r := expect(t, "2.05")(h.srv.Read(h.ctx, "extra", p("/3/0"), ReadOptions{}))
-	if r.DecodeErr != nil || !slices.ContainsFunc(r.Nodes, func(n lwm2m.Node) bool { return n.Path == p("/3/0/9999") }) {
-		t.Fatalf("unknown resource lost: %v %v", r.DecodeErr, r.Nodes)
+	for _, cf := range []lwm2m.ContentFormat{lwm2m.FormatTLV, lwm2m.FormatOMAJSON, lwm2m.FormatSenMLJSON, lwm2m.FormatSenMLCBOR, lwm2m.FormatLwM2MCBOR} {
+		acc := cf
+		r := expect(t, "2.05")(h.srv.Read(h.ctx, "extra", p("/3/0"), ReadOptions{Accept: &acc}))
+		if r.DecodeErr != nil || !slices.ContainsFunc(r.Nodes, func(n lwm2m.Node) bool { return n.Path == p("/3/0/9999") }) {
+			t.Fatalf("%v: unknown resource lost: %v %v", cf, r.DecodeErr, r.Nodes)
+		}
+	}
+	// Send with an unknown resource of a registered object (C §6.4.6).
+	nodes := []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(5)), lwm2m.ValueNode(p("/3/0/9999"), lwm2m.String("vendor"))}
+	sr, err := c.Send(h.ctx, nodes, lwm2m.FormatSenMLCBOR)
+	mustCode(t, sr, err, "2.04")
+	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	if !lwm2m.NodesEqual(ev.Nodes, nodes) {
+		t.Fatalf("send: %s", lwm2m.FormatNodes(ev.Nodes))
+	}
+	// Discover listing an unknown resource is returned as is (1.2.2 dropped
+	// the sentence for Discover; still tolerated).
+	if r := expect(t, "2.05")(h.srv.Discover(h.ctx, "extra", p("/3/0"), nil)); !strings.Contains(string(r.Payload), "</3/0/9999>") {
+		t.Fatalf("discover %q", r.Payload)
 	}
 }
 
@@ -113,6 +178,13 @@ func TestServerValidatesTargets(t *testing.T) {
 		second(h.srv.Write(ctx, "val", p("/3/0/13/0"), nil, WriteOptions{Mode: PartialUpdate})),
 		second(h.srv.WriteAttributes(ctx, "val", lwm2m.Root, []string{"pmin=1"})),
 		second(h.srv.ReadComposite(ctx, "val", []lwm2m.Path{p("/0/0")}, CompositeOptions{})),
+		second(h.srv.Write(ctx, "val", p("/0/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/0/0/1"), lwm2m.Boolean(false))}, WriteOptions{})),
+		second(h.srv.Discover(ctx, "val", p("/21"), nil)),
+		second(h.srv.Execute(ctx, "val", p("/23/0/1"), "")),
+		second(h.srv.Delete(ctx, "val", p("/0/1"))),
+		second(h.srv.WriteAttributes(ctx, "val", p("/0/0"), []string{"pmin=1"})),
+		third(h.srv.Observe(ctx, "val", p("/21/0"), ObserveOptions{})),
+		second(h.srv.WriteComposite(ctx, "val", []lwm2m.Node{lwm2m.ValueNode(p("/23/0/0"), lwm2m.Integer(1))}, nil)),
 	}
 	for i, err := range checks {
 		if !errors.Is(err, ErrBadRequest) {
@@ -130,6 +202,8 @@ func TestServerValidatesTargets(t *testing.T) {
 }
 
 func second[A, B any](_ A, b B) B { return b }
+
+func third[A, B, C any](_ A, _ B, c C) C { return c }
 
 // Proves: DM-05, DM-20, DM-06
 // Replace is PUT and Partial Update is POST, both with a Content-Format.
@@ -154,8 +228,8 @@ func TestWrite(t *testing.T) {
 	var formats []lwm2m.ContentFormat
 	for _, r := range reqs[1:] {
 		formats = append(formats, *r.Format)
-		if r.Code != codes.POST {
-			t.Fatalf("partial update sent %v", r.Code)
+		if r.Code != codes.POST || r.Path != "/1/0" || !slices.Contains(postFormats, *r.Format) {
+			t.Fatalf("partial update sent %v %s in %v", r.Code, r.Path, *r.Format)
 		}
 	}
 	if formats[len(formats)-1] != lwm2m.FormatTLV || len(formats) < 2 {
@@ -182,6 +256,11 @@ func TestWrite(t *testing.T) {
 	if _, ok := c.Get(p("/16/0/0/1")); ok {
 		t.Fatal("replace kept an old resource instance")
 	}
+	// Partial Update of a multi-instance resource is POST on /o/i/r.
+	expect(t, "2.04")(h.srv.Write(h.ctx, "w", p("/16/0/0"), []lwm2m.Node{lwm2m.ValueNode(p("/16/0/0/1"), lwm2m.String("y"))}, WriteOptions{Mode: PartialUpdate}))
+	if req, _ := c.LastRequest(); req.Code != codes.POST || req.Path != "/16/0/0" || !slices.Contains(postFormats, *req.Format) {
+		t.Fatalf("partial update of a resource sent %+v", req)
+	}
 	// Model validation (DM-06): wrong type, read-only resource.
 	if _, err := h.srv.Write(h.ctx, "w", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.String("x"))}, WriteOptions{}); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("wrong type sent: %v", err)
@@ -191,6 +270,9 @@ func TestWrite(t *testing.T) {
 	}
 }
 
+// postFormats are the formats a POST Write or Create may carry (DM-05, DM-09).
+var postFormats = []lwm2m.ContentFormat{lwm2m.FormatTLV, lwm2m.FormatLwM2MCBOR, lwm2m.FormatSenMLCBOR, lwm2m.FormatSenMLJSON}
+
 // Proves: DM-08
 // Execute is POST on /o/i/r with optional text/plain arguments.
 func TestExecute(t *testing.T) {
@@ -199,8 +281,18 @@ func TestExecute(t *testing.T) {
 	expect(t, "2.04")(h.srv.Execute(h.ctx, "x", p("/3/0/4"), ""))
 	expect(t, "2.04")(h.srv.Execute(h.ctx, "x", p("/3/0/4"), "0='a',1"))
 	ex := c.Executed()
-	if len(ex) != 2 || ex[0].Path != "/3/0/4" || ex[0].Body != nil || string(ex[1].Body) != "0='a',1" || *ex[1].Format != lwm2m.FormatText {
+	if len(ex) != 2 || ex[0].Code != codes.POST || ex[0].Path != "/3/0/4" || ex[0].Body != nil || ex[0].Format != nil ||
+		string(ex[1].Body) != "0='a',1" || *ex[1].Format != lwm2m.FormatText {
 		t.Fatalf("executed %+v", ex)
+	}
+	// Arguments outside the §6.3.5 arglist, or a repeated digit, are not sent.
+	for _, bad := range []string{"1,1", "0=a", "a", "0='x'y", "0='it's'", "1,"} {
+		if _, err := h.srv.Execute(h.ctx, "x", p("/3/0/4"), bad); !errors.Is(err, ErrBadRequest) {
+			t.Errorf("args %q: %v", bad, err)
+		}
+	}
+	if n := len(c.Executed()); n != 2 {
+		t.Fatalf("%d executes reached the client", n)
 	}
 }
 
@@ -211,6 +303,10 @@ func TestExecute(t *testing.T) {
 func TestCreateDelete(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("cd")
+	// A valid instance of an object the client did not register is refused.
+	if _, err := h.srv.Create(h.ctx, "cd", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/1/0/0"), lwm2m.String("x"))}, nil); !errors.Is(err, ErrBadRequest) {
+		t.Fatalf("create on unregistered object: %v", err)
+	}
 	c.AddObject(16)
 	expect(t, "2.05")(h.srv.Read(h.ctx, "cd", p("/3/0/0"), ReadOptions{})) // keep registration fresh
 	if _, err := c.Update(h.ctx, nil, []byte(c.ObjectLinks())); err != nil {
@@ -222,6 +318,9 @@ func TestCreateDelete(t *testing.T) {
 	if !slices.Equal(r.Location, []string{"16", "1"}) {
 		t.Fatalf("location %v", r.Location)
 	}
+	if req, _ := c.LastRequest(); req.Code != codes.POST || req.Path != "/16" || req.Format == nil || !slices.Contains(postFormats, *req.Format) {
+		t.Fatalf("create request %+v", req)
+	}
 	if v, ok := c.Get(p("/16/1/0/0")); !ok || !v.Equal(lwm2m.String("Host Device ID #2")) {
 		t.Fatal("instance not created")
 	}
@@ -231,7 +330,15 @@ func TestCreateDelete(t *testing.T) {
 	if _, err := h.srv.Create(h.ctx, "cd", p("/16"), []lwm2m.Node{lwm2m.ValueNode(p("/16/2/9"), lwm2m.String("x"))}, nil); !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("create without mandatory resources: %v", err)
 	}
+	// Delete of a resource instance (1.1+) is DELETE on /o/i/r/ri.
+	_, _ = h.srv.Delete(h.ctx, "cd", p("/16/1/0/0"))
+	if req, _ := c.LastRequest(); req.Code != codes.DELETE || req.Path != "/16/1/0/0" {
+		t.Fatalf("resource instance delete %+v", req)
+	}
 	expect(t, "2.02")(h.srv.Delete(h.ctx, "cd", p("/16/1")))
+	if req, _ := c.LastRequest(); req.Code != codes.DELETE || req.Path != "/16/1" {
+		t.Fatalf("delete %+v", req)
+	}
 	if _, ok := c.Get(p("/16/1/0/0")); ok {
 		t.Fatal("not deleted")
 	}
@@ -240,7 +347,7 @@ func TestCreateDelete(t *testing.T) {
 	}
 }
 
-// Proves: DM-12, ETCH-02, ETCH-03, ETCH-07
+// Proves: DM-01, DM-12, ETCH-02, ETCH-03, ETCH-07, CBOR-09
 // Read-Composite is FETCH on / with a path list and no Uri-Path or
 // Uri-Query, in SenML or SenML-ETCH; missing paths are simply absent.
 // Write-Composite is iPATCH on /. A malformed pack is 4.00 at the client
@@ -265,11 +372,27 @@ func TestComposite(t *testing.T) {
 		lwm2m.ValueNode(p("/1/0/6"), lwm2m.Boolean(true)),
 	}, nil))
 	req, _ := c.LastRequest()
-	if req.Code != codeIPATCH || req.Path != "/" || len(req.Queries) != 0 {
+	if req.Code != codeIPATCH || req.Path != "/" || len(req.Queries) != 0 || *req.Format != lwm2m.FormatSenMLCBOR {
 		t.Fatalf("iPATCH %+v", req)
 	}
 	if v, _ := c.Get(p("/1/0/6")); !v.Equal(lwm2m.Boolean(true)) {
 		t.Fatal("write-composite not applied")
+	}
+	// A Patch Pack may be LwM2M CBOR (CBOR-09); a Fetch Pack may not.
+	lw := lwm2m.FormatLwM2MCBOR
+	expect(t, "2.04")(h.srv.WriteComposite(h.ctx, "comp", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(121))}, &lw))
+	if req, _ := c.LastRequest(); req.Code != codeIPATCH || *req.Format != lw {
+		t.Fatalf("LwM2M CBOR iPATCH %+v", req)
+	}
+	if v, _ := c.Get(p("/1/0/1")); !v.Equal(lwm2m.Integer(121)) {
+		t.Fatal("LwM2M CBOR write-composite not applied")
+	}
+	before := len(c.Requests())
+	if _, err := h.srv.ReadComposite(h.ctx, "comp", []lwm2m.Path{p("/3/0/0")}, CompositeOptions{Format: &lw}); !errors.Is(err, ErrBadRequest) {
+		t.Fatalf("LwM2M CBOR Fetch Pack: %v", err)
+	}
+	if len(c.Requests()) != before {
+		t.Fatal("LwM2M CBOR Fetch Pack sent")
 	}
 	c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
 		return codes.BadRequest, nil, nil, r.Code == codeIPATCH
@@ -294,6 +417,33 @@ func TestAlternatePath(t *testing.T) {
 	if len(reqs) != 2 || reqs[0].Path != "/lwm2m/3/0/0" || reqs[1].Path != "/lwm2m" {
 		t.Fatalf("paths %+v", reqs)
 	}
+	// SenML names carry the alternate path both ways (1.2.1).
+	if !strings.Contains(string(reqs[1].Body), "/lwm2m/3/0/0") {
+		t.Fatalf("Fetch Pack names %q", reqs[1].Body)
+	}
+	c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+		if r.Code == codeIPATCH {
+			return codes.Changed, nil, nil, true
+		}
+		cf := lwm2m.FormatSenMLJSON
+		return codes.Content, &cf, []byte(`[{"n":"/lwm2m/3/0/0","vs":"OMA"}]`), true
+	})
+	sj := lwm2m.FormatSenMLJSON
+	rr := expect(t, "2.05")(h.srv.Read(h.ctx, "alt", p("/3/0/0"), ReadOptions{Accept: &sj}))
+	if rr.DecodeErr != nil || !lwm2m.NodesEqual(rr.Nodes, []lwm2m.Node{lwm2m.ValueNode(p("/3/0/0"), lwm2m.String("OMA"))}) {
+		t.Fatalf("prefixed SenML response: %v %s", rr.DecodeErr, lwm2m.FormatNodes(rr.Nodes))
+	}
+	expect(t, "2.04")(h.srv.WriteComposite(h.ctx, "alt", []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(60))}, &sj))
+	if req, _ := c.LastRequest(); req.Path != "/lwm2m" || !strings.Contains(string(req.Body), `"/lwm2m/1/0/1"`) {
+		t.Fatalf("Patch Pack %s %q", req.Path, req.Body)
+	}
+	sf := lwm2m.FormatSenMLJSON
+	sr, err := c.Raw(h.ctx, codes.POST, "/dp", nil, &sf, []byte(`[{"n":"/lwm2m/3/0/9","v":5}]`))
+	mustCode(t, sr, err, "2.04")
+	ev := h.ev.wait(t, func(e Event) bool { _, ok := e.(SendReceived); return ok }).(SendReceived)
+	if !lwm2m.NodesEqual(ev.Nodes, []lwm2m.Node{lwm2m.ValueNode(p("/3/0/9"), lwm2m.Integer(5))}) {
+		t.Fatalf("prefixed Send: %s", lwm2m.FormatNodes(ev.Nodes))
+	}
 }
 
 // Proves: DM-04
@@ -302,8 +452,8 @@ func TestDiscoverRequest(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("disc")
 	r := expect(t, "2.05")(h.srv.Discover(h.ctx, "disc", p("/3/0"), nil))
-	if !strings.Contains(string(r.Payload), "</3/0/11>;dim=1") {
-		t.Fatalf("payload %q", r.Payload)
+	if req, _ := c.LastRequest(); !strings.Contains(string(r.Payload), "</3/0/11>;dim=1") || len(req.Queries) != 0 || req.Code != codes.GET {
+		t.Fatalf("payload %q, request %+v (no depth: the client's default)", r.Payload, req)
 	}
 	d := 1
 	_, _ = h.srv.Discover(h.ctx, "disc", p("/3"), &d)

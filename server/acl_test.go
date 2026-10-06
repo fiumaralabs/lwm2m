@@ -1,6 +1,7 @@
 package server
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -22,10 +23,17 @@ func TestAccessControlOwner(t *testing.T) {
 		acl.Instance{ID: 0, Object: 3, Instance: 0, Owner: 102, ACL: map[uint16]acl.Rights{0: acl.Read}},
 		acl.Instance{ID: 1, Object: 1, Instance: 0, Owner: 101, ACL: map[uint16]acl.Rights{}},
 		acl.Instance{ID: 2, Object: 16, Instance: lwm2m.MaxID, Owner: 102, ACL: map[uint16]acl.Rights{101: acl.Create}},
+		acl.Instance{ID: 3, Object: 1, Instance: 1, Owner: 102, ACL: map[uint16]acl.Rights{}},
 	)
+	c.Set(p("/1/1/0"), lwm2m.Integer(102))
 	mustCode(mustRegister(h, c))
 
 	expect(t, "2.05")(h.srv.Read(h.ctx, "acl", p("/3/0/0"), ReadOptions{}))
+	// Object-level Read aggregates only the readable instances (C §8.2.3).
+	r := expect(t, "2.05")(h.srv.Read(h.ctx, "acl", p("/1"), ReadOptions{}))
+	if len(r.Nodes) == 0 || slices.ContainsFunc(r.Nodes, func(n lwm2m.Node) bool { return n.Path.Instance() != 0 }) {
+		t.Fatalf("object read %s", lwm2m.FormatNodes(r.Nodes))
+	}
 	expect(t, "4.01")(h.srv.Write(h.ctx, "acl", p("/3/0/13"), []lwm2m.Node{lwm2m.ValueNode(p("/3/0/13"), lwm2m.Time(1))}, WriteOptions{}))
 	expect(t, "2.04")(h.srv.Write(h.ctx, "acl", p("/1/0/1"), []lwm2m.Node{lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(500))}, WriteOptions{}))
 

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -94,6 +95,7 @@ type Client struct {
 	rawLog          []RawRequest      // requests as received, before block-wise reassembly
 	notifyMu        sync.Mutex        // one notification in flight at a time
 	resetCh         chan message.Type // Reset for the notification in flight
+	nonSent         atomic.Int64      // NON notifications sent (NotifyNON)
 }
 
 type observer struct {
@@ -463,10 +465,27 @@ func (c *Client) request(ctx context.Context, code codes.Code, path string, quer
 
 // Raw sends an arbitrary request to the server.
 func (c *Client) Raw(ctx context.Context, code codes.Code, path string, query []string, cf *lwm2m.ContentFormat, body []byte) (*Response, error) {
+	return c.raw(ctx, message.Confirmable, code, path, query, cf, body)
+}
+
+// SendNON is Send as a non-confirmable message (T §6.8.1, 1.2.1).
+func (c *Client) SendNON(ctx context.Context, nodes []lwm2m.Node, cf lwm2m.ContentFormat) (*Response, error) {
+	cd, err := codec.For(cf)
+	if err != nil {
+		return nil, err
+	}
+	body, err := cd.Encode(lwm2m.Root, nodes)
+	if err != nil {
+		return nil, err
+	}
+	return c.raw(ctx, message.NonConfirmable, codes.POST, "/dp", nil, &cf, body)
+}
+
+func (c *Client) raw(ctx context.Context, typ message.Type, code codes.Code, path string, query []string, cf *lwm2m.ContentFormat, body []byte) (*Response, error) {
 	m := c.conn.AcquireMessage(ctx)
 	defer c.conn.ReleaseMessage(m)
 	m.SetCode(code)
-	m.SetType(message.Confirmable)
+	m.SetType(typ)
 	if err := m.SetPath(path); err != nil {
 		return nil, err
 	}
@@ -674,6 +693,7 @@ func (c *Client) read(p lwm2m.Path, accept *lwm2m.ContentFormat) (codes.Code, *l
 	}
 	nodes := c.nodesLocked(p)
 	c.mu.Unlock()
+	nodes = c.readableNodes(p, nodes)
 	return c.encode(p, c.responseFormat(p, accept, nodes), nodes)
 }
 

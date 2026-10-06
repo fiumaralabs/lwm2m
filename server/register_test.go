@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"errors"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/testclient"
+	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
 // Proves: REG-01, REG-05, REG-11, REG-22, REG-27
@@ -17,7 +20,7 @@ import (
 func TestRegisterAllParameters(t *testing.T) {
 	h := newHarness(t)
 	c := h.device(testclient.Config{Endpoint: "urn:dev:all"})
-	r, err := c.RegisterRaw(h.ctx, []string{"ep=urn:dev:all", "lt=600", "lwm2m=1.1", "b=UQ", "Q", "sms=4412345678"}, []byte(c.ObjectLinks()), true)
+	r, err := c.RegisterRaw(h.ctx, []string{"ep=urn:dev:all", "lt=600", "lwm2m=1.1", "b=U", "Q", "sms=4412345678"}, []byte(c.ObjectLinks()), true)
 	mustCode(t, r, err, "2.01")
 	if len(r.Location) != 2 || r.Location[0] != "rd" || r.Location[1] == "" || len(r.Location[1]) > 32 {
 		t.Fatalf("location %v", r.Location)
@@ -72,7 +75,7 @@ func TestRegisterRejectsBadParameters(t *testing.T) {
 	}
 }
 
-// Proves: REG-04, GEN-01
+// Proves: REG-04, REG-06, GEN-01
 // Versions 1.0, 1.1 and 1.2 (and their patch releases) are served; any
 // other declared version is refused with 4.12, even if other parameters
 // are malformed, so clients can fall back.
@@ -115,7 +118,7 @@ func TestReRegisterReplaces(t *testing.T) {
 	if _, ok := h.srv.Store().ByID(first); ok {
 		t.Fatal("old registration kept")
 	}
-	if n := len(h.srv.Observations("rereg")); n != 0 {
+	if n := len(h.srv.Observations("rereg")); n != 0 || h.srv.KnownObservation(ob.token) {
 		t.Fatalf("%d observations survived re-register", n)
 	}
 	ev := h.ev.wait(t, func(e Event) bool { x, ok := e.(Registered); return ok && x.Replaced != nil })
@@ -125,6 +128,15 @@ func TestReRegisterReplaces(t *testing.T) {
 	// The old location is gone (REG-13 wording: later Update gets 4.04).
 	old, err := c.Raw(h.ctx, 2, "/rd/"+first, nil, nil, nil)
 	mustCode(t, old, err, "4.04")
+	// OBS-03: the server re-initiates the observation on the new
+	// registration; the client sees a fresh Observe request.
+	ob2, resp, err := h.srv.Observe(h.ctx, "rereg", p("/3/0/9"), ObserveOptions{})
+	if err != nil || ob2 == nil || !resp.Success() {
+		t.Fatalf("re-observe: %v %+v", err, resp)
+	}
+	if ob2.RegistrationID != c.Location() || string(ob2.token) == string(ob.token) || c.Observers() != 1 {
+		t.Fatalf("re-initiated observation %+v, client observers %d", ob2, c.Observers())
+	}
 }
 
 // Proves: REG-13, REG-23
@@ -170,7 +182,7 @@ func mustRegister(h *harness, c *testclient.Client) (*testing.T, *testclient.Res
 	return h.t, r, err, "2.01"
 }
 
-// Proves: REG-14, REG-15
+// Proves: REG-14, REG-15, REG-08
 // Update carries only changed parameters, refreshes the lifetime, and an
 // object list in an Update replaces the stored one. Register-only
 // parameters and unknown ones are 4.00; unknown locations 4.04.
@@ -209,6 +221,16 @@ func TestUpdate(t *testing.T) {
 	if ev.(Updated).Registration.Endpoint != "upd" {
 		t.Fatal("event")
 	}
+	// REG-08: unknown objects and versions do not block an Update.
+	r, err = c.Update(h.ctx, nil, []byte("</3/0>,</32769/0>;ver=9.9,</40000>"))
+	mustCode(t, r, err, "2.04")
+	if reg, _ = h.srv.Store().ByEndpoint("upd"); !reg.HasInstance(32769, 0) || !reg.HasObject(40000) {
+		t.Fatalf("unknown objects dropped: %+v", reg.Objects)
+	}
+	// Same media type as Register: anything but link-format is 4.00.
+	txt := lwm2m.FormatText
+	r, err = c.Raw(h.ctx, 2, "/rd/"+c.Location(), nil, &txt, []byte("</3/0>"))
+	mustCode(t, r, err, "4.00")
 	for _, q := range [][]string{{"ep=upd"}, {"lwm2m=1.1"}, {"x=1"}, {"lt=abc"}} {
 		r, err = c.Update(h.ctx, q, nil)
 		mustCode(t, r, err, "4.00")
@@ -217,19 +239,20 @@ func TestUpdate(t *testing.T) {
 	mustCode(t, r, err, "4.04")
 }
 
-// Proves: REG-16
+// Proves: REG-16, OBS-10
 // De-register removes the registration and voids its observations (2.02);
 // an unknown location is 4.04.
 func TestDeregister(t *testing.T) {
 	h := newHarness(t)
 	c := h.registered("dereg")
-	if _, _, err := h.srv.Observe(h.ctx, "dereg", p("/3/0/9"), ObserveOptions{}); err != nil {
+	ob, _, err := h.srv.Observe(h.ctx, "dereg", p("/3/0/9"), ObserveOptions{})
+	if err != nil {
 		t.Fatal(err)
 	}
 	loc := c.Location()
 	r, err := c.Deregister(h.ctx)
 	mustCode(t, r, err, "2.02")
-	if _, ok := h.srv.Store().ByID(loc); ok || len(h.srv.obs.forRegistration(loc)) != 0 {
+	if _, ok := h.srv.Store().ByID(loc); ok || len(h.srv.obs.forRegistration(loc)) != 0 || h.srv.KnownObservation(ob.token) {
 		t.Fatal("registration or observations kept")
 	}
 	h.ev.wait(t, func(e Event) bool { x, ok := e.(Deregistered); return ok && x.Reason == ReasonDeregistered })
@@ -337,7 +360,7 @@ func TestRegisterForbidden(t *testing.T) {
 	mustCode(t, r, err, "4.03")
 }
 
-// Proves: PROF-01, PROF-03, PROF-04, PROF-05, PROF-06, PROF-07, PROF-08, PROF-11, REG-21
+// Proves: PROF-01, PROF-03, PROF-04, PROF-05, PROF-06, PROF-07, PROF-08, PROF-09, PROF-11, REG-21, REG-06
 // Profile IDs: an unknown pid without a list is 4.09; a pid sent with its
 // list is learned and later resolves alone; pre-configured oma:/v: IDs
 // resolve from configuration; several pids and a payload combine; a 1.2
@@ -345,7 +368,10 @@ func TestRegisterForbidden(t *testing.T) {
 // resolved list.
 func TestProfileIDs(t *testing.T) {
 	h := newHarness(t, func(c *Config) {
-		c.Profiles = map[string][]link.Object{"v:tracker": {{ID: 6, Instances: []uint16{0}}}}
+		c.Profiles = map[string][]link.Object{
+			"v:tracker":   {{ID: 6, Instances: []uint16{0}}},
+			"oma:sensors": {{ID: 3303, Instances: []uint16{0, 1}}},
+		}
 	})
 	c := h.device(testclient.Config{Endpoint: "prof", Version: "1.2"})
 	base := []string{"ep=prof", "lt=600", "lwm2m=1.2"}
@@ -370,6 +396,35 @@ func TestProfileIDs(t *testing.T) {
 			t.Fatalf("object %d missing from combined list %+v", o, reg.Objects)
 		}
 	}
+	// PROF-07: instances of one object from a pid and the payload combine.
+	r, err = c.RegisterRaw(h.ctx, append(base, `pid="6:00aabbcc,oma:sensors"`), []byte("</3/1>,</3303/2>"), true)
+	mustCode(t, r, err, "2.01")
+	reg, _ = h.srv.Store().ByEndpoint("prof")
+	if !reg.HasInstance(3, 0) || !reg.HasInstance(3, 1) || !reg.HasInstance(3303, 0) || !reg.HasInstance(3303, 1) || !reg.HasInstance(3303, 2) {
+		t.Fatalf("instances not combined: %+v", reg.Objects)
+	}
+	// The learned list is not altered by a later merge.
+	if l, _ := h.srv.resolveProfiles([]string{"6:00aabbcc"}); len(l) != 2 {
+		t.Fatalf("cached profile changed: %+v", l)
+	}
+	// PROF-04: an oma: pre-configured ID alone.
+	r, err = c.RegisterRaw(h.ctx, append(base, "pid=oma:sensors"), nil, false)
+	mustCode(t, r, err, "2.01")
+	reg, _ = h.srv.Store().ByEndpoint("prof")
+	if len(reg.Objects) != 1 || !reg.HasInstance(3303, 1) {
+		t.Fatalf("oma: profile resolved to %+v", reg.Objects)
+	}
+	// PROF-09: pid on Update replaces the list; an unknown one is 4.09.
+	u, err := c.Update(h.ctx, []string{"pid=v:tracker"}, nil)
+	mustCode(t, u, err, "2.04")
+	reg, _ = h.srv.Store().ByEndpoint("prof")
+	if len(reg.Objects) != 1 || !reg.HasInstance(6, 0) || reg.ProfileIDs[0] != "v:tracker" {
+		t.Fatalf("Update pid resolved to %+v", reg.Objects)
+	}
+	u, err = c.Update(h.ctx, []string{"pid=6:ffff0000"}, nil)
+	mustCode(t, u, err, "4.09")
+	u, err = c.Update(h.ctx, []string{"pid=6:FFFF"}, nil)
+	mustCode(t, u, err, "4.00")
 }
 
 // Proves: GEN-10
@@ -404,5 +459,91 @@ func TestDMAfterRegisterReply(t *testing.T) {
 	reqs := c.Requests()
 	if len(reqs) == 0 || reqs[0].Path != "/3/0/0" {
 		t.Fatalf("requests %+v", reqs)
+	}
+
+	// The binding contract that makes this hold: HandleUplink returns the
+	// 2.01 with Registered deferred to after(), which bindings run once the
+	// response is written.
+	h2 := newHarness(t)
+	cf := lwm2m.FormatLinkFormat
+	resp, after := h2.srv.HandleUplink(fakePeer{}, &Message{Code: codes.POST, Path: "/rd",
+		Query: []string{"ep=deferred", "lt=60", "lwm2m=1.1"}, Format: &cf, Payload: []byte("</3/0>")})
+	if resp == nil || resp.Code != codes.Created {
+		t.Fatalf("response %+v", resp)
+	}
+	registered := func() bool {
+		h2.ev.mu.Lock()
+		defer h2.ev.mu.Unlock()
+		for _, e := range h2.ev.l {
+			if _, ok := e.(Registered); ok {
+				return true
+			}
+		}
+		return false
+	}
+	if registered() {
+		t.Fatal("Registered emitted before the response was sent")
+	}
+	after()
+	if !registered() {
+		t.Fatal("Registered not emitted after the response")
+	}
+}
+
+// fakePeer is a NoSec transport session that cannot carry requests.
+type fakePeer struct{}
+
+func (fakePeer) Exchange(context.Context, *Message) (*Message, error) {
+	return nil, errors.New("fakePeer: no transport")
+}
+func (fakePeer) Identity() Identity   { return Identity{Mode: ModeNoSec, Addr: "192.0.2.1:5683"} }
+func (fakePeer) RemoteAddr() net.Addr { return &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 5683} }
+func (fakePeer) Binding() string      { return "U" }
+
+// Proves: REG-27, REG-18
+// The example flow of T Fig 6.4.3-1: Register, Update ?lt=600000,
+// De-register, with the codes and Location it shows. Without b the
+// binding defaults to U.
+func TestSpecExampleFlow(t *testing.T) {
+	h := newHarness(t)
+	c := h.device(testclient.Config{Endpoint: "example-client"})
+	r, err := c.RegisterRaw(h.ctx, []string{"ep=example-client", "lwm2m=1.1", "lt=86400"}, []byte("</1/0>,</3/0>"), true)
+	mustCode(t, r, err, "2.01")
+	if len(r.Location) != 2 || r.Location[0] != "rd" {
+		t.Fatalf("location %v", r.Location)
+	}
+	if reg, _ := h.srv.Store().ByEndpoint("example-client"); reg.Binding != "U" || reg.QueueMode {
+		t.Fatalf("default binding %q queue %v", reg.Binding, reg.QueueMode)
+	}
+	r, err = c.Raw(h.ctx, codes.POST, "/rd/"+r.Location[1], []string{"lt=600000"}, nil, nil)
+	mustCode(t, r, err, "2.04")
+	if reg, _ := h.srv.Store().ByEndpoint("example-client"); reg.Lifetime != 600000*time.Second {
+		t.Fatalf("lifetime %v", reg.Lifetime)
+	}
+	r, err = c.Raw(h.ctx, codes.DELETE, "/rd/"+c.Location(), nil, nil, nil)
+	mustCode(t, r, err, "2.02")
+	if len(h.srv.Store().All()) != 0 {
+		t.Fatal("still registered")
+	}
+}
+
+// Proves: REG-03
+// A Server write of /1/x/1 becomes the registration's lifetime at once
+// (C §6.2); 0 is infinite.
+func TestSetLifetime(t *testing.T) {
+	h := newHarness(t)
+	c := h.device(testclient.Config{Endpoint: "lt", Lifetime: 600})
+	mustCode(mustRegister(h, c))
+	expect(t, "2.04")(h.srv.SetLifetime(h.ctx, "lt", 30*time.Second))
+	if v, _ := c.Get(p("/1/0/1")); v.Int != 30 {
+		t.Fatalf("/1/0/1 = %+v", v)
+	}
+	if _, err := h.srv.SetLifetime(h.ctx, "lt", -time.Second); err == nil {
+		t.Fatal("negative lifetime accepted")
+	}
+	h.clock.Add(31 * time.Second)
+	h.srv.expireNow()
+	if _, ok := h.srv.Store().ByEndpoint("lt"); ok {
+		t.Fatal("written lifetime not applied")
 	}
 }

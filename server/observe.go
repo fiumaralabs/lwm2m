@@ -114,6 +114,9 @@ func (s *Server) Observe(ctx context.Context, ep string, p lwm2m.Path, o Observe
 	if len(o.Query) > 0 && reg.Version != "1.2" {
 		return nil, nil, fmt.Errorf("%w: attributes in Observe need a 1.2 client (OBS-06)", ErrBadRequest)
 	}
+	if err := checkAttributes(p, o.Query); err != nil {
+		return nil, nil, err // ATT-06: Observe parameters obey the same rules
+	}
 	if err := checkEndDevice(reg, o.Prefix); err != nil {
 		return nil, nil, err
 	}
@@ -135,6 +138,9 @@ func (s *Server) ObserveComposite(ctx context.Context, ep string, paths []lwm2m.
 		}
 	}
 	reqCF, acc := o.formats(reg)
+	if !compositeAccept[acc] {
+		return nil, nil, fmt.Errorf("%w: composite notifications are LwM2M CBOR or SenML, not %v", ErrBadRequest, acc)
+	}
 	body, err := encodePaths(reg, reqCF, paths)
 	if err != nil {
 		return nil, nil, err
