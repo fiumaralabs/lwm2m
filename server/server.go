@@ -72,6 +72,7 @@ type Server struct {
 	queues   *queues
 	profiles *profileCache
 	formats  sync.Map // registration ID -> learned multi-value format
+	coap     coapBinding
 	closed   bool
 }
 
@@ -105,7 +106,7 @@ func New(cfg Config) *Server {
 	}
 	s.queues = newQueues(s)
 	s.router = mux.NewRouter()
-	s.routes()
+	s.router.DefaultHandle(mux.HandlerFunc(s.serveCoAP))
 	s.wg.Add(1)
 	go s.expiryLoop()
 	return s

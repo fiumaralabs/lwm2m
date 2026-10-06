@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -384,7 +385,7 @@ func TestDMAfterRegisterReply(t *testing.T) {
 			prev(e)
 			if r, ok := e.(Registered); ok {
 				go func() {
-					resp, _ := srv.Read(r.Registration.conn.Context(), r.Registration.Endpoint, p("/3/0/0"), ReadOptions{})
+					resp, _ := srv.Read(context.Background(), r.Registration.Endpoint, p("/3/0/0"), ReadOptions{})
 					got <- resp
 				}()
 			}

@@ -9,10 +9,6 @@ import (
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
-	"github.com/plgd-dev/go-coap/v3/message/pool"
-	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/plgd-dev/go-coap/v3/options/config"
-	"github.com/plgd-dev/go-coap/v3/udp/client"
 )
 
 // Observation is an active Observe or Observe-Composite (C §6.4.1, §6.4.4).
@@ -85,10 +81,6 @@ func (o *observations) forRegistration(regID string) []*Observation {
 	}
 	return out
 }
-
-// rebind is a no-op: notifications are matched by token, not by
-// connection, so an address or session change keeps observations (C2).
-func (o *observations) rebind(string, *client.Conn) {}
 
 // Observations lists the active observations of an endpoint.
 func (s *Server) Observations(ep string) []*Observation {
@@ -205,43 +197,12 @@ func (s *Server) CancelObservation(ctx context.Context, ob *Observation, active 
 	return s.exchange(ctx, reg, request{method: codes.GET, path: ob.Paths[0], accept: ob.Accept, observe: &one, token: ob.token, schemaOf: ob.Paths[0]})
 }
 
-// isResponseCode reports a 2.xx-5.xx code (a response, not a request).
-func isResponseCode(c codes.Code) bool { return c >= 64 && c < 192 }
-
-// processUDP is go-coap's received-message hook. It answers notifications
-// for unknown observations with Reset (OBS-02): go-coap's own reply path
-// would turn a Reset to a CON message into an ACK.
-func (s *Server) processUDP(req *pool.Message, cc *client.Conn, handler config.HandlerFunc[*client.Conn]) {
-	if isResponseCode(req.Code()) && req.HasOption(message.Observe) && len(req.Token()) > 0 {
-		if _, ok := s.obs.get(req.Token()); !ok && (req.Type() == message.Confirmable || req.Type() == message.NonConfirmable) {
-			s.sendReset(cc, req)
-			cc.ReleaseMessage(req)
-			return
-		}
-	}
-	cc.ProcessReceivedMessageWithHandler(req, handler)
-}
-
-func (s *Server) sendReset(cc *client.Conn, req *pool.Message) {
-	rst := cc.AcquireMessage(cc.Context())
-	defer cc.ReleaseMessage(rst)
-	rst.SetType(message.Reset)
-	rst.SetCode(codes.Empty)
-	rst.SetMessageID(req.MessageID())
-	_ = cc.Session().WriteMessage(rst)
-}
-
-// handleDefault receives everything the router has no route for: the
-// notifications of known observations (their token handler is gone after
-// the first response).
-func (s *Server) handleDefault(w mux.ResponseWriter, m *mux.Message) {
-	if !isResponseCode(m.Code()) {
-		reply(w, codes.NotFound)
-		return
-	}
-	ob, ok := s.obs.get(m.Token())
+// handleNotification processes a notification for a known observation;
+// others are ignored here (the CoAP binding answers them with Reset).
+func (s *Server) handleNotification(_ Peer, m *Message) {
+	ob, ok := s.obs.get(m.Token)
 	if !ok {
-		return // a stray response; the empty ACK is sent automatically
+		return
 	}
 	reg, ok := s.store.ByID(ob.RegistrationID)
 	if !ok {
@@ -249,26 +210,35 @@ func (s *Server) handleDefault(w mux.ResponseWriter, m *mux.Message) {
 	}
 	// Observe reordering (RFC 7641 §3.4): drop a notification older than the
 	// last one unless 128 s have passed.
-	if seq, err := m.Observe(); err == nil {
+	if m.Observe != nil {
 		now := s.cfg.Now()
-		if ob.haveSeq && !newerNotification(ob.lastSeq, seq, ob.lastAt, now) {
+		s.obs.mu.Lock()
+		stale := ob.haveSeq && !newerNotification(ob.lastSeq, *m.Observe, ob.lastAt, now)
+		if !stale {
+			ob.lastSeq, ob.lastAt, ob.haveSeq = *m.Observe, now, true
+		}
+		s.obs.mu.Unlock()
+		if stale {
 			return
 		}
-		ob.lastSeq, ob.lastAt, ob.haveSeq = seq, now, true
 	}
 	base := lwm2m.Root
 	if !ob.Composite {
 		base = ob.Paths[0]
 	}
-	resp, err := s.decodeResponse(reg, m.Message, base)
-	if err != nil {
-		return
-	}
+	resp := s.decodeResponse(reg, m, base)
 	s.queues.wake(reg) // a notification means the client is awake (QM-03)
 	s.emit(Notification{Registration: reg, Observation: ob, Response: resp})
 	if !resp.Success() {
 		s.obs.remove(ob.token) // an error notification ends the observation (RFC 7641 §3.2)
 	}
+}
+
+// knownObservation reports whether a token belongs to an active
+// observation; the CoAP binding Resets notifications for others (OBS-02).
+func (s *Server) knownObservation(tok []byte) bool {
+	_, ok := s.obs.get(tok)
+	return ok
 }
 
 // newerNotification implements RFC 7641 §3.4.

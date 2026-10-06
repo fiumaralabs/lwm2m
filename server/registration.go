@@ -11,7 +11,6 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/link"
-	"github.com/plgd-dev/go-coap/v3/udp/client"
 )
 
 // Registration is the server's record of a registered client (C §6.2.1).
@@ -33,7 +32,7 @@ type Registration struct {
 	RegisteredAt   time.Time
 	LastUpdate     time.Time
 
-	conn *client.Conn
+	peer Peer // current transport session
 }
 
 // Expired reports whether the lifetime has elapsed at now.

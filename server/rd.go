@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,29 +10,8 @@ import (
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/regparam"
-	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
-	"github.com/plgd-dev/go-coap/v3/mux"
-	"github.com/plgd-dev/go-coap/v3/udp/client"
 )
-
-func (s *Server) routes() {
-	_ = s.router.Handle("/rd", mux.HandlerFunc(s.handleRegister))
-	_ = s.router.Handle("/rd/{id}", mux.HandlerFunc(s.handleRDLocation))
-	_ = s.router.Handle("/dp", mux.HandlerFunc(s.handleSend))
-	s.router.DefaultHandle(mux.HandlerFunc(s.handleDefault))
-}
-
-// reply sets a response with no payload.
-func reply(w mux.ResponseWriter, code codes.Code, opts ...message.Option) {
-	_ = w.SetResponse(code, message.TextPlain, nil, opts...)
-	w.Message().Remove(message.ContentFormat)
-}
-
-func queries(m *mux.Message) []string {
-	qs, _ := m.Options().Queries()
-	return qs
-}
 
 var versionRE = regexp.MustCompile(`^1\.([012])(\.\d+)?$`)
 
@@ -62,91 +40,77 @@ func pidKeys(ids []regparam.ProfileID) []string {
 
 func seconds(n uint32) time.Duration { return time.Duration(n) * time.Second }
 
-// readPayload returns the request body and checks that, when present, it is
-// application/link-format (REG-07). A missing Content-Format is tolerated
-// (Wakaama sends Update payloads without one, client-ecosystem T-list).
-func readPayload(m *mux.Message) ([]byte, bool) {
-	var body []byte
-	if m.Body() != nil {
-		b, err := io.ReadAll(m.Body())
-		if err != nil {
-			return nil, false
-		}
-		body = b
-	}
-	if len(bytes.TrimSpace(body)) == 0 {
+// linkPayload returns the request body and checks that, when present, it
+// is application/link-format (REG-07). A missing Content-Format is
+// tolerated (Wakaama sends Update payloads without one, client-ecosystem
+// T-list).
+func linkPayload(m *Message) ([]byte, bool) {
+	if len(bytes.TrimSpace(m.Payload)) == 0 {
 		return nil, true
 	}
-	if cf, err := m.ContentFormat(); err == nil && cf != message.AppLinkFormat {
+	if m.Format != nil && *m.Format != lwm2m.FormatLinkFormat {
 		return nil, false
 	}
-	return body, true
+	return m.Payload, true
 }
 
-func (s *Server) handleRegister(w mux.ResponseWriter, m *mux.Message) {
-	if m.Code() != codes.POST {
-		reply(w, codes.MethodNotAllowed)
-		return
-	}
-	cc, ok := w.Conn().(*client.Conn)
-	if !ok {
-		reply(w, codes.InternalServerError)
-		return
-	}
-	p, err := regparam.ParseRegister(queries(m))
+// reply is a response plus actions to run once it has been sent (events,
+// queue wake-up), so DM requests triggered by events follow the reply
+// (GEN-10).
+type reply struct {
+	msg   *Message
+	after func()
+}
+
+func replyCode(c codes.Code) reply { return reply{msg: status(c)} }
+
+func (s *Server) register(peer Peer, m *Message) reply {
+	p, err := regparam.ParseRegister(m.Query)
 	if err != nil {
 		// A version this server does not know is 4.12 even when the rest is
 		// malformed, so clients can fall back (REG-04, Anjay C12).
-		if v := versionParam(queries(m)); v != "" {
+		if v := versionParam(m.Query); v != "" {
 			if _, ok := normaliseVersion(v); !ok {
-				reply(w, codes.PreconditionFailed)
-				return
+				return replyCode(codes.PreconditionFailed)
 			}
 		}
-		reply(w, codes.BadRequest) // REG-06: missing mandatory or unknown parameter
-		return
+		return replyCode(codes.BadRequest) // REG-06: missing mandatory or unknown parameter
 	}
 	version, ok := normaliseVersion(*p.Version)
 	if !ok {
-		reply(w, codes.PreconditionFailed) // REG-04
-		return
+		return replyCode(codes.PreconditionFailed) // REG-04
 	}
 
-	id := identityOf(cc.NetConn(), cc.RemoteAddr())
+	id := peer.Identity()
 	var epName string
 	if p.Endpoint != nil {
 		epName = *p.Endpoint
 	}
 	ep, code := s.authorizeEndpoint(epName, id)
 	if code != 0 {
-		reply(w, code)
-		return
+		return replyCode(code)
 	}
 
-	payload, ok := readPayload(m)
+	payload, ok := linkPayload(m)
 	if !ok {
-		reply(w, codes.BadRequest)
-		return
+		return replyCode(codes.BadRequest)
 	}
 	objs, root, cfs, err := parseObjectLinks(payload)
 	if err != nil {
-		reply(w, codes.BadRequest)
-		return
+		return replyCode(codes.BadRequest)
 	}
 	pids := pidKeys(p.ProfileIDs)
 	if len(pids) > 0 {
 		resolved, ok := s.resolveProfiles(pids)
 		if !ok && payload == nil {
-			reply(w, codeConflict) // PROF-06
-			return
+			return replyCode(codeConflict) // PROF-06
 		}
 		objs = mergeObjects(objs, resolved)
 		if payload != nil {
 			s.learnProfiles(pids, objs) // PROF-11
 		}
 	} else if payload == nil && version == "1.2" {
-		reply(w, codeConflict) // PROF-08: no way to determine the object list
-		return
+		return replyCode(codeConflict) // PROF-08: no way to determine the object list
 	}
 
 	binding := "U" // REG-18 default
@@ -171,20 +135,22 @@ func (s *Server) handleRegister(w mux.ResponseWriter, m *mux.Message) {
 		RootPath:       root,
 		ContentFormats: cfs,
 		Identity:       id,
-		Addr:           cc.RemoteAddr(),
+		Addr:           peer.RemoteAddr(),
 		RegisteredAt:   now,
 		LastUpdate:     now,
-		conn:           cc,
+		peer:           peer,
 	}
 	old := s.store.Add(reg)
 	if old != nil {
 		s.dropClientState(old)
 	}
-	reply(w, codes.Created,
-		message.Option{ID: message.LocationPath, Value: []byte("rd")},
-		message.Option{ID: message.LocationPath, Value: []byte(reg.ID)})
-	s.emit(Registered{Registration: reg, Replaced: old})
-	s.queues.wake(reg)
+	return reply{
+		msg: &Message{Code: codes.Created, Location: []string{"rd", reg.ID}},
+		after: func() {
+			s.emit(Registered{Registration: reg, Replaced: old})
+			s.queues.wake(reg)
+		},
+	}
 }
 
 // authorizeEndpoint resolves the endpoint name and checks it against the
@@ -212,27 +178,18 @@ func (s *Server) authorizeEndpoint(ep string, id Identity) (string, codes.Code) 
 	return ep, 0
 }
 
-func (s *Server) handleRDLocation(w mux.ResponseWriter, m *mux.Message) {
-	id := m.RouteParams.Vars["id"]
-	cc, ok := w.Conn().(*client.Conn)
-	if !ok {
-		reply(w, codes.InternalServerError)
-		return
-	}
+func (s *Server) location(peer Peer, m *Message, id string) reply {
 	reg, found := s.store.ByID(id)
 	if !found {
-		reply(w, codes.NotFound) // REG-13/14/16: unknown or removed location
-		return
+		return replyCode(codes.NotFound) // REG-13/14/16: unknown or removed location
 	}
-	peer := identityOf(cc.NetConn(), cc.RemoteAddr())
-	switch m.Code() {
+	switch m.Code {
 	case codes.POST:
-		s.handleUpdate(w, m, cc, reg, peer)
+		return s.update(peer, m, reg)
 	case codes.DELETE:
-		s.handleDeregister(w, reg, peer)
-	default:
-		reply(w, codes.MethodNotAllowed)
+		return s.deregister(reg, peer.Identity())
 	}
+	return replyCode(codes.MethodNotAllowed)
 }
 
 // sameClient reports whether a request on a registration's location comes
@@ -243,24 +200,21 @@ func sameClient(reg *Registration, peer Identity) bool {
 	return reg.Identity.Equal(peer)
 }
 
-func (s *Server) handleUpdate(w mux.ResponseWriter, m *mux.Message, cc *client.Conn, reg *Registration, peer Identity) {
+func (s *Server) update(peerConn Peer, m *Message, reg *Registration) reply {
+	peer := peerConn.Identity()
 	if !sameClient(reg, peer) {
 		if reg.Identity.Secure() {
-			reply(w, codes.BadRequest)
-		} else {
-			reply(w, codes.NotFound) // NoSec address change: client must Register again (REG-17)
+			return replyCode(codes.BadRequest)
 		}
-		return
+		return replyCode(codes.NotFound) // NoSec address change: client must Register again (REG-17)
 	}
-	p, err := regparam.ParseUpdate(queries(m), reg.Version)
+	p, err := regparam.ParseUpdate(m.Query, reg.Version)
 	if err != nil {
-		reply(w, codes.BadRequest) // REG-14
-		return
+		return replyCode(codes.BadRequest) // REG-14
 	}
-	payload, ok := readPayload(m)
+	payload, ok := linkPayload(m)
 	if !ok {
-		reply(w, codes.BadRequest)
-		return
+		return replyCode(codes.BadRequest)
 	}
 	var objs []link.Object
 	var root string
@@ -269,8 +223,7 @@ func (s *Server) handleUpdate(w mux.ResponseWriter, m *mux.Message, cc *client.C
 		var err error
 		objs, root, cfs, err = parseObjectLinks(payload)
 		if err != nil {
-			reply(w, codes.BadRequest)
-			return
+			return replyCode(codes.BadRequest)
 		}
 	}
 	pids := pidKeys(p.ProfileIDs)
@@ -278,8 +231,7 @@ func (s *Server) handleUpdate(w mux.ResponseWriter, m *mux.Message, cc *client.C
 	if len(pids) > 0 { // PROF-09
 		resolved, ok := s.resolveProfiles(pids)
 		if !ok && payload == nil {
-			reply(w, codeConflict)
-			return
+			return replyCode(codeConflict)
 		}
 		objs = mergeObjects(objs, resolved)
 		newList = true
@@ -308,35 +260,34 @@ func (s *Server) handleUpdate(w mux.ResponseWriter, m *mux.Message, cc *client.C
 		r.ContentFormats = cfs
 	}
 	r.LastUpdate = s.cfg.Now()
-	r.Addr = cc.RemoteAddr()
-	r.conn = cc
+	r.Addr = peerConn.RemoteAddr()
+	r.peer = peerConn
 	reg = &r
 	if !s.store.Update(reg) {
-		reply(w, codes.NotFound) // removed concurrently
-		return
+		return replyCode(codes.NotFound) // removed concurrently
 	}
-	reply(w, codes.Changed)
-	s.emit(Updated{Registration: reg, Previous: *prev})
-	s.queues.wake(reg)
+	return reply{msg: status(codes.Changed), after: func() {
+		s.emit(Updated{Registration: reg, Previous: *prev})
+		s.queues.wake(reg)
+	}}
 }
 
-func (s *Server) handleDeregister(w mux.ResponseWriter, reg *Registration, peer Identity) {
+func (s *Server) deregister(reg *Registration, peer Identity) reply {
 	if !sameClient(reg, peer) {
 		// int-105: a NoSec registration with no credentials on file can be
 		// removed from any address; secured ones only by their identity.
 		_, hasCreds := s.security.ByEndpoint(reg.Endpoint)
 		if reg.Identity.Secure() || hasCreds {
-			reply(w, codes.BadRequest)
-			return
+			return replyCode(codes.BadRequest)
 		}
 	}
 	if _, ok := s.store.Remove(reg.ID); !ok {
-		reply(w, codes.NotFound)
-		return
+		return replyCode(codes.NotFound)
 	}
 	s.dropClientState(reg)
-	reply(w, codes.Deleted)
-	s.emit(Deregistered{Registration: reg, Reason: ReasonDeregistered})
+	return reply{msg: status(codes.Deleted), after: func() {
+		s.emit(Deregistered{Registration: reg, Reason: ReasonDeregistered})
+	}}
 }
 
 // mergeObjects adds objects from b that are not already in a.

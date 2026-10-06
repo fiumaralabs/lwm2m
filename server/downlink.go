@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -13,8 +11,6 @@ import (
 	"github.com/fiumaralabs/lwm2m/codec/senml"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
-	"github.com/plgd-dev/go-coap/v3/message/pool"
-	"github.com/plgd-dev/go-coap/v3/udp/client"
 )
 
 // CoAP method and response codes go-coap does not name.
@@ -60,7 +56,7 @@ type request struct {
 	schemaOf lwm2m.Path // base path used to decode the response
 }
 
-// conn returns the registration's current connection.
+// lookup returns the registration of ep.
 func (s *Server) lookup(ep string) (*Registration, error) {
 	r, ok := s.store.ByEndpoint(ep)
 	if !ok {
@@ -90,7 +86,7 @@ func (s *Server) exchange(ctx context.Context, reg *Registration, rq request) (*
 	defer cancel()
 	var resp *Response
 	err := s.queues.run(ctx, reg, func(cur *Registration) error {
-		r, err := s.send(ctx, cur, rq)
+		r, err := s.transmit(ctx, cur, rq)
 		resp = r
 		return err
 	})
@@ -106,19 +102,9 @@ func validateTarget(rq request) error {
 	return nil
 }
 
-func (s *Server) send(ctx context.Context, reg *Registration, rq request) (*Response, error) {
-	cc := reg.conn
-	if cc == nil {
+func (s *Server) transmit(ctx context.Context, reg *Registration, rq request) (*Response, error) {
+	if reg.peer == nil {
 		return nil, ErrNotRegistered
-	}
-	m := cc.AcquireMessage(ctx)
-	defer cc.ReleaseMessage(m)
-	m.SetCode(rq.method)
-	if err := m.SetPath(uriPath(reg, rq.path)); err != nil {
-		return nil, err
-	}
-	for _, q := range rq.query {
-		m.AddQuery(q)
 	}
 	tok := rq.token
 	if tok == nil {
@@ -127,44 +113,27 @@ func (s *Server) send(ctx context.Context, reg *Registration, rq request) (*Resp
 			return nil, err
 		}
 	}
-	m.SetToken(tok)
-	m.SetType(message.Confirmable) // GEN-03; Anjay Lite drops NON requests (C12)
-	if rq.observe != nil {
-		m.SetObserve(*rq.observe)
-	}
-	if rq.accept != nil {
-		m.SetAccept(message.MediaType(*rq.accept))
-	}
-	if rq.cf != nil {
-		m.SetContentFormat(message.MediaType(*rq.cf))
-	}
-	if rq.body != nil {
-		m.SetBody(bytes.NewReader(rq.body))
-	}
-	res, err := cc.Do(m)
+	res, err := reg.peer.Exchange(ctx, &Message{
+		Code:    rq.method,
+		Path:    uriPath(reg, rq.path),
+		Query:   rq.query,
+		Format:  rq.cf,
+		Accept:  rq.accept,
+		Observe: rq.observe,
+		Token:   tok,
+		Payload: rq.body,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer cc.ReleaseMessage(res)
-	return s.decodeResponse(reg, res, rq.schemaOf)
+	return s.decodeResponse(reg, res, rq.schemaOf), nil
 }
 
-// decodeResponse reads code, format and payload and decodes data formats
-// with the registration's schema.
-func (s *Server) decodeResponse(reg *Registration, res *pool.Message, base lwm2m.Path) (*Response, error) {
-	out := &Response{Code: res.Code()}
-	if res.Body() != nil {
-		b, err := io.ReadAll(res.Body())
-		if err != nil {
-			return nil, err
-		}
-		out.Payload = b
-	}
-	if cf, err := res.ContentFormat(); err == nil {
-		out.ContentFormat, out.HasFormat = lwm2m.ContentFormat(cf), true
-	}
-	if lp, err := res.Options().LocationPath(); err == nil && lp != "" {
-		out.Location = strings.Split(strings.Trim(lp, "/"), "/")
+// decodeResponse decodes data formats with the registration's schema.
+func (s *Server) decodeResponse(reg *Registration, res *Message, base lwm2m.Path) *Response {
+	out := &Response{Code: res.Code, Payload: res.Payload, Location: res.Location}
+	if res.Format != nil {
+		out.ContentFormat, out.HasFormat = *res.Format, true
 	}
 	if out.HasFormat && len(out.Payload) > 0 && out.ContentFormat != lwm2m.FormatLinkFormat {
 		if c, err := codec.For(out.ContentFormat); err == nil {
@@ -173,7 +142,7 @@ func (s *Server) decodeResponse(reg *Registration, res *pool.Message, base lwm2m
 			out.DecodeErr = err
 		}
 	}
-	return out, nil
+	return out
 }
 
 // schema returns the per-client schema used to type values.
@@ -525,6 +494,3 @@ func (s *Server) validateCreate(reg *Registration, p lwm2m.Path, nodes []lwm2m.N
 	}
 	return nil
 }
-
-// connOf exposes the registration's connection to other files.
-func connOf(reg *Registration) *client.Conn { return reg.conn }
