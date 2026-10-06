@@ -165,7 +165,7 @@ func (s *Server) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
 	if err != nil {
 		return
 	}
-	resp, after := s.HandleUplink(s.coap.peer(cc, "U"), msg)
+	resp, after := s.HandleUplink(s.peerOf(cc), msg)
 	s.coap.defer_(cc, after)
 	if resp == nil {
 		return // notification: go-coap sends the empty ACK

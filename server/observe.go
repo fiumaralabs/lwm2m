@@ -178,10 +178,13 @@ func (s *Server) CancelObservation(ctx context.Context, ob *Observation, active 
 	if _, ok := s.obs.remove(ob.token); !ok {
 		return nil, fmt.Errorf("%w: unknown observation", ErrBadRequest)
 	}
+	reg, ok := s.store.ByID(ob.RegistrationID)
+	if !active && ok && reg.peer != nil && reg.peer.Binding() == "T" {
+		active = true // reliable transports have no Reset: cancel explicitly (RFC 8323 §7.4)
+	}
 	if !active {
 		return nil, nil
 	}
-	reg, ok := s.store.ByID(ob.RegistrationID)
 	if !ok {
 		return nil, ErrNotRegistered
 	}

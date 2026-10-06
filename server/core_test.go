@@ -107,7 +107,9 @@ func TestLegacyContentFormats(t *testing.T) {
 			t.Fatal(err)
 		}
 		cf := legacy
-		c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) { return codes.Content, &cf, body, true })
+		c.SetOverride(func(testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+			return codes.Content, &cf, body, true
+		})
 		r := expect(t, "2.05")(h.srv.Read(h.ctx, "legacy", path, ReadOptions{}))
 		if r.DecodeErr != nil || !lwm2m.NodesEqual(r.Nodes, c.Nodes(path)) {
 			t.Fatalf("%d: %v %v", legacy, r.DecodeErr, r.Nodes)
