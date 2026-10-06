@@ -1,3 +1,2 @@
 # Requirement IDs (spec/standards*.md) not yet proven by a test.
 # Remove an ID when a test carries `// Proves: <ID>`. Empty file = spec fully implemented.
-MQTT-06

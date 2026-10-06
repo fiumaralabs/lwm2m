@@ -3,9 +3,9 @@
 // {PREFIX}/lwm2m/rd/# and exchanges CBOR-encoded LwM2M messages with
 // clients on {PREFIX}/lwm2m/rd/{ENDPOINT} (T §8.2, §8.3).
 //
-// The Bootstrap interface ("bs" topics) is not served: this module has no
-// Bootstrap-Server yet. COSE end-to-end protection (T §8.6, §8.8) is
-// per endpoint: see Config.COSE.
+// NewBootstrap serves the Bootstrap interface of a Bootstrap-Server on
+// {PREFIX}/lwm2m/bs/{ENDPOINT} the same way (T §8.3.1). COSE end-to-end
+// protection (T §8.6, §8.8) is per endpoint: see Config.COSE.
 package mqttbinding
 
 import (
@@ -23,6 +23,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/bootstrap"
 	"github.com/fiumaralabs/lwm2m/codec"
 	"github.com/fiumaralabs/lwm2m/codec/senml"
 	"github.com/fiumaralabs/lwm2m/server"
@@ -57,10 +58,11 @@ const qos = 1
 
 // Binding connects a Server to an MQTT broker.
 type Binding struct {
-	srv    *server.Server
-	cfg    Config
-	cli    mqtt.Client
-	rdBase string // "{PREFIX}/lwm2m/rd/"
+	srv  *server.Server
+	bs   *bootstrap.Server // set: this is the Bootstrap-Server's binding
+	cfg  Config
+	cli  mqtt.Client
+	base string // "{PREFIX}/lwm2m/rd/" or "{PREFIX}/lwm2m/bs/"
 
 	mu      sync.Mutex
 	pending map[uint64]chan *Message
@@ -70,21 +72,30 @@ type Binding struct {
 // New connects to the broker and starts serving the Registration, Device
 // Management and Information Reporting interfaces for srv.
 func New(srv *server.Server, cfg Config) (*Binding, error) {
-	u, err := url.Parse(cfg.Broker)
-	if err != nil {
+	b := &Binding{srv: srv, cfg: cfg, pending: map[uint64]chan *Message{}, peers: map[string]*peer{}}
+	if err := b.connect("rd", "lwm2m-server"); err != nil {
 		return nil, err
 	}
-	if u.Scheme != "mqtt" && u.Scheme != "mqtts" {
-		return nil, fmt.Errorf("mqttbinding: broker scheme %q, want mqtt or mqtts (MQTT-01)", u.Scheme)
+	return b, nil
+}
+
+// connect subscribes to {PREFIX}/lwm2m/{iface}/# (T §8.3).
+func (b *Binding) connect(iface, defaultID string) error {
+	cfg := b.cfg
+	u, err := url.Parse(cfg.Broker)
+	if err != nil {
+		return err
 	}
-	b := &Binding{srv: srv, cfg: cfg, pending: map[uint64]chan *Message{}, peers: map[string]*peer{}}
-	b.rdBase = "lwm2m/rd/"
+	if u.Scheme != "mqtt" && u.Scheme != "mqtts" {
+		return fmt.Errorf("mqttbinding: broker scheme %q, want mqtt or mqtts (MQTT-01)", u.Scheme)
+	}
+	b.base = "lwm2m/" + iface + "/"
 	if cfg.Prefix != "" {
-		b.rdBase = cfg.Prefix + "/" + b.rdBase
+		b.base = cfg.Prefix + "/" + b.base
 	}
 	id := cfg.ClientID
 	if id == "" {
-		id = "lwm2m-server"
+		id = defaultID
 	}
 	o := mqtt.NewClientOptions().AddBroker(cfg.Broker).SetClientID(id).
 		SetUsername(cfg.Username).SetPassword(cfg.Password).SetTLSConfig(cfg.TLS).
@@ -92,23 +103,23 @@ func New(srv *server.Server, cfg Config) (*Binding, error) {
 		SetAutoReconnect(true).SetConnectRetry(false)
 	if cfg.Session != nil {
 		if err := cfg.Session.apply(o); err != nil {
-			return nil, err
+			return err
 		}
 	}
 	o.SetOnConnectHandler(func(c mqtt.Client) {
-		c.Subscribe(b.rdBase+"#", qos, b.onMessage) // T §8.3
+		c.Subscribe(b.base+"#", qos, b.onMessage) // T §8.3
 	})
 	b.cli = mqtt.NewClient(o)
 	if err := wait(b.cli.Connect()); err != nil {
-		return nil, err
+		return err
 	}
 	// The subscription is made by the on-connect handler; make sure it is
-	// in place before returning so no early Register is lost.
-	if err := wait(b.cli.Subscribe(b.rdBase+"#", qos, b.onMessage)); err != nil {
+	// in place before returning so no early request is lost.
+	if err := wait(b.cli.Subscribe(b.base+"#", qos, b.onMessage)); err != nil {
 		b.cli.Disconnect(0)
-		return nil, err
+		return err
 	}
-	return b, nil
+	return nil
 }
 
 func wait(t mqtt.Token) error {
@@ -121,8 +132,8 @@ func wait(t mqtt.Token) error {
 // Close disconnects from the broker.
 func (b *Binding) Close() { b.cli.Disconnect(250) }
 
-// Topic returns the rd topic of an endpoint.
-func (b *Binding) Topic(ep string) string { return b.rdBase + ep }
+// Topic returns the rd (or, for NewBootstrap, bs) topic of an endpoint.
+func (b *Binding) Topic(ep string) string { return b.base + ep }
 
 func (b *Binding) publish(ep string, m *Message) error {
 	var data []byte
@@ -150,12 +161,21 @@ func (b *Binding) key(ep string) *COSEKey {
 // (registration not allowed, T Tbl 8.5-2); the other uplink operations
 // have no "forbidden" result, so 400. Responses and Notifies carry no
 // request to answer and are dropped.
+// On bs, Bootstrap-Request gets 400 and Bootstrap-Pack-Request 401
+// (T Tbl 8.5-1); the other bs operations are the BS's own.
 func (b *Binding) refuse(ep string, m *Message) {
-	if m.Operation == nil || *m.Operation == OpNotify || (*m.Operation >= OpRead && *m.Operation <= OpCancelObserve) {
+	if m.Operation == nil {
 		return
 	}
+	op := *m.Operation
 	r := uint64(400)
-	if *m.Operation == OpRegister {
+	switch {
+	case b.bs != nil && op == OpBootstrapRequest:
+	case b.bs != nil && op == OpBootstrapPack:
+		r = 401
+	case b.bs != nil, op == OpNotify, op >= OpRead && op <= OpCancelObserve:
+		return
+	case op == OpRegister:
 		r = 403
 	}
 	if data, err := Marshal(&Message{Token: m.Token, Result: u64(r)}); err == nil {
@@ -174,12 +194,12 @@ func (b *Binding) peer(ep string) *peer {
 	return p
 }
 
-// onMessage handles everything published under {PREFIX}/lwm2m/rd/.
+// onMessage handles everything published under {PREFIX}/lwm2m/rd/ (or bs/).
 // Requests and responses share the topic, so the Server also receives its
 // own publications (A-7): results that match no pending request and
 // operations only a Server sends are dropped.
 func (b *Binding) onMessage(_ mqtt.Client, pm mqtt.Message) {
-	ep, ok := strings.CutPrefix(pm.Topic(), b.rdBase)
+	ep, ok := strings.CutPrefix(pm.Topic(), b.base)
 	if !ok || ep == "" {
 		return
 	}
@@ -201,6 +221,10 @@ func (b *Binding) onMessage(_ mqtt.Client, pm mqtt.Message) {
 		}
 		return
 	}
+	if b.bs != nil {
+		b.bootstrapUplink(ep, m)
+		return
+	}
 	op := *m.Operation
 	if op >= OpRead && op <= OpCancelObserve {
 		return // our own downlink request echoed back
@@ -218,13 +242,17 @@ func (b *Binding) onMessage(_ mqtt.Client, pm mqtt.Message) {
 	} else {
 		resp, after = b.srv.HandleUplink(p, req)
 	}
-	out := &Message{Token: m.Token, Result: u64(Result(resp.Code))}
+	b.respond(ep, m.Token, resp)
+	after()
+}
+
+// respond publishes the result of the request with token tok.
+func (b *Binding) respond(ep string, tok uint64, resp *server.Message) {
+	out := &Message{Token: tok, Result: u64(Result(resp.Code)), Payload: resp.Payload}
 	if resp.Format != nil {
 		out.CT = u64(uint64(*resp.Format))
 	}
-	out.Payload = resp.Payload
 	_ = b.publish(ep, out)
-	after()
 }
 
 // uplink maps a client request to a binding-neutral Message (T §8.3.2,
@@ -366,7 +394,11 @@ func (p *peer) Identity() server.Identity {
 // Exchange maps a downlink request to its MQTT operation (T §8.3.3,
 // §8.3.4), publishes it and waits for the result with the same token.
 func (p *peer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
-	m, err := downlink(req)
+	down := downlink
+	if p.b.bs != nil {
+		down = bootstrapDownlink
+	}
+	m, err := down(req)
 	if err != nil {
 		return nil, err
 	}

@@ -524,23 +524,32 @@ func toRequest(m *mux.Message) Request {
 }
 
 func (c *Client) handle(w mux.ResponseWriter, m *mux.Message) {
-	r := toRequest(m)
+	code, cf, body, extra := c.answer(toRequest(m))
+	respond(w, code, cf, body, extra...)
+}
+
+// Handle answers r as the client does over CoAP (override, access
+// control, default behaviour), so a test can carry requests over another
+// transport such as MQTT.
+func (c *Client) Handle(r Request) (codes.Code, *lwm2m.ContentFormat, []byte) {
+	code, cf, body, _ := c.answer(r)
+	return code, cf, body
+}
+
+func (c *Client) answer(r Request) (codes.Code, *lwm2m.ContentFormat, []byte, []message.Option) {
 	c.mu.Lock()
 	c.requests = append(c.requests, r)
 	ov := c.override
 	c.mu.Unlock()
 	if ov != nil {
 		if code, cf, body, ok := ov(r); ok {
-			respond(w, code, cf, body)
-			return
+			return code, cf, body, nil
 		}
 	}
 	if code, ok := c.checkAccess(r); !ok {
-		respond(w, code, nil, nil)
-		return
+		return code, nil, nil, nil
 	}
-	code, cf, body, extra := c.serve(r)
-	respond(w, code, cf, body, extra...)
+	return c.serve(r)
 }
 
 func respond(w mux.ResponseWriter, code codes.Code, cf *lwm2m.ContentFormat, body []byte, opts ...message.Option) {

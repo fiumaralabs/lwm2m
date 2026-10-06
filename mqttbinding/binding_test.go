@@ -48,7 +48,15 @@ func startBroker(t *testing.T, tlsCfg *tls.Config, hooks ...mochi.Hook) string {
 		t.Fatal(err)
 	}
 	go func() { _ = b.Serve() }()
-	t.Cleanup(func() { _ = b.Close() })
+	t.Cleanup(func() {
+		// mochi's Close read-locks its client map twice (GetByListener ->
+		// Len), so a client disconnecting meanwhile deadlocks it: let the
+		// test's clients drain first.
+		for end := time.Now().Add(2 * time.Second); b.Clients.Len() > 0 && time.Now().Before(end); {
+			time.Sleep(5 * time.Millisecond)
+		}
+		_ = b.Close()
+	})
 	return l.Address()
 }
 
