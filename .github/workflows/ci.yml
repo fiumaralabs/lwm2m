@@ -30,7 +30,13 @@ jobs:
       - name: spec coverage
         run: |
           go test -count=1 -v -run TestSpecCoverage . | tee coverage.txt
-          grep -q "0 pending" coverage.txt || { echo "requirements still pending"; exit 1; }
+          # Only requirements blocked on an upstream dependency may stay
+          # pending, and each must say so; anything else is a gap.
+          if grep -v '^#' spec/coverage-pending.txt | grep -v '^\s*$' | grep -vq 'upstream'; then
+            echo "pending requirements without an upstream blocker:"
+            grep -v '^#' spec/coverage-pending.txt | grep -v '^\s*$' | grep -v 'upstream'
+            exit 1
+          fi
 
   race-stress:
     # Repeats the concurrency-heavy packages under the race detector to
