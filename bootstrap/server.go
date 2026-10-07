@@ -2,7 +2,7 @@
 // Transport §6.4.2): Client-Initiated Bootstrap (Bootstrap-Request, then
 // Bootstrap-Delete, -Write, -Discover, -Read and -Finish), Bootstrap-Pack-
 // Request, and the server side of Server-Initiated Bootstrap, over
-// CoAP/UDP and CoAP/DTLS (PSK, X.509, and RPK through the DTLS config).
+// CoAP/UDP and CoAP/DTLS (PSK, X.509).
 package bootstrap
 
 import (
@@ -22,7 +22,6 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
@@ -133,56 +132,27 @@ func (s *Server) ListenUDP(addr string) (net.Addr, error) {
 // PSK suites MUST NOT be used with low-entropy secrets (T §5.2.4, BS-10).
 const MinPSKKey = 16
 
-// DTLSConfig configures a DTLS listener. Config is passed to pion/dtls
-// as is: PSK defaults to a lookup in the security store; X.509 needs
-// Certificates, ClientCAs and ClientAuth; RPK and other credential
-// schemes plug in through its certificate callbacks
-// (VerifyPeerCertificate, GetCertificate). A peer certificate that is not
-// X.509 is taken as a raw public key (SubjectPublicKeyInfo).
-type DTLSConfig struct {
-	Config     *piondtls.Config
-	CIDLength  int  // server-assigned Connection ID length (RFC 9146); default 8
-	DisableCID bool // turn Connection ID support off
-}
+// DTLSConfig configures a DTLS listener, as for the Server
+// (coap.DTLSConfig): Options go to pion/dtls after the defaults. PSK
+// defaults to a lookup in the security store; X.509 needs Certificates,
+// ClientCAs and ClientAuth (coap.Binding.DTLSConfig builds them). RPK
+// (RFC 7250) is not available: pion/dtls lacks it (BS-10 pending).
+type DTLSConfig = coap.DTLSConfig
 
-// ListenDTLS serves CoAP over DTLS 1.2 on addr. BS-10: the listener
-// accepts PSK, certificate and (with a callback) RPK clients.
+// ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr. BS-10: the
+// listener accepts PSK and certificate clients.
 func (s *Server) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
-	cfg := &piondtls.Config{}
-	if dc.Config != nil {
-		c := *dc.Config // a shallow copy: defaults below must not leak into the caller's config
-		cfg = &c
-	}
-	if cfg.PSK == nil {
-		cfg.PSK = func(id []byte) ([]byte, error) {
-			si, ok := s.cfg.Security.ByPSKIdentity(string(id))
-			if !ok || len(si.PSKKey) == 0 {
-				return nil, errors.New("bootstrap: unknown PSK identity")
-			}
-			if len(si.PSKKey) < MinPSKKey {
-				return nil, errors.New("bootstrap: PSK shorter than 128 bits (BS-10: no low-entropy secrets)")
-			}
-			return si.PSKKey, nil
+	psk := func(id []byte) ([]byte, error) {
+		si, ok := s.cfg.Security.ByPSKIdentity(string(id))
+		if !ok || len(si.PSKKey) == 0 {
+			return nil, errors.New("bootstrap: unknown PSK identity")
 		}
-	}
-	if len(cfg.CipherSuites) == 0 {
-		cfg.CipherSuites = []piondtls.CipherSuiteID{
-			piondtls.TLS_PSK_WITH_AES_128_CCM_8,
-			piondtls.TLS_PSK_WITH_AES_128_CBC_SHA256,
-			piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
-			piondtls.TLS_PSK_WITH_AES_128_CCM,
-			piondtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
-			piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+		if len(si.PSKKey) < MinPSKKey {
+			return nil, errors.New("bootstrap: PSK shorter than 128 bits (BS-10: no low-entropy secrets)")
 		}
+		return si.PSKKey, nil
 	}
-	if !dc.DisableCID && cfg.ConnectionIDGenerator == nil {
-		n := dc.CIDLength
-		if n == 0 {
-			n = 8
-		}
-		cfg.ConnectionIDGenerator = piondtls.RandomCIDGenerator(n)
-	}
-	l, err := dtlscoap.Listen("udp", addr, cfg)
+	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, psk))
 	if err != nil {
 		return nil, err
 	}

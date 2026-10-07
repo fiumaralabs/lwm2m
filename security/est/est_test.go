@@ -17,12 +17,13 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/security/est"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
+	piondtls "github.com/pion/dtls/v4"
+	"github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -96,13 +97,12 @@ func newFixture(t *testing.T) *fixture {
 	clientCAs := x509.NewCertPool()
 	clientCAs.AddCert(idev)
 	clientCAs.AddCert(ca.Cert)
-	cfg := &piondtls.Config{
-		Certificates: []tls.Certificate{tlsCert(scert, sk)},
-		ClientAuth:   piondtls.RequireAndVerifyClientCert,
-		ClientCAs:    clientCAs,
-		CipherSuites: []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8},
-	}
-	l, err := dtlscoap.Listen("udp", "127.0.0.1:0", cfg)
+	l, err := dtlscoap.Listen("udp", "127.0.0.1:0", dtlscoap.Config{Options: []piondtls.ServerOption{
+		piondtls.WithCertificates(tlsCert(scert, sk)),
+		piondtls.WithClientAuth(piondtls.RequireAndVerifyClientCert),
+		piondtls.WithClientCAs(clientCAs),
+		piondtls.WithCipherSuites(ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8),
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,10 +126,7 @@ func newFixture(t *testing.T) *fixture {
 
 func (f *fixture) dial(t *testing.T, cert tls.Certificate) *client.Conn {
 	t.Helper()
-	cc, err := dtlscoap.Dial(f.addr, &piondtls.Config{
-		Certificates: []tls.Certificate{cert}, RootCAs: f.roots, ServerName: "localhost",
-		CipherSuites: []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8},
-	}, options.WithBlockwise(true, blockwise.SZX64, 10*time.Second))
+	cc, err := dtlscoap.Dial(f.addr, testclient.X509Config(cert, f.roots, "localhost"), options.WithBlockwise(true, blockwise.SZX64, 10*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,8 +319,11 @@ func TestCertificateModeWithEST(t *testing.T) {
 	t.Cleanup(func() { _ = cb.Close() })
 	pool := x509.NewCertPool()
 	pool.AddCert(f.ca.Cert)
-	addr, err := cb.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{Config: cb.DTLSConfig(coap.CertificateModes{
-		Certificates: []tls.Certificate{tlsCert(scert, sk)}, ClientCAs: pool})})
+	dc, err := cb.DTLSConfig(coap.CertificateModes{Certificates: []tls.Certificate{tlsCert(scert, sk)}, ClientCAs: pool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, err := cb.ListenDTLS("127.0.0.1:0", dc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestCertificateModeWithEST(t *testing.T) {
 	trust.AddCert(srvCert)
 	c := testclient.New(testclient.Config{Endpoint: "urn:dev:est"})
 	c.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String("x"))
-	if err := c.DialDTLS(addr.String(), testclient.X509Config(tlsCert(cert, k), trust, "localhost")); err != nil {
+	if err := c.DialDTLS(addr.String(), testclient.X509Config(tlsCert(cert, k), trust, "localhost")...); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })

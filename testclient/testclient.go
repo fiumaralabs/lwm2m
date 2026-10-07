@@ -17,7 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
@@ -172,15 +171,7 @@ func (c *Client) Dial(addr string) error {
 	r.DefaultHandle(mux.HandlerFunc(c.handle))
 	hook := options.WithProcessReceivedMessageFunc(c.process)
 	if c.cfg.PSKIdentity != "" {
-		cfg := &piondtls.Config{
-			PSK:             func([]byte) ([]byte, error) { return c.cfg.PSKKey, nil },
-			PSKIdentityHint: []byte(c.cfg.PSKIdentity),
-			CipherSuites:    []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},
-		}
-		if c.cfg.CID {
-			cfg.ConnectionIDGenerator = piondtls.OnlySendCIDGenerator()
-		}
-		conn, err := dtlscoap.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
+		conn, err := dtlscoap.Dial(addr, pskOptions(c.cfg.PSKIdentity, c.cfg.PSKKey, c.cfg.CID), options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
 		if err != nil {
 			return err
 		}

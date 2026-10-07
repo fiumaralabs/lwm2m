@@ -19,7 +19,8 @@ import (
 // tls.RequireAndVerifyClientCert with ClientCAs: only a verified chain is
 // an authenticated identity. Go's crypto/tls implements neither TLS-PSK
 // nor raw public keys (RFC 7250), so over TLS the BS bootstraps
-// certificate clients; PSK and RPK clients use DTLS (ListenDTLS). A nil
+// certificate clients; PSK clients use DTLS (ListenDTLS; RPK is not
+// available, BS-10). A nil
 // cfg serves plain TCP (coap+tcp, NoSec).
 func (s *Server) ListenTLS(addr string, cfg *tls.Config) (net.Addr, error) {
 	var l interface {

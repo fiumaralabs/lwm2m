@@ -14,10 +14,11 @@ const (
 	tls13Defined                  = TLS13PSK | TLS13ZeroRTT | TLS13PSKWithPFS | TLS13Certificate
 )
 
-// SupportedTLS13Features are the TLS 1.3 features this server offers: TLS
-// 1.3 runs on the TCP/TLS binding with certificate authentication (Go's
-// crypto/tls has no external PSK or 0-RTT for servers). DTLS 1.3 is not
-// available.
+// SupportedTLS13Features are the TLS 1.3 features this server offers:
+// certificate authentication, over TLS 1.3 on the TCP/TLS binding and
+// DTLS 1.3 on the DTLS listeners. Go's crypto/tls has no external PSK or
+// 0-RTT for servers, and pion/dtls v4.0.0-rc.3 has no DTLS 1.3 external
+// PSK (it is on pion's main branch, after rc.3).
 const SupportedTLS13Features = TLS13Certificate
 
 // CheckTLS13Features validates a /0/x/22 value before a Bootstrap-Server

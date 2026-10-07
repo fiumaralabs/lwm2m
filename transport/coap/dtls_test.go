@@ -15,42 +15,33 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/server"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
-	pionelliptic "github.com/fiumaralabs/dtls/v3/pkg/crypto/elliptic"
-	"github.com/fiumaralabs/dtls/v3/pkg/protocol/extension"
-	"github.com/fiumaralabs/dtls/v3/pkg/protocol/handshake"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/fiumaralabs/lwm2m/testclient"
+	piondtls "github.com/pion/dtls/v4"
+	"github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
+	pionelliptic "github.com/pion/dtls/v4/pkg/crypto/elliptic"
+	"github.com/pion/dtls/v4/pkg/protocol"
+	"github.com/pion/dtls/v4/pkg/protocol/extension"
+	"github.com/pion/dtls/v4/pkg/protocol/handshake"
 )
 
-// secureSetup is a harness with a listener serving PSK, RPK and X.509.
+// secureSetup is a harness with a listener serving PSK and X.509.
 type secureSetup struct {
 	*harness
 	pki        *dtlsPKI
 	serverCert tls.Certificate
-	serverSPKI []byte // /0/x/4 for RPK clients
 	addr       string
 }
 
-func newSecure(t *testing.T, mod ...func(*piondtls.Config)) *secureSetup {
+func newSecure(t *testing.T, extra ...piondtls.ServerOption) *secureSetup {
 	t.Helper()
 	h := newHarness(t)
 	p := newDTLSPKI(t)
 	sc := p.issue(t, "lwm2m.test", "lwm2m.test")
-	s := &secureSetup{harness: h, pki: p, serverCert: sc, serverSPKI: spkiOf(t, sc.PrivateKey.(*ecdsa.PrivateKey))}
-	s.addr = h.listenSecure(CertificateModes{Certificates: []tls.Certificate{sc}, ClientCAs: p.pool}, mod...)
+	s := &secureSetup{harness: h, pki: p, serverCert: sc}
+	s.addr = h.listenSecure(CertificateModes{Certificates: []tls.Certificate{sc}, ClientCAs: p.pool}, extra...)
 	return s
-}
-
-func (s *secureSetup) rpkClient(ep string) (*ecdsa.PrivateKey, []byte) {
-	s.t.Helper()
-	k := newKey(s.t)
-	spki := spkiOf(s.t, k)
-	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: ep, PublicKey: spki}); err != nil {
-		s.t.Fatal(err)
-	}
-	return k, spki
 }
 
 func (s *secureSetup) x509Client(ep string) tls.Certificate {
@@ -61,50 +52,47 @@ func (s *secureSetup) x509Client(ep string) tls.Certificate {
 	return s.pki.issue(s.t, ep)
 }
 
-// Proves: SEC-03, SEC-04, SEC-17, TLS13-02
-// One listener serves PSK, RPK and X.509 clients (security modes 0, 1, 2).
-// Every suite the server would let the Bootstrap-Server provision in
-// /0/x/16 completes a handshake when a client offers it alone: the
-// mandatory PSK CCM_8 and CBC_SHA256, ECDHE_ECDSA CCM_8 and CBC_SHA256
-// (the RFC 7925 profile) and the additional AEAD suites (SEC-17 MAY).
+// dtls13 forces DTLS 1.3 on a client.
+var dtls13 = []piondtls.ClientOption{piondtls.WithMinVersion(protocol.Version1_3), piondtls.WithMaxVersion(protocol.Version1_3)}
+
+// Proves: SEC-04, SEC-17, TLS13-02
+// One listener serves PSK and X.509 clients (security modes 0 and 2; RPK,
+// mode 1, waits for RFC 7250 in pion/dtls, so SEC-03 is pending). Every
+// suite the server would let the Bootstrap-Server provision in /0/x/16
+// completes a handshake when a client offers it alone: the mandatory PSK
+// CCM_8 and CBC_SHA256, ECDHE_ECDSA CCM_8 and CBC_SHA256 (the RFC 7925
+// profile), the additional AEAD suites (SEC-17 MAY) and the DTLS 1.3
+// TLS_AES_128_GCM_SHA256.
 func TestSecurityModesOnePort(t *testing.T) {
-	var cfg *piondtls.Config
-	s := newSecure(t, func(c *piondtls.Config) { cfg = c })
+	s := newSecure(t)
 	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "psk", PSKIdentity: "psk-id", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
-	rk, _ := s.rpkClient("rpk")
 	xc := s.x509Client("x509")
 
-	values := dtls.Resource16(cfg)
-	for _, want := range []uint32{0xC0A8, 0x00AE, 0xC0AE, 0xC023} {
+	values := dtls.Resource16(DTLSCipherSuites())
+	for _, want := range []uint32{0xC0A8, 0x00AE, 0xC0AE, 0xC023, 0x1301} {
 		if !containsU32(values, want) {
-			t.Fatalf("/0/x/16 values %x lack mandatory suite %#x", values, want)
+			t.Fatalf("/0/x/16 values %x lack suite %#x", values, want)
 		}
 	}
 	modes := map[server.SecurityMode]bool{}
 	for _, v := range values {
-		id := piondtls.CipherSuiteID(v)
-		name := piondtls.CipherSuiteName(id)
-		if id == dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 {
-			name = "ECDHE-ECDSA-AES-128-CBC-SHA256"
-		}
-		t.Run(name, func(t *testing.T) {
-			if strings.Contains(name, "PSK") {
+		id := ciphersuite.ID(v)
+		t.Run(id.String(), func(t *testing.T) {
+			switch {
+			case strings.Contains(id.String(), "PSK"):
 				s.mustRegisterSecure(testclient.Config{Endpoint: "psk"}, s.addr, pskConfig("psk-id", []byte("0123456789abcdef"), id))
 				modes[server.ModePSK] = true
-				return
+			case v>>8 == 0x13: // DTLS 1.3 suites authenticate with certificates here
+				s.mustRegisterSecure(testclient.Config{Endpoint: "x509"}, s.addr, with(testclient.X509Config(xc, s.pki.pool, "lwm2m.test", id), dtls13...))
+			default:
+				s.mustRegisterSecure(testclient.Config{Endpoint: "x509"}, s.addr, testclient.X509Config(xc, s.pki.pool, "lwm2m.test", id))
+				modes[server.ModeX509] = true
 			}
-			rc, err := testclient.RPKConfig(rk, s.serverSPKI, id)
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.mustRegisterSecure(testclient.Config{Endpoint: "rpk"}, s.addr, rc)
-			s.mustRegisterSecure(testclient.Config{Endpoint: "x509"}, s.addr, testclient.X509Config(xc, s.pki.pool, "lwm2m.test", id))
-			modes[server.ModeRPK], modes[server.ModeX509] = true, true
 		})
 	}
-	for ep, mode := range map[string]server.SecurityMode{"psk": server.ModePSK, "rpk": server.ModeRPK, "x509": server.ModeX509} {
+	for ep, mode := range map[string]server.SecurityMode{"psk": server.ModePSK, "x509": server.ModeX509} {
 		reg, ok := s.srv.Store().ByEndpoint(ep)
 		if !ok || reg.Identity.Mode != mode || !modes[mode] {
 			t.Fatalf("%s: registration %v, identity %v", ep, ok, reg)
@@ -121,36 +109,21 @@ func containsU32(l []uint32, v uint32) bool {
 	return false
 }
 
-// Proves: SEC-09, SEC-06
-// RPK (RFC 7250): the server presents its raw key (/0/x/4) and accepts a
-// client only with the exact stored key (/0/x/3); the key, not ep,
-// decides. Unknown keys fail the handshake.
-func TestRPKMode(t *testing.T) {
-	s := newSecure(t)
-	k, spki := s.rpkClient("dev-rpk")
-	s.rpkClient("other")
-	for _, suite := range []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
-		cfg, _ := testclient.RPKConfig(k, s.serverSPKI, suite)
-		s.mustRegisterSecure(testclient.Config{Endpoint: "dev-rpk"}, s.addr, cfg)
+// RPK (security mode 1) is refused with a clear error until pion/dtls
+// supports RFC 7250: a raw-key server credential and a stored client key
+// are not accepted, and the listener offers no certificate types.
+func TestRPKRefused(t *testing.T) {
+	h := newHarness(t)
+	k := newKey(t)
+	if _, err := h.b.DTLSConfig(CertificateModes{Certificates: []tls.Certificate{{Certificate: [][]byte{spkiOf(t, k)}, PrivateKey: k}}}); !errors.Is(err, server.ErrRPKUnsupported) {
+		t.Fatalf("raw-key credential: %v", err)
 	}
-	reg, _ := s.srv.Store().ByEndpoint("dev-rpk")
-	if reg.Identity.Mode != server.ModeRPK || !bytes.Equal(reg.Identity.PublicKey, spki) {
-		t.Fatalf("identity %+v", reg.Identity)
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "rpk", PublicKey: spkiOf(t, k)}); !errors.Is(err, server.ErrRPKUnsupported) {
+		t.Fatalf("RPK client key: %v", err)
 	}
-	// Right key, wrong ep: 4.00.
-	cfg, _ := testclient.RPKConfig(k, s.serverSPKI)
-	c, err := s.secureDevice(testclient.Config{Endpoint: "other"}, s.addr, cfg)
-	if err != nil {
-		t.Fatal(err)
+	if !strings.Contains(server.ErrRPKUnsupported.Error(), "RFC 7250") {
+		t.Fatal(server.ErrRPKUnsupported)
 	}
-	r, err := c.Register(s.ctx)
-	mustCode(t, r, err, "4.00")
-	// A key the server does not hold: handshake fails.
-	cfg, _ = testclient.RPKConfig(newKey(t), s.serverSPKI)
-	s.handshakeFails(testclient.Config{Endpoint: "dev-rpk"}, s.addr, cfg)
-	// The client pins /0/x/4: a different server key is refused.
-	cfg, _ = testclient.RPKConfig(k, spkiOf(t, newKey(t)))
-	s.handshakeFails(testclient.Config{Endpoint: "dev-rpk"}, s.addr, cfg)
 }
 
 // Proves: SEC-10, SEC-06
@@ -160,7 +133,7 @@ func TestX509Mode(t *testing.T) {
 	s := newSecure(t)
 	xc := s.x509Client("urn:dev:x509")
 	s.x509Client("urn:dev:other")
-	for _, suite := range []piondtls.CipherSuiteID{piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
+	for _, suite := range []ciphersuite.ID{ciphersuite.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8, dtls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256} {
 		s.mustRegisterSecure(testclient.Config{Endpoint: "urn:dev:x509"}, s.addr, testclient.X509Config(xc, s.pki.pool, "lwm2m.test", suite))
 	}
 	reg, _ := s.srv.Store().ByEndpoint("urn:dev:x509")
@@ -207,13 +180,12 @@ func TestSNICertificateSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"a.lwm2m.test", "b.lwm2m.test"} {
-		cfg := testclient.X509Config(xc, p.pool, name)
 		var got string
-		cfg.VerifyPeerCertificate = func(raw [][]byte, _ [][]*x509.Certificate) error {
+		cfg := with(testclient.X509Config(xc, p.pool, name), piondtls.WithVerifyPeerCertificate(func(raw [][]byte, _ [][]*x509.Certificate) error {
 			c, _ := x509.ParseCertificate(raw[0])
 			got = c.Subject.CommonName
 			return nil
-		}
+		}))
 		h.mustRegisterSecure(testclient.Config{Endpoint: "sni-dev"}, addr, cfg)
 		if got != name {
 			t.Fatalf("SNI %s: server presented %s", name, got)
@@ -249,11 +221,11 @@ func TestCertificateUsage(t *testing.T) {
 		{dtls.UsageServiceCertConstraint, dtls.MatchExact, inter, false},
 	}
 	for _, c := range cases {
-		cfg := testclient.X509Config(xc, nil, "lwm2m.test")
-		cfg.InsecureSkipVerify = true // the usage check below is the client's whole server validation
-		cfg.VerifyPeerCertificate = func(raw [][]byte, _ [][]*x509.Certificate) error {
-			return dtls.VerifyServerCertificate(c.usage, c.match, c.assoc, raw, s.pki.pool, "lwm2m.test", time.Now())
-		}
+		cfg := with(testclient.X509Config(xc, nil, "lwm2m.test"),
+			piondtls.WithInsecureSkipVerify(true), // the usage check below is the client's whole server validation
+			piondtls.WithVerifyPeerCertificate(func(raw [][]byte, _ [][]*x509.Certificate) error {
+				return dtls.VerifyServerCertificate(c.usage, c.match, c.assoc, raw, s.pki.pool, "lwm2m.test", time.Now())
+			}))
 		if c.ok {
 			s.mustRegisterSecure(testclient.Config{Endpoint: "cu-dev"}, s.addr, cfg)
 		} else {
@@ -319,20 +291,6 @@ func TestCIDRebinding(t *testing.T) {
 	}
 }
 
-// countingStore counts resumptions.
-type countingStore struct {
-	piondtls.SessionStore
-	hits atomic.Int32
-}
-
-func (c *countingStore) Get(k []byte) (piondtls.Session, error) {
-	s, err := c.SessionStore.Get(k)
-	if s.ID != nil {
-		c.hits.Add(1)
-	}
-	return s, err
-}
-
 // clientSessions is a client-side session store.
 type clientSessions struct{ m map[string]piondtls.Session }
 
@@ -343,89 +301,67 @@ func (c *clientSessions) Del(k []byte) error                     { delete(c.m, s
 // Proves: SEC-11, QM-05
 // The server keeps DTLS state: a client waking up on a new socket resumes
 // its session (abbreviated handshake, no ClientKeyExchange) and the
-// resumed session keeps the PSK identity, so its Update is accepted.
-// Server, Bootstrap-Server and client keys differ: a client presenting the
-// server's own key, or a key stored for two endpoints, is refused.
+// resumed session keeps the PSK identity, so its Update is accepted
+// (pion does not restore the identity; internal/dtlscoap does). Server
+// and client key pairs differ: a client presenting the server's own
+// certificate (a trusted chain whose CN has credentials) is refused.
 func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 	h := newHarness(t)
 	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "sleepy", PSKIdentity: "sleepy", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
-	var store *countingStore
 	p := newDTLSPKI(t)
 	sc := p.issue(t, "lwm2m.test", "lwm2m.test")
-	addr := h.listenSecure(CertificateModes{Certificates: []tls.Certificate{sc}, ClientCAs: p.pool}, func(c *piondtls.Config) {
-		store = &countingStore{SessionStore: c.SessionStore}
-		c.SessionStore = store
-	})
+	addr := h.listenSecure(CertificateModes{Certificates: []tls.Certificate{sc}, ClientCAs: p.pool})
 	px := newProxy(t, addr)
 	sessions := &clientSessions{m: map[string]piondtls.Session{}}
-	cfg := func() *piondtls.Config {
-		c := pskConfig("sleepy", []byte("0123456789abcdef"))
-		c.SessionStore = sessions
-		return c
-	}
-	c := h.mustRegisterSecure(testclient.Config{Endpoint: "sleepy"}, px.Addr(), cfg())
+	cfg := with(pskConfig("sleepy", []byte("0123456789abcdef")), piondtls.WithSessionStore(sessions))
+	c := h.mustRegisterSecure(testclient.Config{Endpoint: "sleepy"}, px.Addr(), cfg)
 	loc := c.Location()
 	_ = c.Close()
 
 	m := px.mark()
-	c2, err := h.secureDevice(testclient.Config{Endpoint: "sleepy"}, px.Addr(), cfg())
+	c2, err := h.secureDevice(testclient.Config{Endpoint: "sleepy"}, px.Addr(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r, err := c2.Raw(h.ctx, 2, "/rd/"+loc, nil, nil, nil)
 	mustCode(t, r, err, "2.04")
-	if store.hits.Load() != 1 {
-		t.Fatalf("resumptions %d, want 1", store.hits.Load())
+	up := handshakeMsgs(px.since(m), true)
+	if len(up) == 0 || up[0] != byte(handshake.TypeClientHello) || bytes.IndexByte(up, byte(handshake.TypeClientKeyExchange)) >= 0 {
+		t.Fatalf("handshake messages %v: want a resumption (ClientHello, no ClientKeyExchange)", up)
 	}
-	if bytes.IndexByte(handshakeMsgs(px.since(m), true), byte(handshake.TypeClientKeyExchange)) >= 0 {
-		t.Fatal("full handshake instead of resumption")
+	reg, _ := h.srv.Store().ByEndpoint("sleepy")
+	if reg.Identity.Mode != server.ModePSK || reg.Identity.PSKIdentity != "sleepy" {
+		t.Fatalf("identity after resumption %+v", reg.Identity)
 	}
 
-	// Key uniqueness.
-	srvKey := sc.PrivateKey.(*ecdsa.PrivateKey)
-	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "copycat", PublicKey: spkiOf(t, srvKey)}); err != nil {
-		t.Fatal(err)
-	}
-	rc, _ := testclient.RPKConfig(srvKey, spkiOf(t, srvKey))
-	h.handshakeFails(testclient.Config{Endpoint: "copycat"}, addr, rc)
-	// The same holds for X.509: the server's own certificate (a trusted
-	// chain whose CN has credentials) is not a client key pair.
+	// Key uniqueness: the server's own certificate is not a client key pair.
 	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "lwm2m.test", X509: true}); err != nil {
 		t.Fatal(err)
 	}
 	h.handshakeFails(testclient.Config{Endpoint: "lwm2m.test"}, addr, testclient.X509Config(sc, p.pool, "lwm2m.test"))
-	shared := newKey(t)
-	for _, ep := range []string{"twin-1", "twin-2"} {
-		if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: ep, PublicKey: spkiOf(t, shared)}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	rc, _ = testclient.RPKConfig(shared, spkiOf(t, srvKey))
-	h.handshakeFails(testclient.Config{Endpoint: "twin-1"}, addr, rc)
 }
 
-// Proves: SEC-12
-// Alerts the server sends map to the client's "Fail" class (T Tbl
-// 5.2.10-1): unknown PSK identity is unknown_psk_identity (115), an
-// unknown raw key or untrusted certificate is bad_certificate (42). A
-// record with a bad MAC is discarded silently: no alert, the session
-// survives and the CoAP retransmission succeeds.
+// Alerts the server sends: an untrusted certificate is bad_certificate
+// (42), a "Fail" alert for the client (T Tbl 5.2.10-1). An unknown PSK
+// identity is internal_error (80), which pion/dtls sends and offers no
+// way to change; the table wants unknown_psk_identity (115), so SEC-12 is
+// pending (upstream branch unknown-psk-identity-alert). A record with a
+// bad MAC is discarded silently: no alert, the session survives and the
+// CoAP retransmission succeeds.
 func TestDTLSAlerts(t *testing.T) {
 	s := newSecure(t)
 	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "mac", PSKIdentity: "mac", PSKKey: []byte("0123456789abcdef")}); err != nil {
 		t.Fatal(err)
 	}
-	rc, _ := testclient.RPKConfig(newKey(t), s.serverSPKI)
 	foreign := newDTLSPKI(t).issue(t, "x")
 	for _, c := range []struct {
 		name string
-		cfg  *piondtls.Config
+		cfg  []piondtls.ClientOption
 		want byte
 	}{
-		{"unknown PSK identity", pskConfig("nobody", []byte("0123456789abcdef")), 115},
-		{"unknown raw key", rc, 42},
+		{"unknown PSK identity", pskConfig("nobody", []byte("0123456789abcdef")), 80},
 		{"untrusted certificate", testclient.X509Config(foreign, s.pki.pool, "lwm2m.test"), 42},
 	} {
 		if got := s.alertFor(c.cfg); got != c.want {
@@ -532,42 +468,39 @@ func TestDTLSRecordProtection(t *testing.T) {
 // /0/x/19 and /0/x/21 value for this server) completes the handshake.
 func TestCurvesAndSignatures(t *testing.T) {
 	s := newSecure(t)
-	k, _ := s.rpkClient("curves")
+	xc := s.x509Client("curves")
 	for _, groups := range [][]pionelliptic.Curve{{pionelliptic.P384, pionelliptic.P256}, {pionelliptic.P256, pionelliptic.P384}} {
-		cfg, _ := testclient.RPKConfig(k, s.serverSPKI)
-		cfg.EllipticCurves = groups
-		cfg.SignatureSchemes = []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256}
+		cfg := with(testclient.X509Config(xc, s.pki.pool, "lwm2m.test"),
+			piondtls.WithEllipticCurves(groups...), piondtls.WithSignatureSchemes(tls.ECDSAWithP256AndSHA256))
 		px := newProxy(t, s.addr) // one proxy per session: the server keys sessions by address
 		s.mustRegisterSecure(testclient.Config{Endpoint: "curves"}, px.Addr(), cfg)
 		if got := serverKeyExchangeCurve(px.since(0)); got != uint16(groups[0]) {
 			t.Fatalf("groups %v: server used %#x", groups, got)
 		}
 	}
-	cfg, _ := testclient.RPKConfig(k, s.serverSPKI)
-	cfg.ClientHelloMessageHook = func(ch handshake.MessageClientHello) handshake.Message {
+	cfg := with(testclient.X509Config(xc, s.pki.pool, "lwm2m.test"), piondtls.WithClientHelloMessageHook(func(ch handshake.MessageClientHello) handshake.Message {
 		for i, e := range ch.Extensions {
-			if _, ok := e.(*extension.SupportedEllipticCurves); ok {
-				ch.Extensions[i] = &extension.SupportedEllipticCurves{EllipticCurves: []pionelliptic.Curve{19}} // secp192r1
+			if _, ok := e.(*extension.SupportedGroups); ok {
+				ch.Extensions[i] = &extension.SupportedGroups{Groups: []pionelliptic.Curve{19}} // secp192r1
 			}
 		}
 		return &ch
-	}
+	}))
 	s.handshakeFails(testclient.Config{Endpoint: "curves"}, s.addr, cfg)
 
 	weak, err := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "weak", PublicKey: spkiOf(t, weak)}); err != nil {
+	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "weak", X509: true}); err != nil {
 		t.Fatal(err)
 	}
-	cfg, _ = testclient.RPKConfig(weak, s.serverSPKI)
-	s.handshakeFails(testclient.Config{Endpoint: "weak"}, s.addr, cfg)
+	s.handshakeFails(testclient.Config{Endpoint: "weak"}, s.addr, testclient.X509Config(s.pki.issueKey(t, weak, "weak"), s.pki.pool, "lwm2m.test"))
 }
 
 // alertFor runs a handshake that the server must refuse and returns the
 // description of the fatal alert the server sent (plaintext in epoch 0).
-func (s *secureSetup) alertFor(cfg *piondtls.Config) byte {
+func (s *secureSetup) alertFor(cfg []piondtls.ClientOption) byte {
 	s.t.Helper()
 	px := newProxy(s.t, s.addr)
 	s.handshakeFails(testclient.Config{Endpoint: "x"}, px.Addr(), cfg)

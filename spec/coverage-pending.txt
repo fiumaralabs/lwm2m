@@ -1,2 +1,7 @@
 # Requirement IDs (spec/standards*.md) not yet proven by a test.
 # Remove an ID when a test carries `// Proves: <ID>`. Empty file = spec fully implemented.
+# Waiting for pion/dtls upstream (the LwM2M fork was dropped; interop/upstream-pion.md):
+SEC-03 RPK mode (1.1 MUST): needs pion/dtls RFC 7250 support (upstream branch rfc7250-raw-public-keys). PSK and X.509 are proven by TestSecurityModesOnePort.
+SEC-09 RPK suites and exact key match: needs pion/dtls RFC 7250 support (upstream branch rfc7250-raw-public-keys). RPK credentials are refused (server.ErrRPKUnsupported).
+BS-10 Bootstrapping with RPK: needs pion/dtls RFC 7250 support (upstream branch rfc7250-raw-public-keys). PSK, X.509, OSCORE and the low-entropy PSK check are tested (bootstrap/security_test.go, transport_test.go, oscore_test.go).
+SEC-12 Unknown PSK identity: pion/dtls sends internal_error (80), outside Tbl 5.2.10-1, instead of unknown_psk_identity (115), and has no option to choose the alert: needs upstream branch unknown-psk-identity-alert. Bad-MAC discard and bad_certificate (42) are tested (TestDTLSAlerts).

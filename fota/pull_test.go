@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m/fota"
 	"github.com/fiumaralabs/lwm2m/testclient"
+	piondtls "github.com/pion/dtls/v4"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/net/blockwise"
@@ -155,10 +155,8 @@ func TestPullSecure(t *testing.T) {
 	h := newHarness(t)
 	img := image(8 << 10)
 	h.files.Add("/fw/s.bin", img)
-	sa, err := h.files.ListenDTLS("127.0.0.1:0", &piondtls.Config{
-		PSK:          func([]byte) ([]byte, error) { return []byte("0123456789abcdef"), nil },
-		CipherSuites: []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},
-	})
+	sa, err := h.files.ListenDTLS("127.0.0.1:0",
+		piondtls.WithPSK(func([]byte) ([]byte, error) { return []byte("0123456789abcdef"), nil }))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,74 +1,24 @@
 package dtls
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"errors"
 	"math/big"
 	"testing"
 	"time"
 
-	dtls "github.com/fiumaralabs/dtls/v3"
-	"github.com/fiumaralabs/dtls/v3/pkg/protocol/extension"
-	"github.com/fiumaralabs/dtls/v3/pkg/protocol/handshake"
+	"github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
 )
-
-// Proves: SEC-09
-// The RFC 7250 wire forms of the patched pion: client_certificate_type
-// (19) and server_certificate_type (20) carry a type list in the
-// ClientHello and one type in the ServerHello, and a raw-key Certificate
-// message is a single 24-bit-length SubjectPublicKeyInfo (RFC 7250 §3),
-// not a certificate_list. RawKey presents exactly the key's SPKI.
-func TestRawPublicKeyWireFormat(t *testing.T) {
-	offer, err := extension.NewClientCertificateType(false, extension.CertificateTypeRawPublicKey, extension.CertificateTypeX509).Marshal()
-	if err != nil || !bytes.Equal(offer, []byte{0, 19, 0, 3, 2, 2, 0}) {
-		t.Fatalf("ClientHello client_certificate_type %x %v", offer, err)
-	}
-	sel, err := extension.NewServerCertificateType(true, extension.CertificateTypeRawPublicKey).Marshal()
-	if err != nil || !bytes.Equal(sel, []byte{0, 20, 0, 1, 2}) {
-		t.Fatalf("ServerHello server_certificate_type %x %v", sel, err)
-	}
-	exts, err := extension.Unmarshal(append([]byte{0, byte(len(offer) + len(sel))}, append(offer, sel...)...))
-	if err != nil || len(exts) != 2 {
-		t.Fatalf("unmarshal %v %v", exts, err)
-	}
-	if c := exts[0].(*extension.ClientCertificateType); c.Selected || len(c.Types) != 2 {
-		t.Fatalf("offer %+v", c)
-	}
-	if s := exts[1].(*extension.ServerCertificateType); !s.Selected || s.Types[0] != extension.CertificateTypeRawPublicKey {
-		t.Fatalf("selection %+v", s)
-	}
-
-	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	spki, _ := x509.MarshalPKIXPublicKey(k.Public())
-	m := &handshake.MessageCertificate{Certificate: [][]byte{spki}, RawPublicKey: true}
-	raw, err := m.Marshal()
-	if err != nil || len(raw) != 3+len(spki) || int(raw[0])<<16|int(raw[1])<<8|int(raw[2]) != len(spki) || !bytes.Equal(raw[3:], spki) {
-		t.Fatalf("raw key Certificate %x %v", raw, err)
-	}
-	var back handshake.MessageCertificate
-	if err := back.Unmarshal(raw); err != nil || !back.RawPublicKey || !bytes.Equal(back.Certificate[0], spki) {
-		t.Fatalf("round trip %+v %v", back, err)
-	}
-	cert, err := RawKey(k)
-	if err != nil || !bytes.Equal(cert.Certificate[0], spki) {
-		t.Fatal("RawKey credential")
-	}
-	if ExpectRawKey(spki)([][]byte{spki}, nil) != nil || !errors.Is(ExpectRawKey(spki)([][]byte{raw}, nil), ErrUnexpectedKey) {
-		t.Fatal("ExpectRawKey is not an exact match")
-	}
-}
 
 // Proves: TLS13-02
 // /0/x/16 values are the IANA suite bytes as one integer (0xC0,0xA8 →
-// 49320) and include the custom 0xC023.
+// 49320), the custom 0xC023 included.
 func TestResource16(t *testing.T) {
-	v := Resource16(&dtls.Config{CipherSuites: []dtls.CipherSuiteID{dtls.TLS_PSK_WITH_AES_128_CCM_8}, CustomCipherSuites: Custom})
-	if len(v) != 2 || v[0] != 0xC023 || v[1] != 49320 {
+	v := Resource16([]ciphersuite.ID{TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, ciphersuite.TLS_PSK_WITH_AES_128_CCM_8})
+	if len(v) != 2 || v[0] != 0xC023 || v[1] != 49320 || Custom()[0].ID() != 0xC023 {
 		t.Fatalf("%v", v)
 	}
 }

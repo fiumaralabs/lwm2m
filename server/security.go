@@ -13,7 +13,7 @@ type SecurityInfo struct {
 	Endpoint    string
 	PSKIdentity string
 	PSKKey      []byte
-	PublicKey   []byte // RPK: client SubjectPublicKeyInfo DER
+	PublicKey   []byte // RPK: client SubjectPublicKeyInfo DER; refused, see ErrRPKUnsupported
 	X509        bool   // the client authenticates with a certificate whose CN is Endpoint
 	// OSCORE and other modes are configured in their own packages.
 }
@@ -41,7 +41,16 @@ func NewMemorySecurityStore() *MemorySecurityStore {
 
 var ErrDuplicatePSKIdentity = errors.New("server: PSK identity already used by another endpoint")
 
+// ErrRPKUnsupported refuses RPK credentials (security mode 1): RFC 7250
+// raw public keys need handshake support pion/dtls does not have yet
+// (pending upstream, branch rfc7250-raw-public-keys).
+var ErrRPKUnsupported = errors.New("RPK (RFC 7250 raw public key) credentials are not supported: pion/dtls lacks RFC 7250 (pending upstream)")
+
+// Put stores si. RPK credentials are refused with ErrRPKUnsupported.
 func (s *MemorySecurityStore) Put(si SecurityInfo) error {
+	if len(si.PublicKey) > 0 {
+		return ErrRPKUnsupported
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if si.PSKIdentity != "" {

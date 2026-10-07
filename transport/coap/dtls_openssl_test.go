@@ -2,7 +2,6 @@ package coap
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
 	"io"
@@ -17,9 +16,9 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
-// opensslWithRPK returns the openssl binary when it can do DTLS with RFC
-// 7250 raw public keys (OpenSSL 3.2+), else skips.
-func opensslWithRPK(t *testing.T) string {
+// opensslDTLS returns the openssl binary when it can do DTLS 1.2 and
+// offer RFC 7250 raw public keys (OpenSSL 3.2+), else skips.
+func opensslDTLS(t *testing.T) string {
 	t.Helper()
 	bin, err := exec.LookPath("openssl")
 	if err != nil {
@@ -103,38 +102,20 @@ func opensslRegister(t *testing.T, bin, addr, ep string, args ...string) byte {
 	return 0
 }
 
-// Proves: SEC-09, SEC-10, SEC-04
+// Proves: SEC-10, SEC-04
 // Interop with an independent DTLS stack (OpenSSL 3.2+ s_client as the
-// LwM2M client): the server negotiates RFC 7250 raw public keys in both
-// directions and registers the client by its exact key; an X.509 client
-// on TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 (0xC023, security/dtls) and a PSK
-// client on TLS_PSK_WITH_AES_128_CBC_SHA256 register too.
+// LwM2M client): an X.509 client on TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
+// (0xC023, security/dtls) and a PSK client on TLS_PSK_WITH_AES_128_CBC_SHA256
+// register. A client offering RFC 7250 raw public keys alongside X.509
+// gets X.509: the server does not negotiate RPK (pion/dtls lacks it).
 func TestOpenSSLInterop(t *testing.T) {
-	bin := opensslWithRPK(t)
+	bin := opensslDTLS(t)
 	s := newSecure(t)
 	dir := t.TempDir()
 
-	// RPK: s_client needs a certificate file, but sends only its SPKI.
-	rpkCert := s.pki.issue(t, "ignored")
-	k := rpkCert.PrivateKey.(*ecdsa.PrivateKey)
-	if err := s.srv.Security().Put(server.SecurityInfo{Endpoint: "ossl-rpk", PublicKey: spkiOf(t, k)}); err != nil {
-		t.Fatal(err)
-	}
-	der, _ := x509.MarshalPKCS8PrivateKey(k)
-	if code := opensslRegister(t, bin, s.addr, "ossl-rpk",
-		"-enable_client_rpk", "-enable_server_rpk", "-cipher", "ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0",
-		"-cert", writePEM(t, dir, "rpk.pem", "CERTIFICATE", rpkCert.Certificate[0]),
-		"-key", writePEM(t, dir, "rpk.key", "PRIVATE KEY", der)); code != 0x41 {
-		t.Fatalf("RPK Register: code %s", server.CodeString(codes.Code(code)))
-	}
-	reg, ok := s.srv.Store().ByEndpoint("ossl-rpk")
-	if !ok || reg.Identity.Mode != server.ModeRPK {
-		t.Fatalf("RPK registration %v %+v", ok, reg)
-	}
-
 	// X.509 over 0xC023.
 	xc := s.x509Client("ossl-x509")
-	der, _ = x509.MarshalPKCS8PrivateKey(xc.PrivateKey)
+	der, _ := x509.MarshalPKCS8PrivateKey(xc.PrivateKey)
 	if code := opensslRegister(t, bin, s.addr, "ossl-x509", "-cipher", "ECDHE-ECDSA-AES128-SHA256",
 		"-cert", writePEM(t, dir, "x.pem", "CERTIFICATE", xc.Certificate[0]),
 		"-cert_chain", writePEM(t, dir, "chain.pem", "CERTIFICATE", xc.Certificate[1]),
@@ -143,6 +124,16 @@ func TestOpenSSLInterop(t *testing.T) {
 	}
 	if reg, ok := s.srv.Store().ByEndpoint("ossl-x509"); !ok || reg.Identity.Mode != server.ModeX509 {
 		t.Fatalf("X.509 registration %v", ok)
+	}
+	if code := opensslRegister(t, bin, s.addr, "ossl-x509", "-cipher", "ECDHE-ECDSA-AES128-CCM8:@SECLEVEL=0",
+		"-enable_client_rpk", "-enable_server_rpk",
+		"-cert", writePEM(t, dir, "x.pem", "CERTIFICATE", xc.Certificate[0]),
+		"-cert_chain", writePEM(t, dir, "chain.pem", "CERTIFICATE", xc.Certificate[1]),
+		"-key", writePEM(t, dir, "x.key", "PRIVATE KEY", der)); code != 0x41 {
+		t.Fatalf("Register offering RPK: code %s", server.CodeString(codes.Code(code)))
+	}
+	if reg, ok := s.srv.Store().ByEndpoint("ossl-x509"); !ok || reg.Identity.Mode != server.ModeX509 {
+		t.Fatalf("registration offering RPK %v %+v", ok, reg)
 	}
 
 	// PSK over 0x00AE.

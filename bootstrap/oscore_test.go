@@ -137,7 +137,8 @@ func TestOSCOREBootstrapEcho(t *testing.T) {
 // a 4.01 protected with ID Context R2||R1 carrying kid context R2 (and
 // Echo); request #2 under ID Context R2||R3 is served and the session runs
 // on that context. A replayed request #2 is refused.
-// Proves: OSC-03, BS-10
+// This is BS-10's OSCORE PSK part (BS-10 is pending for RPK).
+// Proves: OSC-03
 func TestOSCOREBootstrapPSKAppendixB2(t *testing.T) {
 	h := newHarness(t)
 	o := h.bs.EnableOSCORE()

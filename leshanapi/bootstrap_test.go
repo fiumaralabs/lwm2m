@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/bootstrap"
 	"github.com/fiumaralabs/lwm2m/testclient"
@@ -79,11 +78,7 @@ func TestBootstrapREST(t *testing.T) {
 	c.Set(mp("/0/0/5"), lwm2m.Opaque([]byte(bsPass)))
 	c.Set(mp("/1/2/0"), lwm2m.Integer(2)) // int-4: gone after bootstrap
 	c.Set(mp("/3/0/0"), lwm2m.String("Zephyr"))
-	psk := func(id, key string) *piondtls.Config {
-		return &piondtls.Config{PSK: func([]byte) ([]byte, error) { return []byte(key), nil }, PSKIdentityHint: []byte(id),
-			CipherSuites: []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8}}
-	}
-	if err := c.DialDTLS(bsAddr.String(), psk(ep, bsPass)); err != nil {
+	if err := c.DialDTLS(bsAddr.String(), testclient.PSKConfig(ep, []byte(bsPass))...); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })
@@ -118,7 +113,7 @@ func TestBootstrapREST(t *testing.T) {
 		t.Fatalf("server account %q %q %q", uri, id, key)
 	}
 	_ = c.Close()
-	if err := c.DialDTLS(e.dtls, psk(ep, pass)); err != nil {
+	if err := c.DialDTLS(e.dtls, testclient.PSKConfig(ep, []byte(pass))...); err != nil {
 		t.Fatal(err)
 	}
 	if r, err := c.Register(e.ctx); err != nil || r.Code != codes.Created {

@@ -4,7 +4,6 @@ go 1.26.5
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/fiumaralabs/dtls/v3 v3.1.11-lwm2m.3
 	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/gorilla/websocket v1.5.3
 	github.com/mochi-mqtt/server/v2 v2.7.9
@@ -14,8 +13,9 @@ require (
 require (
 	github.com/dsnet/golib/memfile v1.0.0 // indirect
 	github.com/pion/dtls/v3 v3.1.10 // indirect
+	github.com/pion/dtls/v4 v4.0.0-rc.3
 	github.com/pion/logging v0.2.4 // indirect
-	github.com/pion/transport/v5 v5.0.0 // indirect
+	github.com/pion/transport/v5 v5.1.1 // indirect
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

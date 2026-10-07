@@ -24,10 +24,10 @@ import (
 // Bootstrapping over TLS (CoAP over TLS, binding T) with certificates:
 // the endpoint is the verified client certificate's CN. Go's crypto/tls
 // has no TLS-PSK or RPK, so those credentials are served over DTLS (see
-// TestInt1BootstrapPSK, TestInt2BootstrapCertificateAndRPK) and OSCORE
-// (TestOSCOREBootstrapPSKAppendixB2). The default PSK lookup refuses a
-// low-entropy (D)TLS PSK: the handshake fails.
-// Proves: BS-10
+// TestInt1BootstrapPSK; RPK is pending, see TestInt2BootstrapCertificate)
+// and OSCORE (TestOSCOREBootstrapPSKAppendixB2). The default PSK lookup
+// refuses a low-entropy (D)TLS PSK: the handshake fails. These are BS-10's
+// certificate and PSK parts; the row is pending for RPK.
 func TestBootstrapOverTLSAndWeakPSK(t *testing.T) {
 	h := newHarness(t)
 	k := newPKI(t)
@@ -111,8 +111,12 @@ func TestESTViaBootstrapServer(t *testing.T) {
 	t.Cleanup(func() { _ = dmCoAP.Close() })
 	pool := x509.NewCertPool()
 	pool.AddCert(ca.Cert)
-	dmAddr, err := dmCoAP.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{Config: dmCoAP.DTLSConfig(coap.CertificateModes{
-		Certificates: []tls.Certificate{{Certificate: [][]byte{scert.Raw}, PrivateKey: sk}}, ClientCAs: pool})})
+	dc, err := dmCoAP.DTLSConfig(coap.CertificateModes{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{scert.Raw}, PrivateKey: sk}}, ClientCAs: pool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dmAddr, err := dmCoAP.ListenDTLS("127.0.0.1:0", dc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +189,7 @@ func TestESTViaBootstrapServer(t *testing.T) {
 	roots := x509.NewCertPool()
 	roots.AddCert(trust)
 	roots.AddCert(ca.Cert)
-	if err := c.DialDTLS(dmAddr.String(), testclient.X509Config(tls.Certificate{Certificate: [][]byte{certs[0].Raw}, PrivateKey: key}, roots, "localhost")); err != nil {
+	if err := c.DialDTLS(dmAddr.String(), testclient.X509Config(tls.Certificate{Certificate: [][]byte{certs[0].Raw}, PrivateKey: key}, roots, "localhost")...); err != nil {
 		t.Fatal(err)
 	}
 	rr, err := c.Register(h.ctx)

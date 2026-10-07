@@ -192,7 +192,10 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 	e.udp = port(a)
 	dc := coap.DTLSConfig{CIDLength: 6}
 	if len(cm.Certificates) > 0 {
-		dc.Config = cb.DTLSConfig(cm)
+		if dc, err = cb.DTLSConfig(cm); err != nil {
+			t.Fatal(err)
+		}
+		dc.CIDLength = 6
 	}
 	if a, err = cb.ListenDTLS("127.0.0.1:0", dc); err != nil {
 		t.Fatal(err)

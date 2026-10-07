@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
@@ -418,11 +417,7 @@ func (f *Firmware) pullCoAP(ctx context.Context, u *url.URL, secure bool) ([]byt
 		if id == "" {
 			id, key = f.c.cfg.PSKIdentity, f.c.cfg.PSKKey
 		}
-		conn, err = dtlscoap.Dial(host, &piondtls.Config{
-			PSK:             func([]byte) ([]byte, error) { return key, nil },
-			PSKIdentityHint: []byte(id),
-			CipherSuites:    []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},
-		}, noBW)
+		conn, err = dtlscoap.Dial(host, pskOptions(id, key, false), noBW)
 	} else {
 		conn, err = udp.Dial(host, noBW)
 	}

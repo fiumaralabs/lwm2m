@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
+	piondtls "github.com/pion/dtls/v4"
 	"github.com/plgd-dev/go-coap/v3/message"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"github.com/plgd-dev/go-coap/v3/mux"
@@ -394,7 +394,7 @@ func (s *Server) Mount(r *mux.Router) error {
 }
 
 func identityOf(c mux.Conn) Identity {
-	dc, ok := c.NetConn().(*piondtls.Conn)
+	dc, ok := c.NetConn().(interface{ ConnectionState() (piondtls.State, bool) }) // dtlscoap or pion Conn
 	if !ok {
 		return Identity{}
 	}

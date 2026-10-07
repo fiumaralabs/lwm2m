@@ -9,20 +9,19 @@ import (
 	"errors"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
-	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/fiumaralabs/lwm2m/server"
+	piondtls "github.com/pion/dtls/v4"
 )
 
 // CertificateModes are the certificate-based security modes of a DTLS
-// listener (T §5.2.9.2-3). PSK clients keep working on the same port, so
-// one listener serves security modes 0, 1 and 2 (SEC-03).
+// listener (T §5.2.9.3). PSK clients keep working on the same port, so
+// one listener serves security modes 0 and 2. Mode 1 (RPK, RFC 7250)
+// needs pion/dtls support that is pending upstream (branch
+// rfc7250-raw-public-keys), so it is neither offered nor accepted.
 type CertificateModes struct {
-	// Certificates are the server credentials: X.509 chains, chosen by the
-	// client's SNI when there are several (SEC-14), or dtls.RawKey
-	// keys. An RPK client gets the SubjectPublicKeyInfo of the selected
-	// credential's key, the value the Bootstrap-Server writes to /0/x/4
-	// (SEC-09).
+	// Certificates are the server's X.509 chains, chosen by the client's
+	// SNI when there are several (SEC-14). A credential that is not an
+	// X.509 chain (a raw key) is refused with server.ErrRPKUnsupported.
 	Certificates []tls.Certificate
 	// ClientCAs is the trust store for X.509 clients (SEC-10). nil
 	// accepts no X.509 client.
@@ -38,17 +37,15 @@ type CertificateModes struct {
 // other listed extensions.
 const DTLSExtensions uint32 = 1<<0 | 1<<12
 
-// DTLSConfig returns the pion configuration for ListenDTLS that serves
-// PSK, RPK (RFC 7250) and X.509 clients with the suites LwM2M mandates
-// (SEC-04, SEC-09, SEC-10), session resumption (SEC-11) and server-
-// assigned Connection IDs (CID-01, set by ListenDTLS).
+// DTLSConfig returns the ListenDTLS configuration that serves PSK and
+// X.509 clients with the suites LwM2M mandates (SEC-04, SEC-10), session
+// resumption (SEC-11) and server-assigned Connection IDs (CID-01).
 //
 // Certificate clients must authenticate (ClientAuth RequireAndVerify): an
 // X.509 client needs a chain to ClientCAs and a stored SecurityInfo with
-// X509 for its CN; an RPK client needs a key stored for exactly one
-// endpoint. Anything else fails the handshake with bad_certificate (42),
-// a "Fail" alert for the client (T Tbl 5.2.10-1).
-func (b *Binding) DTLSConfig(m CertificateModes) *piondtls.Config {
+// X509 for its CN. Anything else fails the handshake with
+// bad_certificate (42), a "Fail" alert for the client (T Tbl 5.2.10-1).
+func (b *Binding) DTLSConfig(m CertificateModes) (DTLSConfig, error) {
 	cas := m.ClientCAs
 	if cas == nil {
 		cas = x509.NewCertPool()
@@ -58,36 +55,31 @@ func (b *Binding) DTLSConfig(m CertificateModes) *piondtls.Config {
 		ttl = 24 * time.Hour
 	}
 	var own [][]byte
-	serverTypes := []piondtls.CertificateType{piondtls.CertificateTypeRawPublicKey}
-	hasX509 := false
 	for _, c := range m.Certificates {
+		if len(c.Certificate) == 0 {
+			return DTLSConfig{}, server.ErrRPKUnsupported
+		}
+		if _, err := x509.ParseCertificate(c.Certificate[0]); err != nil {
+			return DTLSConfig{}, server.ErrRPKUnsupported
+		}
 		if signer, ok := c.PrivateKey.(crypto.Signer); ok {
 			if spki, err := x509.MarshalPKIXPublicKey(signer.Public()); err == nil {
 				own = append(own, spki)
 			}
 		}
-		if len(c.Certificate) > 0 {
-			if _, err := x509.ParseCertificate(c.Certificate[0]); err == nil {
-				hasX509 = true
-			}
-		}
 	}
-	if hasX509 {
-		serverTypes = append(serverTypes, piondtls.CertificateTypeX509)
-	}
-	return &piondtls.Config{
-		PSK:                    b.pskLookup,
-		Certificates:           m.Certificates,
-		CustomCipherSuites:     dtls.Custom, // 0xC023
-		ClientAuth:             piondtls.RequireAndVerifyClientCert,
-		ClientCAs:              cas,
-		ClientCertificateTypes: []piondtls.CertificateType{piondtls.CertificateTypeRawPublicKey, piondtls.CertificateTypeX509},
-		ServerCertificateTypes: serverTypes,
-		VerifyPeerCertificate: func(raw [][]byte, chains [][]*x509.Certificate) error {
+	opts := []piondtls.ServerOption{
+		piondtls.WithPSK(b.pskLookup),
+		piondtls.WithClientAuth(piondtls.RequireAndVerifyClientCert),
+		piondtls.WithClientCAs(cas),
+		piondtls.WithVerifyPeerCertificate(func(raw [][]byte, chains [][]*x509.Certificate) error {
 			return b.verifyPeer(raw, chains, own)
-		},
-		SessionStore: newSessionStore(ttl, 100_000, time.Now),
+		}),
 	}
+	if len(m.Certificates) > 0 {
+		opts = append(opts, piondtls.WithCertificates(m.Certificates...))
+	}
+	return DTLSConfig{Options: opts, SessionTTL: ttl}, nil
 }
 
 var errPeerCredential = errors.New("coap: client credential not accepted")
@@ -99,30 +91,17 @@ func (b *Binding) verifyPeer(raw [][]byte, chains [][]*x509.Certificate, own [][
 	if len(raw) == 0 {
 		return errPeerCredential
 	}
-	if len(chains) > 0 { // X.509 (SEC-10)
-		leaf := chains[0][0]
-		if !strongKey(leaf.PublicKey) || isOwn(leaf.RawSubjectPublicKeyInfo, own) {
-			return errPeerCredential
-		}
-		if si, ok := b.srv.Security().ByEndpoint(leaf.Subject.CommonName); !ok || !si.X509 {
-			return errPeerCredential
-		}
-		return nil
-	}
-	// RFC 7250 raw public key (SEC-09).
-	pub, err := x509.ParsePKIXPublicKey(raw[0])
-	if err != nil || !strongKey(pub) {
+	if len(chains) == 0 { // no chain to ClientCAs (pion verified it)
 		return errPeerCredential
 	}
-	if isOwn(raw[0], own) {
+	leaf := chains[0][0] // SEC-10
+	if !strongKey(leaf.PublicKey) || isOwn(leaf.RawSubjectPublicKeyInfo, own) {
 		return errPeerCredential
 	}
-	if lk, ok := b.srv.Security().(server.PublicKeyLookup); ok {
-		if _, ok := lk.ByPublicKey(raw[0]); !ok {
-			return errPeerCredential
-		}
+	if si, ok := b.srv.Security().ByEndpoint(leaf.Subject.CommonName); !ok || !si.X509 {
+		return errPeerCredential
 	}
-	return nil // other stores: Register still checks the exact key (SEC-06)
+	return nil
 }
 
 // isOwn reports whether a client presents one of the server's own key

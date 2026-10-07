@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/security/oscore"
@@ -100,12 +99,7 @@ func (o *OSCOREClient) Dial(addr string) error {
 	r.DefaultHandle(mux.HandlerFunc(o.handle))
 	hook := options.WithProcessReceivedMessageFunc(o.process)
 	if o.cfg.PSKIdentity != "" {
-		cfg := &piondtls.Config{
-			PSK:             func([]byte) ([]byte, error) { return o.cfg.PSKKey, nil },
-			PSKIdentityHint: []byte(o.cfg.PSKIdentity),
-			CipherSuites:    []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},
-		}
-		conn, err := dtlscoap.Dial(addr, cfg, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
+		conn, err := dtlscoap.Dial(addr, pskOptions(o.cfg.PSKIdentity, o.cfg.PSKKey, false), options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
 		if err != nil {
 			return err
 		}

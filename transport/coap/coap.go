@@ -1,5 +1,5 @@
 // Package coap connects a server.Server to CoAP: binding U over UDP
-// (NoSec, RFC 7252) and DTLS 1.2 (PSK, RPK, X.509, Connection ID), and
+// (NoSec, RFC 7252) and DTLS 1.2/1.3 (PSK, X.509, Connection ID), and
 // binding T over TCP, TLS and WebSockets (RFC 8323). It also holds the
 // Server's OSCORE layer (T §5.4, RFC 8613), which protects LwM2M traffic
 // on these bindings and, through CoAPWire, on SMS.
@@ -32,10 +32,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/server"
+	piondtls "github.com/pion/dtls/v4"
+	"github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	dtlsServer "github.com/plgd-dev/go-coap/v3/dtls/server"
 	"github.com/plgd-dev/go-coap/v3/message"
@@ -232,45 +233,42 @@ func (b *Binding) ListenUDP(addr string) (net.Addr, error) {
 }
 
 // DTLSConfig configures a DTLS listener. PSK credentials are resolved from
-// the security store by identity; a nil Config builds one.
+// the security store by identity.
 type DTLSConfig struct {
-	Config *piondtls.Config
+	// Options go to pion/dtls after the listener's defaults (PSK lookup,
+	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins.
+	Options []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
 	// (RFC 9146, CID-01). 0 disables CID; default 8.
 	CIDLength int
 	// DisableCID turns Connection ID support off.
 	DisableCID bool
+	// SessionTTL enables DTLS 1.2 session resumption (SEC-11) for
+	// sessions up to that age; 0 disables it.
+	SessionTTL time.Duration
 }
 
-// ListenDTLS serves CoAP over DTLS 1.2 on addr.
+// DTLSCipherSuites are the suites a DTLS listener accepts by default.
+// SEC-04: TLS_PSK_WITH_AES_128_CCM_8 and TLS_PSK_WITH_AES_128_CBC_SHA256;
+// SEC-10: ECDHE_ECDSA with AES_128_CCM_8 and AES_128_CBC_SHA256 (0xC023,
+// security/dtls); further AEAD suites (SEC-17); and TLS_AES_128_GCM_SHA256
+// for DTLS 1.3 (TLS13-01).
+func DTLSCipherSuites() []ciphersuite.ID { return dtlscoap.CipherSuites() }
+
+// CIDLen is the Connection ID length dc asks for: 0 when disabled.
+func (dc DTLSConfig) CIDLen() int {
+	switch {
+	case dc.DisableCID:
+		return 0
+	case dc.CIDLength == 0:
+		return 8
+	}
+	return dc.CIDLength
+}
+
+// ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr.
 func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
-	cfg := dc.Config
-	if cfg == nil {
-		cfg = &piondtls.Config{}
-	}
-	if cfg.PSK == nil {
-		cfg.PSK = b.pskLookup
-	}
-	if len(cfg.CipherSuites) == 0 {
-		// SEC-04: TLS_PSK_WITH_AES_128_CCM_8 and TLS_PSK_WITH_AES_128_CBC_SHA256;
-		// SEC-09/10: ECDHE_ECDSA with AES_128_CCM_8 and AES_128_CBC_SHA256.
-		cfg.CipherSuites = []piondtls.CipherSuiteID{
-			piondtls.TLS_PSK_WITH_AES_128_CCM_8,
-			piondtls.TLS_PSK_WITH_AES_128_CBC_SHA256,
-			piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
-			piondtls.TLS_PSK_WITH_AES_128_CCM,
-			piondtls.TLS_PSK_WITH_AES_128_GCM_SHA256,
-			piondtls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-		}
-	}
-	if !dc.DisableCID && cfg.ConnectionIDGenerator == nil {
-		n := dc.CIDLength
-		if n == 0 {
-			n = 8
-		}
-		cfg.ConnectionIDGenerator = piondtls.RandomCIDGenerator(n)
-	}
-	l, err := dtlscoap.Listen("udp", addr, cfg)
+	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup))
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +323,7 @@ func (b *Binding) Close() error {
 // IdentityOf extracts the authenticated identity of a (D)TLS or plain UDP
 // connection. Bindings and the Bootstrap-Server share it.
 func IdentityOf(nc net.Conn, remote net.Addr) server.Identity {
-	dc, ok := nc.(*piondtls.Conn)
+	dc, ok := nc.(interface{ ConnectionState() (piondtls.State, bool) }) // *dtlscoap.Conn, *piondtls.Conn
 	if !ok {
 		return server.Identity{Mode: server.ModeNoSec, Addr: remote.String()}
 	}
@@ -340,8 +338,6 @@ func IdentityOf(nc net.Conn, remote net.Addr) server.Identity {
 		if c, err := x509.ParseCertificate(st.PeerCertificates[0]); err == nil {
 			return server.Identity{Mode: server.ModeX509, CertCN: c.Subject.CommonName, Cert: c}
 		}
-		// A raw public key (RFC 7250) arrives as a bare SubjectPublicKeyInfo.
-		return server.Identity{Mode: server.ModeRPK, PublicKey: st.PeerCertificates[0]}
 	}
 	return server.Identity{Mode: server.ModeNoSec, Addr: remote.String()}
 }

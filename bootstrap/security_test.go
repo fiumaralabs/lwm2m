@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"net"
 	"testing"
@@ -14,29 +15,25 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
-	"github.com/fiumaralabs/lwm2m/security/dtls"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/testclient"
+	piondtls "github.com/pion/dtls/v4"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
 const bsKey = "bs-key-0123456789abcdef" // high-entropy per-device key (BS-10)
 
-func pskConfig(identity, key string) *piondtls.Config {
-	return &piondtls.Config{
-		PSK:             func([]byte) ([]byte, error) { return []byte(key), nil },
-		PSKIdentityHint: []byte(identity),
-		CipherSuites:    []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8},
-	}
+func pskConfig(identity, key string) []piondtls.ClientOption {
+	return testclient.PSKConfig(identity, []byte(key))
 }
 
 // ETS 1.1-int-1 Client Initiated Bootstrap Full (PSK): bootstrap over
 // DTLS-PSK with the BS account's credentials, then Register with the
 // provisioned PSK at the LwM2M Server (int-401). A PSK identity bound to
 // another endpoint is refused with 4.00; without ep, the endpoint is the
-// one the PSK identity belongs to.
-// Proves: BS-01, BS-20, BS-10
+// one the PSK identity belongs to. (BS-10's PSK part; the row stays
+// pending for RPK.)
+// Proves: BS-01, BS-20
 func TestInt1BootstrapPSK(t *testing.T) {
 	h := newHarness(t)
 	dm := server.New(server.Config{RequestTimeout: 5 * time.Second})
@@ -84,7 +81,7 @@ func TestInt1BootstrapPSK(t *testing.T) {
 		t.Fatalf("account %q", uri)
 	}
 	_ = c.Close()
-	if err := c.DialDTLS(dmAddr.String(), pskConfig(string(id), string(key))); err != nil {
+	if err := c.DialDTLS(dmAddr.String(), pskConfig(string(id), string(key))...); err != nil {
 		t.Fatal(err)
 	}
 	rr, err := c.Register(h.ctx)
@@ -127,23 +124,28 @@ func (k *pki) leaf(t *testing.T, cn string) tls.Certificate {
 
 // certListener opens a BS DTLS listener for certificate modes, with the
 // credential callbacks of the LwM2M Server's DTLS config over the BS
-// security store: the plug-in point for RPK and X.509 credentials.
+// security store: the plug-in point for X.509 credentials.
 func (h *harness) certListener(t *testing.T, m coap.CertificateModes) string {
 	helper := server.New(server.Config{Security: h.sec})
 	t.Cleanup(func() { _ = helper.Close() })
-	a, err := h.bs.ListenDTLS("127.0.0.1:0", DTLSConfig{Config: coap.New(helper).DTLSConfig(m)})
+	dc, err := coap.New(helper).DTLSConfig(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := h.bs.ListenDTLS("127.0.0.1:0", dc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return a.String()
 }
 
-// ETS 1.1-int-2 Client Initiated Bootstrap Full (Cert), plus RPK: the BS
-// bootstraps certificate and raw-public-key clients; the endpoint must be
-// the certificate CN (4.00 otherwise, BS-01) and is derived from it when
-// ep is omitted (BS-20); an RPK client is bound to its stored key.
-// Proves: BS-01, BS-20, BS-10
-func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
+// ETS 1.1-int-2 Client Initiated Bootstrap Full (Cert): the BS bootstraps
+// certificate clients; the endpoint must be the certificate CN (4.00
+// otherwise, BS-01) and is derived from it when ep is omitted (BS-20).
+// RPK (security mode 1) is refused with a clear error: pion/dtls has no
+// RFC 7250 yet, so BS-10 is pending.
+// Proves: BS-01, BS-20
+func TestInt2BootstrapCertificate(t *testing.T) {
 	h := newHarness(t)
 	k := newPKI(t)
 	addr := h.certListener(t, coap.CertificateModes{Certificates: []tls.Certificate{k.leaf(t, "bs")}, ClientCAs: k.pool})
@@ -155,7 +157,7 @@ func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
 	}
 	c := testclient.NewBootstrap(testclient.Config{Endpoint: "other"})
 	c13(c, ModeX509, "", "")
-	if err := c.DialDTLS(addr, testclient.X509Config(k.leaf(t, "cert-ep"), k.pool, "")); err != nil {
+	if err := c.DialDTLS(addr, testclient.X509Config(k.leaf(t, "cert-ep"), k.pool, "")...); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })
@@ -166,37 +168,17 @@ func TestInt2BootstrapCertificateAndRPK(t *testing.T) {
 		t.Fatalf("finish %s err %v ep %q", server.CodeString(fin), res.Err, res.Endpoint)
 	}
 
-	// RPK (security mode 1).
-	srvKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	raw, err := dtls.RawKey(srvKey)
-	if err != nil {
-		t.Fatal(err)
+	// RPK: neither a raw-key server credential nor a client key is taken.
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	spki, _ := x509.MarshalPKIXPublicKey(key.Public())
+	helper := server.New(server.Config{})
+	t.Cleanup(func() { _ = helper.Close() })
+	if _, err := coap.New(helper).DTLSConfig(coap.CertificateModes{
+		Certificates: []tls.Certificate{{Certificate: [][]byte{spki}, PrivateKey: key}}}); !errors.Is(err, server.ErrRPKUnsupported) {
+		t.Fatalf("raw-key credential: %v", err)
 	}
-	rpkAddr := h.certListener(t, coap.CertificateModes{Certificates: []tls.Certificate{raw}})
-	cliKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	cliSPKI, _ := x509.MarshalPKIXPublicKey(cliKey.Public())
-	if err := h.sec.Put(server.SecurityInfo{Endpoint: "rpk-ep", PublicKey: cliSPKI}); err != nil {
-		t.Fatal(err)
-	}
-	h.put("rpk-ep", c1("coaps://s.example.com", "rpk-ep", "k"))
-	srvSPKI, _ := x509.MarshalPKIXPublicKey(srvKey.Public())
-	cfg, err := testclient.RPKConfig(cliKey, srvSPKI)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rc := testclient.NewBootstrap(testclient.Config{Endpoint: "rpk-ep"})
-	c13(rc, ModeRPK, "", "")
-	if err := rc.DialDTLS(rpkAddr, cfg); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = rc.Close() })
-	r, err = rc.BootstrapRequest(h.ctx, []string{"ep=cert-ep"}) // key bound to rpk-ep
-	mustCode(t, r, err, codes.BadRequest)
-	r, err = rc.BootstrapRequest(h.ctx, nil) // an RPK yields no endpoint name
-	mustCode(t, r, err, codes.BadRequest)
-	fin, res = h.bootstrap(rc, rc.BootstrapQuery(nil))
-	if fin != codes.Changed || res.Err != nil || res.Identity.Mode != server.ModeRPK {
-		t.Fatalf("rpk: finish %s err %v", server.CodeString(fin), res.Err)
+	if err := h.sec.Put(server.SecurityInfo{Endpoint: "rpk-ep", PublicKey: spki}); !errors.Is(err, server.ErrRPKUnsupported) {
+		t.Fatalf("RPK client key: %v", err)
 	}
 }
 

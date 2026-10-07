@@ -1,5 +1,5 @@
 // Command lwm2md runs the LwM2M server: CoAP over UDP (NoSec) and DTLS
-// (PSK/RPK/X.509 per the security store, Connection ID on), optionally CoAP
+// (PSK/X.509 per the security store, Connection ID on), optionally CoAP
 // over TCP, and the Leshan-compatible REST API (package leshanapi), so the
 // Zephyr interop harness can drive it as it drives the Leshan demo server.
 //
@@ -78,8 +78,12 @@ func main() {
 	listen("coaps", *coaps, func(a string) (net.Addr, error) {
 		// DTLSConfig adds session resumption (SEC-11) to the PSK lookup:
 		// devices with session caching resume instead of a full handshake.
-		return cb.ListenDTLS(a, coap.DTLSConfig{Config: cb.DTLSConfig(coap.CertificateModes{}),
-			CIDLength: *cidLen, DisableCID: *cidLen == 0})
+		dc, err := cb.DTLSConfig(coap.CertificateModes{})
+		if err != nil {
+			return nil, err
+		}
+		dc.CIDLength, dc.DisableCID = *cidLen, *cidLen == 0
+		return cb.ListenDTLS(a, dc)
 	})
 	listen("coap+tcp", *tcp, func(a string) (net.Addr, error) { return cb.ListenTCP(a) })
 
@@ -98,7 +102,11 @@ func main() {
 		}
 		listen("fw coap", *fwCoap, fs.ListenUDP)
 		listen("fw coaps", *fwCoaps, func(a string) (net.Addr, error) {
-			return fs.ListenDTLS(a, cb.DTLSConfig(coap.CertificateModes{}))
+			dc, err := cb.DTLSConfig(coap.CertificateModes{})
+			if err != nil {
+				return nil, err
+			}
+			return fs.ListenDTLS(a, dc.Options...)
 		})
 	}
 

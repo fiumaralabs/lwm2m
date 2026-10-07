@@ -17,8 +17,8 @@ import (
 	"hash"
 	"sync"
 
-	"github.com/fiumaralabs/dtls/v3/pkg/crypto/ccm"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/pion/dtls/v4/pkg/crypto/ccm"
 )
 
 // COSE AEAD algorithms (RFC 8152 Tbl 10, 9). AES-CCM-16-64-128 is the

@@ -17,9 +17,10 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/server"
 
-	piondtls "github.com/fiumaralabs/dtls/v3"
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/testclient"
+	piondtls "github.com/pion/dtls/v4"
+	"github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
 )
 
 // dtlsPKI is a root CA and an intermediate that issues leaf certificates.
@@ -86,29 +87,35 @@ func newDTLSPKI(t *testing.T) *dtlsPKI {
 // intermediate, usable as client or server certificate.
 func (p *dtlsPKI) issue(t *testing.T, cn string, dns ...string) tls.Certificate {
 	t.Helper()
-	k := newKey(t)
+	return p.issueKey(t, newKey(t), cn, dns...)
+}
+
+func (p *dtlsPKI) issueKey(t *testing.T, k crypto.Signer, cn string, dns ...string) tls.Certificate {
+	t.Helper()
 	leaf := sign(t, &x509.Certificate{Subject: pkix.Name{CommonName: cn}, DNSNames: dns,
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}}, p.inter, k.Public(), p.interKey)
 	return tls.Certificate{Certificate: [][]byte{leaf.Raw, p.inter.Raw}, PrivateKey: k, Leaf: leaf}
 }
 
-// listenSecure starts a DTLS listener serving PSK, RPK and X.509.
-func (h *harness) listenSecure(m CertificateModes, mod ...func(*piondtls.Config)) string {
+// listenSecure starts a DTLS listener serving PSK and X.509, with extra
+// pion options after DTLSConfig's.
+func (h *harness) listenSecure(m CertificateModes, extra ...piondtls.ServerOption) string {
 	h.t.Helper()
-	cfg := h.b.DTLSConfig(m)
-	for _, f := range mod {
-		f(cfg)
+	dc, err := h.b.DTLSConfig(m)
+	if err != nil {
+		h.t.Fatal(err)
 	}
-	a, err := h.b.ListenDTLS("127.0.0.1:0", DTLSConfig{Config: cfg})
+	dc.Options = append(dc.Options, extra...)
+	a, err := h.b.ListenDTLS("127.0.0.1:0", dc)
 	if err != nil {
 		h.t.Fatal(err)
 	}
 	return a.String()
 }
 
-// secureDevice is h.device over a caller-built DTLS configuration.
-func (h *harness) secureDevice(tc testclient.Config, addr string, cfg *piondtls.Config) (*testclient.Client, error) {
+// secureDevice is h.device over caller-built DTLS options.
+func (h *harness) secureDevice(tc testclient.Config, addr string, opts []piondtls.ClientOption) (*testclient.Client, error) {
 	h.t.Helper()
 	c := testclient.New(tc)
 	c.Set(lwm2m.MustParsePath("/1/0/0"), lwm2m.Integer(1))
@@ -116,7 +123,7 @@ func (h *harness) secureDevice(tc testclient.Config, addr string, cfg *piondtls.
 	c.Set(lwm2m.MustParsePath("/1/0/7"), lwm2m.String("U"))
 	c.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String("Open Mobile Alliance"))
 	c.Set(lwm2m.MustParsePath("/3/0/1"), lwm2m.String("Lightweight M2M Client"))
-	if err := c.DialDTLS(addr, cfg); err != nil {
+	if err := c.DialDTLS(addr, opts...); err != nil {
 		return nil, err
 	}
 	h.t.Cleanup(func() { _ = c.Close() })
@@ -124,9 +131,9 @@ func (h *harness) secureDevice(tc testclient.Config, addr string, cfg *piondtls.
 }
 
 // mustRegisterSecure dials and registers, failing the test otherwise.
-func (h *harness) mustRegisterSecure(tc testclient.Config, addr string, cfg *piondtls.Config) *testclient.Client {
+func (h *harness) mustRegisterSecure(tc testclient.Config, addr string, opts []piondtls.ClientOption) *testclient.Client {
 	h.t.Helper()
-	c, err := h.secureDevice(tc, addr, cfg)
+	c, err := h.secureDevice(tc, addr, opts)
 	if err != nil {
 		h.t.Fatalf("%s: dial: %v", tc.Endpoint, err)
 	}
@@ -137,10 +144,10 @@ func (h *harness) mustRegisterSecure(tc testclient.Config, addr string, cfg *pio
 
 // handshakeFails dials and registers expecting failure; it returns the
 // dial or request error text.
-func (h *harness) handshakeFails(tc testclient.Config, addr string, cfg *piondtls.Config) string {
+func (h *harness) handshakeFails(tc testclient.Config, addr string, opts []piondtls.ClientOption) string {
 	h.t.Helper()
-	cfg.FlightInterval = 50 * time.Millisecond
-	c, err := h.secureDevice(tc, addr, cfg)
+	opts = append(opts[:len(opts):len(opts)], piondtls.WithFlightInterval(50*time.Millisecond))
+	c, err := h.secureDevice(tc, addr, opts)
 	if err != nil {
 		return err.Error()
 	}
@@ -153,15 +160,13 @@ func (h *harness) handshakeFails(tc testclient.Config, addr string, cfg *piondtl
 	return err.Error()
 }
 
-func pskConfig(id string, key []byte, suites ...piondtls.CipherSuiteID) *piondtls.Config {
-	if suites == nil {
-		suites = []piondtls.CipherSuiteID{piondtls.TLS_PSK_WITH_AES_128_CCM_8}
-	}
-	return &piondtls.Config{
-		PSK:             func([]byte) ([]byte, error) { return key, nil },
-		PSKIdentityHint: []byte(id),
-		CipherSuites:    suites,
-	}
+func pskConfig(id string, key []byte, suites ...ciphersuite.ID) []piondtls.ClientOption {
+	return testclient.PSKConfig(id, key, suites...)
+}
+
+// with returns opts plus more, without sharing opts' backing array.
+func with(opts []piondtls.ClientOption, more ...piondtls.ClientOption) []piondtls.ClientOption {
+	return append(opts[:len(opts):len(opts)], more...)
 }
 
 // Record content types (RFC 6347 §4.1, RFC 9146 §4).

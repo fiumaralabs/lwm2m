@@ -190,21 +190,22 @@ func TestSecurityClients(t *testing.T) {
 	eq(t, "secure", reg["secure"], true)
 	eq(t, "registrationId", reg["registrationId"], c.Location())
 
-	// RPK and X.509 shapes.
-	eq(t, "rpk", must(t)(l.put("/security/clients", `{"endpoint":"rpk1","tls":{"mode":"rpk","details":{"key":"3059"}}}`, "")), nil)
+	// X.509 shape; RPK is refused (HTTP 400): pion/dtls has no RFC 7250.
+	if _, err := l.put("/security/clients", `{"endpoint":"rpk1","tls":{"mode":"rpk","details":{"key":"3059"}}}`, ""); err == nil {
+		t.Fatal("RPK credential accepted")
+	}
 	eq(t, "x509", must(t)(l.put("/security/clients", `{"endpoint":"x1","tls":{"mode":"x509"}}`, "")), nil)
 	_, v = e.raw("GET", "/security/clients", "")
 	golden(t, "all modes", v, `[
 		{"endpoint":"client_a3","tls":{"mode":"psk","details":{"identity":"client_a3","key":"6162636465666768696a6b6c6d6e6f70"}}},
-		{"endpoint":"rpk1","tls":{"mode":"rpk","details":{"key":"3059"}}},
 		{"endpoint":"x1","tls":{"mode":"x509"}}]`)
 	if _, err := l.put("/security/clients", `{"endpoint":"bad","tls":{"mode":"psk","details":{"identity":"bad","key":"zz"}}}`, ""); err == nil {
 		t.Fatal("non-hex key accepted")
 	}
 
 	// delete_device: 200 empty, then 200 {"message":"not_found"}.
-	eq(t, "delete", must(t)(l.deleteDevice("rpk1")), nil)
-	golden(t, "delete missing", must(t)(l.deleteDevice("rpk1")), `{"message":"not_found"}`)
+	eq(t, "delete", must(t)(l.deleteDevice("x1")), nil)
+	golden(t, "delete missing", must(t)(l.deleteDevice("x1")), `{"message":"not_found"}`)
 	_, v = e.raw("GET", "/security/server", "")
 	golden(t, "server security", v, `{}`)
 }
