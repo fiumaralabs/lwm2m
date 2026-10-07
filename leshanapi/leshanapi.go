@@ -583,7 +583,7 @@ func (a *API) cancel(w http.ResponseWriter, r *http.Request, srv *server.Server,
 			obs = append(obs, ob)
 		}
 	}
-	a.cancelObservations(w, r, srv, reg, obs, a.content(reg, p),
+	a.cancelObservations(w, r, srv, obs, a.content(reg, p),
 		fmt.Sprintf("no observation for path %s for  client '%s'", p, reg.Endpoint))
 }
 
@@ -601,11 +601,11 @@ func (a *API) cancelComposite(w http.ResponseWriter, r *http.Request, srv *serve
 			obs = append(obs, ob)
 		}
 	}
-	a.cancelObservations(w, r, srv, reg, obs, a.compositeRender(reg, paths),
+	a.cancelObservations(w, r, srv, obs, a.compositeRender(reg, paths),
 		fmt.Sprintf("no composite observation for paths %v for  client '%s'", paths, reg.Endpoint))
 }
 
-func (a *API) cancelObservations(w http.ResponseWriter, r *http.Request, srv *server.Server, reg *server.Registration,
+func (a *API) cancelObservations(w http.ResponseWriter, r *http.Request, srv *server.Server,
 	obs []*server.Observation, render func(*server.Response, *responseJSON) error, notFound string) {
 	if _, active := r.URL.Query()["active"]; !active {
 		for _, ob := range obs {

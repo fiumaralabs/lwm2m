@@ -53,12 +53,12 @@ func (o *observations) get(tok message.Token) (*Observation, bool) {
 	return ob, ok
 }
 
-func (o *observations) remove(tok message.Token) (*Observation, bool) {
+func (o *observations) remove(tok message.Token) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	ob, ok := o.byToken[string(tok)]
+	_, ok := o.byToken[string(tok)]
 	delete(o.byToken, string(tok))
-	return ob, ok
+	return ok
 }
 
 func (o *observations) removeRegistration(regID string) {
@@ -137,7 +137,7 @@ func (s *Server) ObserveComposite(ctx context.Context, ep string, paths []lwm2m.
 			return nil, nil, err
 		}
 	}
-	reqCF, acc := o.formats(reg)
+	reqCF, acc := o.formats()
 	if !compositeAccept[acc] {
 		return nil, nil, fmt.Errorf("%w: composite notifications are LwM2M CBOR or SenML, not %v", ErrBadRequest, acc)
 	}
@@ -187,7 +187,7 @@ func (s *Server) startObservation(ctx context.Context, reg *Registration, ob *Ob
 // client (GET/FETCH with Observe=1, OBS-02/OBS-05); passive only forgets
 // it, and the next notification is answered with Reset (OBS-02, int-302).
 func (s *Server) CancelObservation(ctx context.Context, ob *Observation, active bool) (*Response, error) {
-	if _, ok := s.obs.remove(ob.token); !ok {
+	if !s.obs.remove(ob.token) {
 		return nil, fmt.Errorf("%w: unknown observation", ErrBadRequest)
 	}
 	reg, ok := s.store.ByID(ob.RegistrationID)

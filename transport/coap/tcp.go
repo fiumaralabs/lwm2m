@@ -19,30 +19,13 @@ import (
 // (RFC 8323 §5.3, §5.4); the LwM2M core is the same as for binding U,
 // reached through serveCoAP and HandleUplink.
 
-// tcpPeerKey stores a connection's *tcpPeer in its context.
+// tcpPeerKey stores a connection's T *coapPeer in its context. Requests to
+// the client go back over this connection (GEN-12).
 type tcpPeerKey struct{}
 
-// tcpPeer is the Peer of one CoAP-over-TCP/TLS connection. Requests to the
-// client go back over this connection (GEN-12).
-type tcpPeer struct{ coapPeer }
-
-// Identity is the TLS client certificate when the handshake verified it
-// (ModeX509, CN as endpoint). Go's crypto/tls has neither PSK nor raw
-// public keys (RFC 7250), so a TLS session is X.509 or NoSec; a plain TCP
-// or unverified-certificate session is NoSec, bound to the address.
-func (p *tcpPeer) Identity() server.Identity {
-	if tc, ok := p.cc.NetConn().(*tls.Conn); ok {
-		if st := tc.ConnectionState(); len(st.VerifiedChains) > 0 {
-			leaf := st.PeerCertificates[0]
-			return server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
-		}
-	}
-	return server.Identity{Mode: server.ModeNoSec, Addr: p.cc.RemoteAddr().String()}
-}
-
 // peerOf returns the Peer of a CoAP connection: its TCP peer, or a U one.
-func (b *Binding) peerOf(cc coapConn) server.Peer {
-	if p, ok := cc.Context().Value(tcpPeerKey{}).(*tcpPeer); ok {
+func (b *Binding) peerOf(cc mux.Conn) server.Peer {
+	if p, ok := cc.Context().Value(tcpPeerKey{}).(*coapPeer); ok {
 		return p
 	}
 	return b.peer(cc, "U")
@@ -90,7 +73,7 @@ func (b *Binding) serveTCP(l tcpServer.Listener) {
 		options.WithMux(mux.HandlerFunc(b.serveTCPMessage)),
 		options.WithBlockwise(true, BlockSZX, b.requestTimeout()),
 		options.WithOnNewConn(func(cc *tcpClient.Conn) {
-			cc.SetContextValue(tcpPeerKey{}, &tcpPeer{coapPeer{cc: cc, binding: "T"}})
+			cc.SetContextValue(tcpPeerKey{}, &coapPeer{cc: cc, binding: "T"})
 		}),
 	)
 	b.mu.Lock()

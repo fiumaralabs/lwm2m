@@ -8,7 +8,6 @@ package bootstrap
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -78,7 +77,7 @@ type Server struct {
 	udp      []*udpServer.Server
 	dtls     []*dtlsServer.Server
 	closers  []func() error
-	afters   sync.Map // coapConn -> func(), started once the response is out
+	afters   sync.Map // mux.Conn -> func(), started once the response is out
 	wg       sync.WaitGroup
 	closed   bool
 }
@@ -197,23 +196,14 @@ func (s *Server) Close() error {
 
 // --- CoAP binding -------------------------------------------------------
 
-// coapConn is a go-coap UDP, DTLS, TCP or TLS connection.
-type coapConn interface {
-	AcquireMessage(ctx context.Context) *pool.Message
-	ReleaseMessage(*pool.Message)
-	Do(*pool.Message) (*pool.Message, error)
-	RemoteAddr() net.Addr
-	NetConn() net.Conn
-}
-
 // coapPeer is the server.Peer of one CoAP session: binding U (UDP, DTLS)
 // or T (TCP, TLS).
 type coapPeer struct {
-	cc      coapConn
+	cc      mux.Conn
 	binding string
 }
 
-func (p coapPeer) Identity() server.Identity { return identityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
+func (p coapPeer) Identity() server.Identity { return coap.IdentityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
 func (p coapPeer) RemoteAddr() net.Addr      { return p.cc.RemoteAddr() }
 func (p coapPeer) Binding() string           { return p.binding }
 
@@ -245,38 +235,11 @@ func (p coapPeer) Exchange(ctx context.Context, req *server.Message) (*server.Me
 		return nil, err
 	}
 	defer p.cc.ReleaseMessage(res)
-	return fromPool(res)
-}
-
-func fromPool(m *pool.Message) (*server.Message, error) {
-	out := &server.Message{Code: m.Code(), Path: "/"}
-	if p, err := m.Options().Path(); err == nil {
-		out.Path = "/" + strings.TrimPrefix(p, "/")
-	}
-	out.Query, _ = m.Options().Queries()
-	if cf, err := m.ContentFormat(); err == nil {
-		f := lwm2m.ContentFormat(cf)
-		out.Format = &f
-	}
-	if a, err := m.Options().Accept(); err == nil {
-		f := lwm2m.ContentFormat(a)
-		out.Accept = &f
-	}
-	if m.Body() != nil {
-		b, err := io.ReadAll(m.Body())
-		if err != nil {
-			return nil, err
-		}
-		out.Payload = b
-	}
-	return out, nil
+	return coap.FromPool(res)
 }
 
 func (s *Server) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
-	cc, ok := w.Conn().(coapConn)
-	if !ok {
-		return
-	}
+	cc := w.Conn()
 	peer := coapPeer{cc, "U"}
 	if _, tcp := cc.(*tcpClient.Conn); tcp {
 		peer.binding = "T"
@@ -284,7 +247,7 @@ func (s *Server) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
 	if o := s.oscore.Load(); o != nil && s.interceptOSCORE(o, w, m, peer) {
 		return // OSCORE layer (T §5.4.3)
 	}
-	msg, err := fromPool(m.Message)
+	msg, err := coap.FromPool(m.Message)
 	if err != nil {
 		return
 	}
@@ -309,20 +272,6 @@ func (s *Server) process(req *pool.Message, cc *client.Conn, handler config.Hand
 	if f, ok := s.afters.LoadAndDelete(cc); ok {
 		f.(func())()
 	}
-}
-
-// identityOf extracts the authenticated identity of a connection: the
-// LwM2M Server's rules (coap.IdentityOf), plus a verified TLS client
-// certificate. Go's crypto/tls has neither PSK nor raw public keys, so a
-// TLS session is X.509 or NoSec.
-func identityOf(nc net.Conn, remote net.Addr) server.Identity {
-	if tc, ok := nc.(*tls.Conn); ok {
-		if st := tc.ConnectionState(); len(st.VerifiedChains) > 0 {
-			leaf := st.PeerCertificates[0]
-			return server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
-		}
-	}
-	return coap.IdentityOf(nc, remote)
 }
 
 // --- uplink -------------------------------------------------------------

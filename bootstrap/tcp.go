@@ -63,7 +63,7 @@ func (s *Server) serveTCP(w mux.ResponseWriter, m *mux.Message) {
 		}
 		w.Message().SetModified(false)
 	}
-	if f, ok := s.afters.LoadAndDelete(coapConn(cc)); ok {
+	if f, ok := s.afters.LoadAndDelete(cc); ok {
 		f.(func())()
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"net"
 	"strings"
 	"time"
 
@@ -62,9 +61,6 @@ func (t *TCPClient) Close() error {
 	}
 	return t.conn.Close()
 }
-
-// LocalAddr is the client's source address.
-func (t *TCPClient) LocalAddr() net.Addr { return t.conn.LocalAddr() }
 
 // Ping sends a CoAP Ping and waits for the Pong (RFC 8323 §5.4).
 func (t *TCPClient) Ping(ctx context.Context) error { return t.conn.Ping(ctx) }

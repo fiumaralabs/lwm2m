@@ -15,7 +15,7 @@ require (
 	github.com/pion/dtls/v3 v3.1.10 // indirect
 	github.com/pion/dtls/v4 v4.0.0-rc.3
 	github.com/pion/logging v0.2.4 // indirect
-	github.com/pion/transport/v5 v5.1.1 // indirect
+	github.com/pion/transport/v5 v5.1.1
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect

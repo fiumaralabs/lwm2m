@@ -146,13 +146,6 @@ func (f *Firmware) Pulled() []PullBlock {
 func (f *Firmware) State() int64  { v, _ := f.c.Get(fwState); return v.Int }
 func (f *Firmware) Result() int64 { v, _ := f.c.Get(fwResult); return v.Int }
 
-// Wait returns once earlier transitions and their notifications are done.
-func (f *Firmware) Wait() {
-	done := make(chan struct{})
-	f.work <- func() { close(done) }
-	<-done
-}
-
 // store changes values now (a Read sees them at once) and notifies
 // observers from the worker, after the response is sent.
 func (f *Firmware) store(vals map[lwm2m.Path]lwm2m.Value) {

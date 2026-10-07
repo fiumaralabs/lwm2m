@@ -102,11 +102,11 @@ func (o *OSCORE) bound(ep string) bool {
 // intercept handles a message carrying the OSCORE option, and refuses
 // unprotected requests that try to act for an OSCORE endpoint. false hands
 // the message to the normal path.
-func (o *OSCORE) intercept(w mux.ResponseWriter, m *mux.Message, cc coapConn) bool {
+func (o *OSCORE) intercept(w mux.ResponseWriter, m *mux.Message, cc mux.Conn) bool {
 	if !m.HasOption(oscore.OptionOSCORE) {
 		return o.guardPlain(w, m)
 	}
-	in, err := poolToMessage(m.Message)
+	in, err := PoolToMessage(m.Message)
 	if err != nil {
 		return true
 	}
@@ -117,7 +117,7 @@ func (o *OSCORE) intercept(w mux.ResponseWriter, m *mux.Message, cc coapConn) bo
 	}
 	out, after := o.serve(in, peerOf)
 	o.b.defer_(cc, after)
-	writeCoAP(w, out)
+	WriteCoAP(w, out)
 	return true
 }
 
@@ -205,11 +205,11 @@ func (o *OSCORE) guard(resp bool, token []byte, opts message.Options) bool {
 
 // plainError sends an unprotected OSCORE error (RFC 8613 §8.2).
 func plainError(w mux.ResponseWriter, code codes.Code, diag string) {
-	writeCoAP(w, oscore.PlainError(code, diag))
+	WriteCoAP(w, oscore.PlainError(code, diag))
 }
 
-// writeCoAP sends m as the response, its options replacing go-coap's.
-func writeCoAP(w mux.ResponseWriter, m message.Message) {
+// WriteCoAP sends m as the response, its options replacing go-coap's.
+func WriteCoAP(w mux.ResponseWriter, m message.Message) {
 	var body io.ReadSeeker
 	if len(m.Payload) > 0 {
 		body = bytes.NewReader(m.Payload)
@@ -325,11 +325,11 @@ func (o *OSCORE) bindObservation(tok []byte, e *oscore.Entry, x *oscore.Exchange
 }
 
 type oscorePeerKey struct {
-	conn any // coapConn or CoAPWire
+	conn any // mux.Conn or CoAPWire
 	e    *oscore.Entry
 }
 
-func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
+func (o *OSCORE) peer(cc mux.Conn, e *oscore.Entry) *oscorePeer {
 	k := oscorePeerKey{cc, e}
 	if p, ok := o.peers.Load(k); ok {
 		return p.(*oscorePeer)
@@ -344,7 +344,7 @@ func (o *OSCORE) peer(cc coapConn, e *oscore.Entry) *oscorePeer {
 			return message.Message{}, err
 		}
 		defer cc.ReleaseMessage(res)
-		return poolToMessage(res)
+		return PoolToMessage(res)
 	}
 	p, loaded := o.peers.LoadOrStore(k, &oscorePeer{base: o.b.peerOf(cc), do: do, o: o, e: e})
 	if !loaded {
@@ -418,7 +418,7 @@ func CoAPMessage(m *server.Message) (message.Message, error) {
 		}
 		pm.SetToken(tok)
 	}
-	return poolToMessage(pm)
+	return PoolToMessage(pm)
 }
 
 // MessageFromCoAP is the inverse of CoAPMessage.
@@ -428,8 +428,8 @@ func MessageFromCoAP(m message.Message) (*server.Message, error) {
 	return poolFromMessage(pm, m)
 }
 
-// poolToMessage copies a go-coap pool message into a plain message.
-func poolToMessage(pm *pool.Message) (message.Message, error) {
+// PoolToMessage copies a go-coap pool message into a plain message.
+func PoolToMessage(pm *pool.Message) (message.Message, error) {
 	opts, err := pm.Options().Clone()
 	if err != nil {
 		return message.Message{}, err
@@ -443,7 +443,7 @@ func poolToMessage(pm *pool.Message) (message.Message, error) {
 }
 
 // poolFromMessage writes a decrypted message into pm (keeping its header)
-// and converts it with fromPool.
+// and converts it with FromPool.
 func poolFromMessage(pm *pool.Message, in message.Message) (*server.Message, error) {
 	pm.ResetOptionsTo(in.Options)
 	pm.SetCode(in.Code)
@@ -452,7 +452,7 @@ func poolFromMessage(pm *pool.Message, in message.Message) (*server.Message, err
 	} else {
 		pm.SetBody(nil)
 	}
-	return fromPool(pm)
+	return FromPool(pm)
 }
 
 // toCoAPMessage renders a core response as an unprotected CoAP message.

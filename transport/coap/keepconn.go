@@ -30,7 +30,7 @@ func (b *Binding) monitor() options.InactivityMonitorOpt[func(*client.Conn)] {
 		idle = idleClose
 	}
 	return options.WithInactivityMonitor(idle, func(cc *client.Conn) {
-		if p, ok := b.peers.Load(coapConn(cc)); !ok || !b.srv.Registered(p.(*coapPeer)) {
+		if p, ok := b.peers.Load(cc); !ok || !b.srv.Registered(p.(*coapPeer)) {
 			_ = cc.Close()
 		}
 	})

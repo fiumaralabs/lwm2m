@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -51,18 +52,6 @@ import (
 	udpServer "github.com/plgd-dev/go-coap/v3/udp/server"
 )
 
-// coapConn is what the CoAP binding needs from a go-coap connection; the
-// UDP/DTLS and TCP/TLS connection types both provide it.
-type coapConn interface {
-	AcquireMessage(ctx context.Context) *pool.Message
-	ReleaseMessage(*pool.Message)
-	Do(*pool.Message) (*pool.Message, error)
-	RemoteAddr() net.Addr
-	NetConn() net.Conn
-	Context() context.Context
-	Close() error
-}
-
 const (
 	// BlockSZX is the block size of downlink block-wise transfers: 512
 	// bytes (SZX 5), Californium's default. A 1024-byte Block1 over DTLS
@@ -84,7 +73,7 @@ var errEmptyResponse = errors.New("coap: client answered with an empty message")
 
 // coapPeer is the Peer of one CoAP session (binding U, or T for TCP).
 type coapPeer struct {
-	cc      coapConn
+	cc      mux.Conn
 	binding string
 }
 
@@ -115,7 +104,7 @@ func (p *coapPeer) Exchange(ctx context.Context, req *server.Message) (*server.M
 		// malformed (RFC 7252 §4.1).
 		return nil, errEmptyResponse
 	}
-	return fromPool(res)
+	return FromPool(res)
 }
 
 // toPool copies a Message into a go-coap message.
@@ -148,8 +137,8 @@ func toPool(m *pool.Message, req *server.Message) error {
 	return nil
 }
 
-// fromPool copies a go-coap message into a Message.
-func fromPool(m *pool.Message) (*server.Message, error) {
+// FromPool copies a go-coap message into a Message.
+func FromPool(m *pool.Message) (*server.Message, error) {
 	out := &server.Message{Code: m.Code(), Token: append([]byte(nil), m.Token()...)}
 	if p, err := m.Options().Path(); err == nil {
 		out.Path = "/" + strings.TrimPrefix(p, "/")
@@ -192,9 +181,9 @@ type Binding struct {
 	closers []func() error
 	closed  bool
 
-	peers  sync.Map // coapConn -> *coapPeer
+	peers  sync.Map // mux.Conn -> *coapPeer
 	amu    sync.Mutex
-	afters map[coapConn][]func()
+	afters map[mux.Conn][]func()
 	oscore atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
 	held   heldConns              // keeps sessions of registered clients open (keepconn.go)
 	block1 block1Assembler        // client Block1 reassembly (block1.go)
@@ -320,9 +309,18 @@ func (b *Binding) Close() error {
 	return errors.Join(errs...)
 }
 
-// IdentityOf extracts the authenticated identity of a (D)TLS or plain UDP
-// connection. Bindings and the Bootstrap-Server share it.
+// IdentityOf extracts the authenticated identity of a (D)TLS, TCP or UDP
+// connection. Bindings and the Bootstrap-Server share it. A TLS session is
+// X.509 when the handshake verified the client certificate (CN as
+// endpoint), else NoSec: Go's crypto/tls has neither PSK nor raw public
+// keys (RFC 7250).
 func IdentityOf(nc net.Conn, remote net.Addr) server.Identity {
+	if tc, ok := nc.(*tls.Conn); ok {
+		if st := tc.ConnectionState(); len(st.VerifiedChains) > 0 {
+			leaf := st.PeerCertificates[0]
+			return server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}
+		}
+	}
 	dc, ok := nc.(interface{ ConnectionState() (piondtls.State, bool) }) // *dtlscoap.Conn, *piondtls.Conn
 	if !ok {
 		return server.Identity{Mode: server.ModeNoSec, Addr: remote.String()}
@@ -342,7 +340,7 @@ func IdentityOf(nc net.Conn, remote net.Addr) server.Identity {
 	return server.Identity{Mode: server.ModeNoSec, Addr: remote.String()}
 }
 
-func (b *Binding) peer(cc coapConn, binding string) *coapPeer {
+func (b *Binding) peer(cc mux.Conn, binding string) *coapPeer {
 	if p, ok := b.peers.Load(cc); ok {
 		return p.(*coapPeer)
 	}
@@ -354,16 +352,16 @@ func (b *Binding) peer(cc coapConn, binding string) *coapPeer {
 	return p.(*coapPeer)
 }
 
-func (b *Binding) defer_(cc coapConn, f func()) {
+func (b *Binding) defer_(cc mux.Conn, f func()) {
 	b.amu.Lock()
 	if b.afters == nil {
-		b.afters = map[coapConn][]func(){}
+		b.afters = map[mux.Conn][]func(){}
 	}
 	b.afters[cc] = append(b.afters[cc], f)
 	b.amu.Unlock()
 }
 
-func (b *Binding) runAfters(cc coapConn) {
+func (b *Binding) runAfters(cc mux.Conn) {
 	b.amu.Lock()
 	fs := b.afters[cc]
 	delete(b.afters, cc)
@@ -376,14 +374,11 @@ func (b *Binding) runAfters(cc coapConn) {
 // serveCoAP is the router's only handler: every incoming CoAP request or
 // notification goes through HandleUplink.
 func (b *Binding) serveCoAP(w mux.ResponseWriter, m *mux.Message) {
-	cc, ok := w.Conn().(coapConn)
-	if !ok {
-		return
-	}
+	cc := w.Conn()
 	if o := b.oscore.Load(); o != nil && o.intercept(w, m, cc) {
 		return // OSCORE layer (T §5.4) handled it
 	}
-	msg, err := fromPool(m.Message)
+	msg, err := FromPool(m.Message)
 	if err != nil {
 		return
 	}

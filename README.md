@@ -15,6 +15,8 @@ Module: `github.com/fiumaralabs/lwm2m`
 
 The spec is fully implemented when `coverage-pending.txt` is empty. After adding tests, run `./scripts/prune-coverage.py`.
 
+What is left to make it feature-complete and production-ready is in [ROADMAP.md](ROADMAP.md).
+
 ## Packages
 
 The layout and the reasons behind it are in [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md).

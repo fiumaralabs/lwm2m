@@ -49,7 +49,6 @@ type request struct {
 	method   codes.Code
 	prefix   string // Gateway end-device prefix (GW §8.3.1), "" = the client itself
 	path     lwm2m.Path
-	root     bool // send to the alternate path root even when path is "/"
 	query    []string
 	cf       *lwm2m.ContentFormat
 	accept   *lwm2m.ContentFormat
@@ -433,7 +432,7 @@ type CompositeOptions struct {
 	Accept *lwm2m.ContentFormat // response format
 }
 
-func (o CompositeOptions) formats(reg *Registration) (lwm2m.ContentFormat, lwm2m.ContentFormat) {
+func (o CompositeOptions) formats() (lwm2m.ContentFormat, lwm2m.ContentFormat) {
 	req := lwm2m.FormatSenMLCBOR
 	if o.Format != nil {
 		req = *o.Format
@@ -482,7 +481,7 @@ func (s *Server) ReadComposite(ctx context.Context, ep string, paths []lwm2m.Pat
 			return nil, err
 		}
 	}
-	reqCF, acc := o.formats(reg)
+	reqCF, acc := o.formats()
 	if !compositeAccept[acc] {
 		return nil, fmt.Errorf("%w: composite responses are LwM2M CBOR or SenML, not %v", ErrBadRequest, acc)
 	}

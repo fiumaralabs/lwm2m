@@ -633,8 +633,6 @@ func (l *leshan) getEventStream(ep string, timeout int) *events {
 	return e
 }
 
-func (e *events) close() { e.body.Close() }
-
 // splitlines is str.splitlines for \r, \n and \r\n.
 func splitlines(s string) []string {
 	var out []string

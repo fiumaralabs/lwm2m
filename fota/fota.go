@@ -680,5 +680,5 @@ func entries(objs []link.Object) map[lwm2m.Path]bool {
 func sortPaths(ps []lwm2m.Path) { slices.SortFunc(ps, lwm2m.Path.Compare) }
 
 func underAny(p lwm2m.Path, roots []lwm2m.Path) bool {
-	return slices.ContainsFunc(roots, func(r lwm2m.Path) bool { return p.HasPrefix(r) })
+	return slices.ContainsFunc(roots, p.HasPrefix)
 }

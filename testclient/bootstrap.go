@@ -93,13 +93,6 @@ func (b *BootstrapClient) WaitFinish(ctx context.Context) (codes.Code, error) {
 	}
 }
 
-// Bootstrapping reports whether a bootstrap session is open.
-func (b *BootstrapClient) Bootstrapping() bool {
-	b.bmu.Lock()
-	defer b.bmu.Unlock()
-	return b.active
-}
-
 // PackResponse is the answer to a Bootstrap-Pack-Request.
 type PackResponse struct {
 	Code   codes.Code

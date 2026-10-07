@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/fiumaralabs/lwm2m/transport/coap"
@@ -101,7 +100,7 @@ func (s *Server) interceptOSCORE(o *OSCORE, w mux.ResponseWriter, m *mux.Message
 		qs, _ := m.Options().Queries()
 		if ep, ok := epQuery(qs); ok {
 			if o.Bound(ep) {
-				writeCoAP(w, oscore.PlainError(codes.Unauthorized, ""))
+				coap.WriteCoAP(w, oscore.PlainError(codes.Unauthorized, ""))
 				return true
 			}
 		}
@@ -110,29 +109,29 @@ func (s *Server) interceptOSCORE(o *OSCORE, w mux.ResponseWriter, m *mux.Message
 	if m.Code() >= 64 {
 		return true // a stray protected response: dropped
 	}
-	in, err := toMessage(m.Message)
+	in, err := coap.PoolToMessage(m.Message)
 	if err != nil {
 		return true
 	}
 	q, reply := o.Verify(in)
 	if q == nil {
-		writeCoAP(w, reply)
+		coap.WriteCoAP(w, reply)
 		return true
 	}
 	op := oscorePeer{coapPeer: peer, e: q.Entry}
 	msg, err := coap.MessageFromCoAP(q.Inner)
 	if err != nil {
-		writeCoAP(w, oscore.PlainError(codes.BadRequest, ""))
+		coap.WriteCoAP(w, oscore.PlainError(codes.BadRequest, ""))
 		return true
 	}
 	resp, after := o.HandleUplink(q.Entry, op, msg)
 	s.afters.Store(peer.cc, after)
 	prot, err := q.Protect(responseMessage(resp))
 	if err != nil {
-		writeCoAP(w, oscore.PlainError(codes.InternalServerError, ""))
+		coap.WriteCoAP(w, oscore.PlainError(codes.InternalServerError, ""))
 		return true
 	}
-	writeCoAP(w, prot)
+	coap.WriteCoAP(w, prot)
 	return true
 }
 
@@ -171,29 +170,6 @@ func responseMessage(r *server.Message) message.Message {
 	return m
 }
 
-// writeCoAP sends m as the response, its options replacing go-coap's.
-func writeCoAP(w mux.ResponseWriter, m message.Message) {
-	var body io.ReadSeeker
-	if len(m.Payload) > 0 {
-		body = bytes.NewReader(m.Payload)
-	}
-	_ = w.SetResponse(m.Code, message.TextPlain, body)
-	w.Message().ResetOptionsTo(m.Options)
-}
-
-func toMessage(pm *pool.Message) (message.Message, error) {
-	opts, err := pm.Options().Clone()
-	if err != nil {
-		return message.Message{}, err
-	}
-	body, err := pm.ReadBody()
-	if err != nil {
-		return message.Message{}, err
-	}
-	return message.Message{Code: pm.Code(), Token: append([]byte(nil), pm.Token()...), Options: opts,
-		Payload: body, MessageID: pm.MessageID(), Type: pm.Type()}, nil
-}
-
 // oscorePeer is a CoAP session whose bootstrap traffic is protected with
 // one OSCORE context.
 type oscorePeer struct {
@@ -227,7 +203,7 @@ func (p oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.
 			return message.Message{}, err
 		}
 		defer p.cc.ReleaseMessage(res)
-		return toMessage(res)
+		return coap.PoolToMessage(res)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap: OSCORE: %w", err)

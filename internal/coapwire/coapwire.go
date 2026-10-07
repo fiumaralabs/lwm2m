@@ -218,12 +218,12 @@ func (c *Conn) NextMID() uint16 {
 	return c.mid
 }
 
-func (c *Conn) send(ctx context.Context, f Frame) ([]byte, error) {
+func (c *Conn) send(ctx context.Context, f Frame) error {
 	b, err := Marshal(f)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return b, c.sendBytes(ctx, b)
+	return c.sendBytes(ctx, b)
 }
 
 func (c *Conn) sendBytes(ctx context.Context, b []byte) error {
@@ -336,7 +336,7 @@ func (c *Conn) Receive(ctx context.Context, b []byte) error {
 		return nil
 	case m.Code == codes.Empty: // CoAP ping (RFC 7252 §4.3), or a LoRaWAN RX-window opener
 		if f.Type == message.Confirmable {
-			_, err = c.send(ctx, Frame{Type: message.Reset, MID: f.MID})
+			err = c.send(ctx, Frame{Type: message.Reset, MID: f.MID})
 		}
 		return err
 	case m.Code >= 64: // separate response or notification
@@ -358,11 +358,11 @@ func (c *Conn) Receive(ctx context.Context, b []byte) error {
 			c.cfg.Server.HandleUplink(c, m)
 		case m.Observe != nil && f.Type != message.Acknowledgement:
 			// Notification of an unknown observation: Reset (OBS-02).
-			_, err = c.send(ctx, Frame{Type: message.Reset, MID: f.MID})
+			err = c.send(ctx, Frame{Type: message.Reset, MID: f.MID})
 			return err
 		}
 		if f.Type == message.Confirmable {
-			_, err = c.send(ctx, Frame{Type: message.Acknowledgement, MID: f.MID})
+			err = c.send(ctx, Frame{Type: message.Acknowledgement, MID: f.MID})
 		}
 		if after != nil {
 			after()
