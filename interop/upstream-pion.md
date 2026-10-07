@@ -1,8 +1,29 @@
-# Upstream pion/dtls branches: reviewer notes
+# Upstream pion/dtls: what is pending, and why there is no fork
+
+The module depends on upstream `github.com/pion/dtls/v4` at `v4.0.0-rc.3`, the newest tag (pion/dtls `main` is v4; there is no stable v4 yet). Until October 2026 it used a fork of pion/dtls v3 carrying five LwM2M patches. The owner decided against a forked DTLS stack: a security library we patch ourselves is one we must also audit and rebase ourselves. So the fork was dropped, and each patch is either re-implemented outside pion, already upstream, or lost until pion takes it.
+
+| Patch | Upstream state | Here, without patching pion |
+|---|---|---|
+| 1 RFC 7250 raw public keys | PR branch `rfc7250-raw-public-keys`, not submitted (a feature: ask maintainers first) | **Lost.** It changes the handshake, which cannot be done outside pion. The server and Bootstrap-Server do not offer RPK, and RPK credentials are refused with `server.ErrRPKUnsupported` (security store, `coap.Binding.DTLSConfig`, Leshan REST). SEC-03, SEC-09 and BS-10 are back in `spec/coverage-pending.txt`. |
+| 2 alert 115 for an unknown PSK identity | PR branch `unknown-psk-identity-alert` | **Lost.** rc.3 sends `internal_error` (80) when the PSK callback fails, and has no option or error type to pick the alert: the alert is chosen inside its handshake state machine. SEC-12 is pending. |
+| 3 a resumed session keeps the PSK identity | PR branch `resume-keeps-psk-identity` | **Re-implemented** in `internal/dtlscoap`: after each full handshake the listener records the PSK identity with the session in its `SessionStore`, and a resumed `Conn` returns it from `ConnectionState`. Test: `TestSessionResumptionAndKeyUniqueness` (fails if the restore is removed). |
+| 4 client-preferred ECDHE curve | Upstream since rc.3 (`selectEllipticCurve`) | Nothing to do. Test: `TestCurvesAndSignatures`. |
+| 5 a new handshake from an address with a live association | PR branch `new-handshake-same-address`; #253 was "won't implement" | **Re-implemented** in `internal/dtlscoap/demux.go`. pion v4 exports `dtls.Server(net.PacketConn, addr, opts...)`, so the listener runs its own UDP demux with the RFC 6347 §4.2.8 semantics of the branch, and routes CIDs itself (a per-connection CID generator tells it which connection owns each CID). Test: `TestDTLSNewHandshakeFromSamePort` (1.2, 1.2+CID, 1.3, 1.3+CID; with a stray ClientHello from the client's address). |
+
+What changing upstream would let us delete: patch 3 upstream removes the identity bookkeeping in `internal/dtlscoap`. Patch 5 upstream removes `demux.go`, and the listener goes back to `dtls.Listen`. Patches 1 and 2 move SEC-03, SEC-09, BS-10 and SEC-12 back to proven once the tests come back.
+
+Other consequences of the move:
+
+- **DTLS 1.3** is on next to 1.2 (pion negotiates) on the Server and Bootstrap-Server listeners. rc.3 has DTLS 1.3 with certificates only: external PSK for 1.3 (and so PSK with PFS, /0/x/22 bit 2) is on pion `main` after rc.3. LwM2M clients we interoperate with (Anjay, Wakaama, Zephyr, all mbedTLS or tinydtls) speak DTLS 1.2 and keep negotiating it.
+- **go-coap** still depends on pion/dtls v3 for its own DTLS helpers, which we do not use. `internal/dtlscoap` feeds go-coap `net.Conn`s from v4; no go-coap fork.
+- **API**: v4 has no `Config` struct. `coap.DTLSConfig` (and `bootstrap.DTLSConfig`, now the same type) takes `Options []dtls.ServerOption`; `coap.Binding.DTLSConfig` returns that struct and an error; `fota.FileServer.ListenDTLS` and `testclient.DialDTLS` take options.
+- **0xC023** (`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`) is still ours (`security/dtls`), ported to v4's public `ciphersuite.ConnectionSuite` contract.
+
+## Reviewer notes per PR branch
 
 These notes are for the maintainer who will submit the patches, not PR text. pion's AI policy (webrtc wiki, Contributing) asks for PR descriptions in your own words and for you to be able to explain the code.
 
-- Every branch is in github.com/fiumaralabs/dtls, based on pion/dtls `main` at `bc08aaa` (module `/v4`, after the DTLS 1.3 refactor). Each branch is one commit, and none has an open PR.
+- Each branch is one commit on pion/dtls `main` at `bc08aaa` (module `/v4`, after the DTLS 1.3 refactor, newer than rc.3), pushed to our GitHub fork of pion/dtls as PR sources only; nothing depends on them. None has an open PR.
 - On each branch, all of these pass:
   - `golangci-lint run` (v2.10.1, the repo's config)
   - `go test -race ./...`
@@ -11,28 +32,17 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
 - The REUSE job was not run locally. New files carry SPDX headers.
 - Each commit ends with a `Co-Authored-By: Claude` trailer. Keep or drop it as you see fit before submitting.
 - The wiki asks you to talk to a maintainer (Discord, or an issue) before you start work. That matters most for RPK (a feature) and port reuse (#253 was declined).
-- The pion/dtls README says DTLS 1.2 fixes and improvements target the `v3` branch. Every patch here is mostly 1.2, so ask whether they want main, v3, or both. pion/webrtc and our own fork are on v3.
+- The pion/dtls README says DTLS 1.2 fixes and improvements target the `v3` branch. Every patch here is mostly 1.2, so ask whether they want main, v3, or both. We are on v4 now, so main is what we need.
 
 | Patch | Branch | Commit | Status |
 |---|---|---|---|
 | 1 RFC 7250 raw public keys | `rfc7250-raw-public-keys` | 0a4943c | ready, feature: ask maintainers first |
 | 2 alert 115 unknown_psk_identity | `unknown-psk-identity-alert` | 2f94f80 | ready |
-| 3 resumed session keeps PSK identity | `resume-keeps-psk-identity` | 2f84593 | ready |
-| 4 client-preferred ECDHE curve | none | | already on main; v3 backport is open PR #1153 |
-| 5 new handshake from a port with a live association | `new-handshake-same-address` | 257558c | ready; #253 was "won't implement" |
+| 3 resumed session keeps PSK identity | `resume-keeps-psk-identity` | 2f84593 | ready; worked around here |
+| 4 client-preferred ECDHE curve | none | | already on main and in rc.3; v3 backport is open PR #1153 |
+| 5 new handshake from a port with a live association | `new-handshake-same-address` | 257558c | ready; worked around here; #253 was "won't implement" |
 
-## Main is v4: what it means for us
-
-- pion/dtls `main` is module `github.com/pion/dtls/v4` (tags `v4.0.0-rc.1` to `rc.3`, no stable release yet), so every branch here targets v4. Our fork, `lwm2m-v3` / `v3.1.11-lwm2m.1`, is v3, and so are pion/webrtc and go-coap (go-coap `main` still requires `pion/dtls/v3`).
-- If the patches land only in v4, we drop the fork by moving to `pion/dtls/v4`:
-  - **No `Config` struct in v4.** `dtls.Client`, `Server` and `Listen` take functional options (`ClientOption`, `ServerOption`). `transport/coap/dtls_config.go`, `transport/coap/coap.go`/`bootstrap/server.go` (`DTLSConfig.Config *piondtls.Config` is public API), `testclient` and the tests all build `*piondtls.Config` today, so this is an API change for our users too.
-  - **`Listen` changed.** It now takes a `net.PacketConn` (`ListenAddr` for an address). `ConnectionState` and `SessionStore` still exist, so `transport/coap/coap.go` (`IdentityOf`) and `transport/coap/dtls_session.go` mostly carry over.
-  - **go-coap needs no fork.** `internal/dtlscoap` only uses go-coap's exported session and conn constructors, so it can wrap `pion/dtls/v4` the same way it wraps the fork today. Only that package's imports and `Listen`/`Dial` change.
-  - **RPK is 1.2-only on the v4 branch.** LwM2M 1.2 uses DTLS 1.2, so that is enough for us.
-- If maintainers also take v3 backports (their README says DTLS 1.2 fixes go to `v3`), we can go back to upstream `pion/dtls/v3` with nothing to rewrite beyond the import path. That is the cheaper path for us, so ask for it.
-- Either way, the fork's patch 5 should first get the pending-slot fix from the v4 branch (see Patch 5, "Bug found while porting").
-
-## Patch 1: `rfc7250-raw-public-keys` (fiumaralabs/dtls, based on pion/dtls main bc08aaa, commit 0a4943c)
+## Patch 1: `rfc7250-raw-public-keys` (on pion/dtls main bc08aaa, commit 0a4943c)
 
 **What it does**
 - Adds RFC 7250 raw public keys to the DTLS 1.2 handshake on main (module `github.com/pion/dtls/v4`).
@@ -79,11 +89,11 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
 - Manual interop with OpenSSL 3.6.4 (scratch program, not committed):
   - pion server with mutual RPK ↔ `openssl s_client -dtls1_2 -enable_client_rpk -enable_server_rpk`: data echoed.
   - pion client ↔ `openssl s_server -enable_server_rpk`: handshake OK, peer SPKI is 91 bytes (P-256).
-- The same logic has run in fiumaralabs/lwm2m on v3 (fork tag v3.1.11-lwm2m.1) against Anjay, Wakaama, Zephyr and OpenSSL.
+- The same logic ran in this module on v3 (the former fork) against Anjay, Wakaama, Zephyr and OpenSSL.
 
 **Open questions for maintainers**
 - Per the wiki, ask on Discord or in an issue before opening a PR. This is a feature, not a fix.
-- **Scope**: is this wanted on `main` only, or also on `v3`? pion/webrtc still uses v3, and our real need is on v3.
+- **Scope**: is this wanted on `main` only, or also on `v3`? pion/webrtc still uses v3; we are on v4.
 - **DTLS 1.3**: RFC 7250 also applies there (extensions in EncryptedExtensions, `CertificateEntry` carrying the SPKI). The branch rejects the options when MaxVersion is 1.3. Do they want 1.3 in the same PR or a follow-up?
 - **API shape**:
   - Two options, or one `WithCertificateTypes(client, server)`?
@@ -97,7 +107,7 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
 - None found for RFC 7250, raw public keys or `client_certificate_type` (searched `gh search issues --repo pion/dtls` and org-wide). #356 matched by keyword only and is unrelated.
 - The #1009 extension refactor on main is the base this builds on.
 
-## Patch 2: `unknown-psk-identity-alert` (fiumaralabs/dtls, 2f94f80, on pion main bc08aaa)
+## Patch 2: `unknown-psk-identity-alert` (2f94f80, on pion main bc08aaa)
 
 - What it does: adds `alert.UnknownPSKIdentity` (115) and its `String()`. The DTLS 1.2 server sends it when the PSK server callback returns `nil, nil` ("none match" in the documented `PSKServerCallback` contract) for the client's identity. Before, main sent `handshake_failure` (40) for this case. v3 sent `internal_error` (80), because the v3 API only had "return an error". A callback that returns an error still gets `internal_error`, so only "identity not known" changes.
 - Diff: 3 lines in `pkg/protocol/alert/alert.go`, 1 line plus an RFC link in `internal/flight/flight12/flight4handler.go`.
@@ -108,10 +118,10 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
   - Should 115 also cover a callback that returns an error? I kept errors on `internal_error`, because an error can mean a DB outage and not an unknown identity. Would a sentinel error (for example `ErrUnknownPSKIdentity` that callbacks may return) suit them better?
   - Should DTLS 1.3 change too? RFC 8446 §6.2 makes unknown_psk_identity OPTIONAL and allows decrypt_error. Main's 1.3 server falls back to certificates, or sends `handshake_failure` with `ErrPSKNotNegotiated` (`internal/handshake/psk_handshake.go` pskFallback, `flight13/flight3handler.go`). I left 1.3 alone.
   - The returned error is still `ErrPSKNotNegotiated`, whose text says "DTLS 1.3 external PSK was not negotiated", although this is the 1.2 path. It predates this change. Should it get its own error?
-  - Backport: the v3 README says DTLS 1.2 fixes target the `v3` branch. On v3 the change would cover the error from `Config.PSK`, since there is no nil-means-unknown contract (our fork does that). Do they want a v3 PR as well?
+  - Backport: the v3 README says DTLS 1.2 fixes target the `v3` branch. On v3 the change would cover the error from `Config.PSK`, since there is no nil-means-unknown contract (the former fork did that). Do they want a v3 PR as well?
 - Related upstream: none found (I searched issues/PRs for "unknown_psk_identity", "UnknownPSKIdentity", "115", "PSK identity"). Nearby work: #1165 "Rework WithPSK for 1.3, identities and hashes", which brought the nil-PSK contract, and #1171/#1172 on the empty ECDHE-PSK identity hint.
 
-## Patch 3: `resume-keeps-psk-identity` (fiumaralabs/dtls, 2f84593, on pion main bc08aaa)
+## Patch 3: `resume-keeps-psk-identity` (2f84593, on pion main bc08aaa)
 
 - I verified main has the bug before fixing it. `TestResumedPSKSessionKeepsIdentity` (a 1.2 PSK handshake with a SessionStore on both sides, then a second handshake that resumes the same session ID) failed on unpatched main: the server's `ConnectionState().IdentityHint` was nil after resumption. An abbreviated handshake has no ClientKeyExchange, and `Session` stored only ID and master secret.
 - What it does: adds `Session.IdentityHint`, and widens the internal `HandshakeConfig.GetSession`/`SetSession` to carry it. The server stores it in flight4 and restores it in `handleHelloResume`. The client stores it in flight5 and restores it in flight1. When the server declines resumption and runs a full handshake, flight3 clears it so a stale value cannot leak. 9 files, about 15 lines outside the test.
@@ -122,7 +132,7 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
   - Should the server re-check the identity with the PSK callback on resumption, so a revoked identity cannot resume? The patch only restores the identity. The application can still reject the connection afterwards (for example in VerifyConnection).
   - The client-side restore is for symmetry only. On a client, `IdentityHint` is the server's hint, usually empty. Should it be dropped to keep the diff smaller?
   - DTLS 1.3: `flight13/flight3handler.go` sets `IdentityHint` to `psk.Identity`. For ticket resumption that is the ticket identity, not the external PSK identity of the original connection. It looks like the same class of problem, but I did not touch it.
-  - Backport to `v3` (the README says 1.2 fixes go there): our fork carries the v3 version of this.
+  - Backport to `v3` (the README says 1.2 fixes go there): the former fork carried a v3 version of this.
 - Related upstream: none found for "IdentityHint", "resumed identity" or "session resumption PSK". Context: #369 "Stateful session resumption" (the original feature), #335 "Add PSK Client Hint to conn state" (added `IdentityHint` to the state), and #447 (closed: resumption with client certificates, the same "identity after resume" question for certificates).
 
 ## Patch 4: client-preferred ECDHE curve (no branch)
@@ -133,7 +143,7 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
 
 ## Patch 5: new handshake from an address that already has a session (branch `new-handshake-same-address`)
 
-- **Branch / commit:** `fiumaralabs/dtls` `new-handshake-same-address`, one commit `257558c` on upstream `main` (`bc08aaa`, module `/v4`). Files: `internal/net/udp/packet_conn.go`, `listener.go`, `conn.go` (4 lines), `internal/net/udp/packet_conn_test.go`, new `listener_test.go`.
+- **Branch / commit:** `new-handshake-same-address`, one commit `257558c` on upstream `main` (`bc08aaa`, module `/v4`). Files: `internal/net/udp/packet_conn.go`, `listener.go`, `conn.go` (4 lines), `internal/net/udp/packet_conn_test.go`, new `listener_test.go`.
 - **The problem, reproduced on main:** a client handshakes, drops its state without sending close_notify (reboot, or a NAT reusing the mapping), then sends a new epoch-0 ClientHello from the same IP:port. The listener's address route still points at the old `udp.PacketConn`, whose replay window drops the ClientHello ("discarded duplicated packet (epoch: 0, seq: 0)"), so the new handshake times out. The new test fails on unmodified main for 1.2, 1.2+CID and 1.3 (`context deadline exceeded` on the second dial).
 - **What the change does:**
   - New udp listener option `WithNewHandshakeOnAddress(classify)`. `listener.go` always passes `classifyFirstRecord`, which uses `recordlayer` to say whether the first record is epoch 0 and, if it is a ClientHello with fragment offset 0, returns the client random.
@@ -152,8 +162,8 @@ These notes are for the maintainer who will submit the patches, not PR text. pio
   - `TestListenerNewHandshakeOnAddress` (udp package, in-memory): routing rules, retransmission keeps the same pending conn, replacement by a new random, takeover, and the previous conn closed.
   - `golangci-lint run` (v2.10.1): 0 issues. `go test -race ./...`: ok. `go test -race -count=20 ./internal/net/udp` and the new root test with `-count=20`: ok.
   - goassets `lint_commit_message.go`, `lint_filename.go`, `lint_no_trailing_newline_in_log_messages.go`, `lint-go-mod-version.sh`: all pass. The new file has SPDX headers.
-  - On the v3 branch, the earlier version of this patch is what makes `server.TestDTLSNewHandshakeFromSamePort` and the Anjay interop (re-registration after bootstrap) pass in fiumaralabs/lwm2m.
-- **Bug found while porting (not in our v3 patch):** in the v3 patch, a ClientHello that never completes (spoofed, or a lost attempt) held the pending slot. The real client's next ClientHello on that slot was dropped as a seq-0 replay until the pending handshake timed out. The random-keyed replacement fixes it here. The v3 fork (`lwm2m-v3`) still has the old behaviour and should get the same fix.
+  - On v3, the earlier version of this patch made `TestDTLSNewHandshakeFromSamePort` and the Anjay interop (re-registration after bootstrap) pass here. On v4 the same semantics now live in `internal/dtlscoap/demux.go`, outside pion.
+- **Bug found while porting (not in our v3 patch):** in the v3 patch, a ClientHello that never completes (spoofed, or a lost attempt) held the pending slot. The real client's next ClientHello on that slot was dropped as a seq-0 replay until the pending handshake timed out. The random-keyed replacement fixes it here. The former v3 fork had the old behaviour; `internal/dtlscoap/demux.go` has the fix.
 - **Open questions for maintainers:**
   - #253 was closed "will not implement" (Sean-Der, 2020): keep replay detection, fewer corner cases, users can pre-filter packets. This design keeps replay detection and touches only the listener demux. Are they open to it now that main has a routing layer (#1118) where it fits?
   - Default or opt-in? It is on by default for `dtls.Listen*`. The udp option exists either way, so a public `ServerOption` to turn it off would be small. Behaviour only changes for an address whose conn is already established and then receives a fresh ClientHello, which main today just drops.

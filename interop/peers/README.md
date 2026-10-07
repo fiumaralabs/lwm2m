@@ -47,7 +47,7 @@ Last run: all 29 tests and 18 subtests pass at the pins above, with the `-race` 
 |---|---|---|---|
 | Register / Update / De-register (NoSec) | pass (1.1) | pass (1.0, 1.1, 1.2) | pass (1.2; De-register via Disable) |
 | DTLS PSK | pass; a wrong key does not register | pass; also CCM_8-only (T68) | pass (CCM_8 only) |
-| DTLS RPK | unsupported (tinydtls example) | unsupported (OSS rejects mode 1) | unsupported |
+| DTLS RPK (the server has none: pion/dtls lacks RFC 7250) | unsupported (tinydtls example) | unsupported (OSS rejects mode 1) | unsupported |
 | DTLS X.509 | unsupported | pass (client cert CN = ep, server cert pinned, DANE usage 3) | n/r |
 | DTLS Connection ID (NAT rebinding, no re-handshake) | unsupported | pass | n/r |
 | New handshake from the same port (T74) | n/r | pass (after bootstrap) | n/r |
@@ -84,7 +84,7 @@ Last run: all 29 tests and 18 subtests pass at the pins above, with the `-race` 
 Each fix has a regression test in the regular suite.
 
 1. **Queued requests were dropped when a queue-mode client woke up with a re-Register.** Anjay re-registers whenever its NoSec socket reopens, and so do Anjay Lite and modems after PSM (T24). The replaced registration's queue failed every waiter with `ErrQueueDropped`, so a queued request never reached such a client. Now queued requests follow the replacing registration (`server/queue.go` `handover`, `server/rd.go`). Test: `server.TestQueuedRequestFollowsReRegister`.
-2. **A DTLS handshake from a port that still had a session hung.** pion's UDP demux sent the new epoch-0 ClientHello to the stale association. Anjay reuses its last local port after bootstrap, a re-Register or a restart. Fixed in our pion/dtls fork (patch 5 in [LWM2M.md](https://github.com/fiumaralabs/dtls/blob/lwm2m-v3/LWM2M.md)), RFC 6347 §4.2.8. Test: `server.TestDTLSNewHandshakeFromSamePort`, with and without CID.
+2. **A DTLS handshake from a port that still had a session hung.** pion's UDP demux sent the new epoch-0 ClientHello to the stale association. Anjay reuses its last local port after bootstrap, a re-Register or a restart. Fixed with our own UDP demux in front of pion (`internal/dtlscoap/demux.go`, RFC 6347 §4.2.8; pion/dtls declined it upstream, see [upstream-pion.md](../upstream-pion.md)). Test: `transport/coap.TestDTLSNewHandshakeFromSamePort`, DTLS 1.2 and 1.3, with and without CID.
 3. **The Bootstrap-Server's `AutoIDForSecurityObject` did not protect the BS account in a Bootstrap-Pack.** A Pack has no Discover, and Anjay 3.15 sends no `acc`, so a Pack /0/1 replaced Anjay's BS account and later Bootstrap-Request Triggers failed. Now that combination gets 4.05 and the client falls back to Bootstrap-Request (`bootstrap/server.go` `packRequest`, T73). Test: `bootstrap.TestPackAutoIDNeedsAcc`.
 
 ## Client behaviour worth knowing (documented, not bugs of ours)

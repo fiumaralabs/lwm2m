@@ -16,7 +16,7 @@ acl                   Access Control (/2) model
 
 server                LwM2M Server core: Registration, Device Management, Information
                       Reporting, queue mode, Send, events; the Peer/Message API
-transport/coap        CoAP bindings U and T for the Server: UDP, DTLS (PSK, RPK, X.509, CID),
+transport/coap        CoAP bindings U and T for the Server: UDP, DTLS 1.2/1.3 (PSK, X.509, CID),
                       TCP/TLS, WebSockets; the server-side OSCORE layer; Message <-> CoAP
 transport/mqtt        binding M (T §8), Server and Bootstrap-Server
 transport/http        binding H (T §7), Server and Bootstrap-Server
@@ -27,7 +27,7 @@ transport/lorawan     LoRaWAN binding (T §6.8.4)
 security/oscore       OSCORE (RFC 8613) protocol: contexts, protect/unprotect, Echo
 security/est          EST over CoAPs (RFC 9148)
 security/cose         COSE_Encrypt0 (RFC 9052)
-security/dtls         DTLS 1.2 pieces pion lacks: CBC suite, RPK credentials, cert checks (was dtlssuite)
+security/dtls         DTLS 1.2 pieces pion lacks: CBC suite 0xC023, cert checks (was dtlssuite)
 
 bootstrap             Bootstrap-Server, with its own CoAP adapter (see below)
 gateway               LwM2M Gateway (/25, /26)
@@ -38,7 +38,7 @@ testclient            scriptable reference client, like net/http/httptest
 internal/regparam     Register/Update query parsing (was regparam)
 internal/coapwire     CoAP datagrams over opaque payload transports (SMS, NIDD, LoRaWAN)
 internal/coapws       CoAP over WebSockets framing
-internal/dtlscoap     pion DTLS listener for go-coap
+internal/dtlscoap     pion/dtls v4 listener for go-coap: own UDP demux, resumed PSK identity
 internal/vectors      golden test vectors
 
 cmd/lwm2md            server binary
@@ -106,6 +106,18 @@ session start per connection. A shared listener would need a generic
 handler interface covering both cores for about 150 lines of saving.
 Revisit if a third CoAP-speaking core appears.
 
+**DTLS is upstream pion/dtls v4, not a fork.** The module used a pion/dtls
+v3 fork with five LwM2M patches; the owner chose not to carry a forked
+security stack. `internal/dtlscoap` runs its own UDP demux in front of
+`dtls.Server` (a new handshake from an address with a live association,
+RFC 6347 §4.2.8, and CID routing) and restores the PSK identity of resumed
+sessions. RFC 7250 raw public keys and alert 115 need pion changes, so RPK
+is refused (`server.ErrRPKUnsupported`) and SEC-03, SEC-09, BS-10 and
+SEC-12 are pending. DTLS 1.3 is negotiated next to 1.2. Details and the
+upstream PR branches: interop/upstream-pion.md. go-coap's DTLS helpers are
+typed against pion/dtls v3, so `internal/dtlscoap` also builds go-coap
+connections from v4 ones.
+
 **`regparam` became `internal/regparam`.** Only the core's Register and
 Update handling and the LoRaWAN binding parse those queries; no consumer
 needs the parser, and the core already exposes the parsed result on
@@ -133,3 +145,7 @@ the few internals they check. `// Proves:` claims move with their tests.
 | `server.IdentityOf`, `BlockSZX`, `CoAPMessage`, `MessageFromCoAP` | `coap.` the same names |
 | `server.DTLSExtensions`, `TLS13Feature` and its constants, `SupportedTLS13Features`, `CheckTLS13Features` | `coap.` the same names |
 | `srv.Close()` stopped listeners | `cb.Close()` stops them; then `srv.Close()` |
+| `coap.DTLSConfig{Config: *piondtls.Config}`, `cb.DTLSConfig(m) *piondtls.Config` | `coap.DTLSConfig{Options: []piondtls.ServerOption, SessionTTL}`, `cb.DTLSConfig(m) (coap.DTLSConfig, error)` (pion/dtls v4 has no `Config`) |
+| `bootstrap.DTLSConfig{Config}` | `bootstrap.DTLSConfig` = `coap.DTLSConfig` |
+| `fota.FileServer.ListenDTLS(addr, *piondtls.Config)`, `testclient.DialDTLS(addr, *piondtls.Config)`, `testclient.RPKConfig` | `ListenDTLS(addr, ...piondtls.ServerOption)`, `DialDTLS(addr, ...piondtls.ClientOption)`, `testclient.PSKConfig`; RPK removed |
+| `security/dtls.RawKey`, `ExpectRawKey`, `Resource16(*Config)`, `server.PublicKeyLookup` | removed (no RFC 7250 in pion); `Resource16([]ciphersuite.ID)` |

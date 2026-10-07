@@ -27,7 +27,7 @@ The layout and the reasons behind it are in [doc/ARCHITECTURE.md](doc/ARCHITECTU
 | `model` | OMA object registry (embedded objects 0–28 with version history), version resolution, validation |
 | `acl` | Access Control (/2) model |
 | `server` | LwM2M Server core, binding-neutral: Registration, Device Management, Information Reporting, queue mode, Send |
-| `transport/coap` | CoAP bindings for the Server: UDP, DTLS (PSK, RPK, X.509, CID), TCP/TLS, WebSockets; OSCORE |
+| `transport/coap` | CoAP bindings for the Server: UDP, DTLS 1.2/1.3 (PSK, X.509, CID), TCP/TLS, WebSockets; OSCORE |
 | `transport/mqtt`, `transport/http` | LwM2M over MQTT (M) and HTTP (H) |
 | `transport/sms`, `transport/nidd`, `transport/lorawan` | LwM2M over SMS (S), Non-IP/NIDD (N) and LoRaWAN |
 | `security/oscore`, `security/est`, `security/cose`, `security/dtls` | OSCORE (RFC 8613), EST over CoAPs (RFC 9148), COSE_Encrypt0, DTLS suites and checks pion lacks |
