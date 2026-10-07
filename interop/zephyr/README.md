@@ -114,3 +114,7 @@ minutes at the time (the DUT stalled; its uptime clock fell behind), and
 every one of those tests passes when rerun on its own. A run of the
 pre-move commit on the same machine that day failed int_301 the same way.
 
+The same commit on CI (`ubuntu-latest`, amd64, run 37613335518) passed
+66/66 in 428 s, so the local failures above come from the DUT stalling
+under load on the colima VM, not from the server. If a local run fails
+only on notification or log waits, rerun those tests on their own or use CI.
