@@ -39,7 +39,7 @@ Each test starts its own server with UDP, DTLS (CID length 6) and TCP listeners 
 
 ## Results
 
-Last run: all 29 tests and 18 subtests pass at the pins above, with the `-race` test binary and no data races.
+Last run (2026-10-07, upstream pion/dtls v4.0.0-rc.3): all 29 tests pass at the pins above, with `-race` and no data races.
 
 `pass` = exercised and asserted. `unsupported` = the client (or its example build) lacks it, and the cell says how we know. `n/r` = not run here.
 

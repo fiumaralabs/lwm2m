@@ -104,3 +104,13 @@ Harness issues, not server issues:
   not `lt`; TIME values are sent in seconds while Leshan reads ms;
   `test_blockwise_3` restores `format` from the loop variable.
 - README typo upstream: the DTLS bootstrap port is 5784, not 5684.
+
+After the move to upstream pion/dtls v4.0.0-rc.3 (2026-10-07, same
+platform): two full runs had 63/66 and 62/66 passing, with different
+tests failing each time (int_309, int_310, attribute_less_than; then
+int_301, int_308, int_309, int_105), all waiting on a notification or a
+DUT log line. In both runs lwm2md received nothing from the DUT for
+minutes at the time (the DUT stalled; its uptime clock fell behind), and
+every one of those tests passes when rerun on its own. A run of the
+pre-move commit on the same machine that day failed int_301 the same way.
+
