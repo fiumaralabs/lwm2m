@@ -203,9 +203,11 @@ type coapPeer struct {
 	binding string
 }
 
-func (p coapPeer) Identity() server.Identity { return coap.IdentityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
-func (p coapPeer) RemoteAddr() net.Addr      { return p.cc.RemoteAddr() }
-func (p coapPeer) Binding() string           { return p.binding }
+func (p coapPeer) Identity() server.Identity {
+	return coap.IdentityOf(p.cc.NetConn(), p.cc.RemoteAddr())
+}
+func (p coapPeer) RemoteAddr() net.Addr { return p.cc.RemoteAddr() }
+func (p coapPeer) Binding() string      { return p.binding }
 
 // Exchange sends one CON request (GEN-03); each call is a new message ID.
 func (p coapPeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
