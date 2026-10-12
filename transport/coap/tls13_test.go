@@ -88,12 +88,13 @@ func TestDTLS13WithCID(t *testing.T) {
 	m := px.mark()
 	u, err := c.Update(s.ctx, nil, nil)
 	mustCode(t, u, err, "2.04")
-	reg, _ = s.srv.Store().ByEndpoint("d13")
-	if reg.Addr.String() != px.UpstreamAddr() || reg.Addr.String() == before {
-		t.Fatalf("registration address %s, want the rebound %s", reg.Addr, px.UpstreamAddr())
-	}
 	resp, err := s.srv.Read(s.ctx, "d13", p("/3/0/0"), server.ReadOptions{})
 	mustResp(t, resp, err, "2.05")
+	// Checked after the downlink: pion migrates the path after delivering the Update.
+	reg, _ = s.srv.Store().ByEndpoint("d13")
+	if a := reg.RemoteAddr().String(); a != px.UpstreamAddr() || a == before {
+		t.Fatalf("registration address %s, want the rebound %s", a, px.UpstreamAddr())
+	}
 	for _, d := range px.since(m) {
 		if d.data[0] == recHandshake {
 			t.Fatal("plaintext handshake after rebinding")

@@ -49,7 +49,7 @@ func (a *API) OnEvent(e server.Event) {
 		a.hub.publish("REGISTRATION", e.Registration.Endpoint, newRegistrationJSON(e.Registration, nil))
 	case server.Updated:
 		r := e.Registration
-		u := map[string]any{"registrationId": r.ID, "address": leshanAddr(r.Addr), "secure": r.Identity.Secure(),
+		u := map[string]any{"registrationId": r.ID, "address": leshanAddr(r.RemoteAddr()), "secure": r.Identity.Secure(),
 			"additionalAttributes": map[string]string{}}
 		if r.Lifetime != e.Previous.Lifetime {
 			u["lifetime"] = int64(r.Lifetime.Seconds())

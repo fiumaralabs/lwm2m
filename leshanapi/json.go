@@ -452,7 +452,7 @@ func newRegistrationJSON(r *server.Registration, sleeping *bool) registrationJSO
 	j := registrationJSON{
 		Endpoint: r.Endpoint, RegistrationID: r.ID,
 		RegistrationDate: r.RegisteredAt.UnixMilli(), LastUpdate: r.LastUpdate.UnixMilli(),
-		Address: leshanAddr(r.Addr), SMSNumber: r.SMS, LwM2mVersion: r.Version,
+		Address: leshanAddr(r.RemoteAddr()), SMSNumber: r.SMS, LwM2mVersion: r.Version,
 		Lifetime: int64(r.Lifetime.Seconds()), BindingMode: r.Binding, RootPath: r.RootPath,
 		ObjectLinks: []linkJSON{}, Secure: r.Identity.Secure(),
 		AdditionalRegistrationAttributes: map[string]string{},

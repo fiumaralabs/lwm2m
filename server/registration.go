@@ -29,7 +29,7 @@ type Registration struct {
 	RootPath       string        // alternate path from rt="oma.lwm2m" (GEN-08), "" = none
 	ContentFormats []lwm2m.ContentFormat
 	Identity       Identity
-	Addr           net.Addr
+	Addr           net.Addr // address at the last Register/Update; see RemoteAddr
 	RegisteredAt   time.Time
 	LastUpdate     time.Time
 
@@ -40,6 +40,20 @@ type Registration struct {
 // updated on; downlinks go over it. It is nil for a Registration that was
 // not created by the server (e.g. one loaded into a Store).
 func (r *Registration) Peer() Peer { return r.peer }
+
+// RemoteAddr returns the client's current address: the live transport
+// session's address when there is one, else Addr. With a DTLS Connection ID
+// the session can migrate to a new path after the Update that carried it
+// was handled (pion moves the address after delivering the record), so Addr
+// may lag; RemoteAddr does not.
+func (r *Registration) RemoteAddr() net.Addr {
+	if r.peer != nil {
+		if a := r.peer.RemoteAddr(); a != nil {
+			return a
+		}
+	}
+	return r.Addr
+}
 
 // Expired reports whether the lifetime has elapsed at now.
 func (r *Registration) Expired(now time.Time) bool {

@@ -436,12 +436,17 @@ func TestAnjaySecurity(t *testing.T) {
 		// Uplink from the new address: an Update routed by CID.
 		c.send("send-update")
 		up := e.ev.wait(t, evTimeout, "Update after rebinding", isUpdated(ep)).(server.Updated)
-		if up.Registration.ID != reg.ID || port(up.Registration.Addr) != px.backPort() {
-			t.Errorf("update: id %s addr %v, want id %s port %d", up.Registration.ID, up.Registration.Addr, reg.ID, px.backPort())
+		if up.Registration.ID != reg.ID {
+			t.Errorf("update: id %s, want %s", up.Registration.ID, reg.ID)
 		}
 		// Downlink goes to the new address.
 		if v := readText(t, e, ep, "/3/0/0"); v == "" {
 			t.Error("empty read after rebinding")
+		}
+		// pion migrates the path after delivering the Update, so check the
+		// live address once the downlink has gone through.
+		if cur, ok := e.srv.Store().ByEndpoint(ep); !ok || port(cur.RemoteAddr()) != px.backPort() {
+			t.Errorf("address after rebinding: %v, want port %d", cur.RemoteAddr(), px.backPort())
 		}
 		if ev := e.ev.take(isRegistered(ep)); ev != nil {
 			t.Errorf("client re-registered after rebinding: %+v", ev)

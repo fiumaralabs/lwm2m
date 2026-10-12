@@ -272,12 +272,14 @@ func TestCIDRebinding(t *testing.T) {
 	m := px.mark()
 	u, err := c.Update(h.ctx, nil, nil)
 	mustCode(t, u, err, "2.04")
-	reg, _ = h.srv.Store().ByEndpoint("cid")
-	if reg.Addr.String() != px.UpstreamAddr() || reg.Addr.String() == before {
-		t.Fatalf("registration address %s, want the rebound %s", reg.Addr, px.UpstreamAddr())
-	}
 	resp, err := h.srv.Read(h.ctx, "cid", p("/3/0/0"), server.ReadOptions{})
 	mustResp(t, resp, err, "2.05")
+	// pion migrates the session's address only after it has delivered the
+	// Update, so check once the downlink has gone over the new path.
+	reg, _ = h.srv.Store().ByEndpoint("cid")
+	if a := reg.RemoteAddr().String(); a != px.UpstreamAddr() || a == before {
+		t.Fatalf("registration address %s, want the rebound %s", a, px.UpstreamAddr())
+	}
 	after := px.since(m)
 	if hs := append(handshakeMsgs(after, true), handshakeMsgs(after, false)...); len(hs) > 0 {
 		t.Fatalf("handshake after rebinding: %v", hs)

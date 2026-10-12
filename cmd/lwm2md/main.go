@@ -166,9 +166,9 @@ func logEvent(e server.Event) {
 	switch e := e.(type) {
 	case server.Registered:
 		log.Printf("registered %s id=%s addr=%v lifetime=%v binding=%s queue=%v", e.Registration.Endpoint,
-			e.Registration.ID, e.Registration.Addr, e.Registration.Lifetime, e.Registration.Binding, e.Registration.QueueMode)
+			e.Registration.ID, e.Registration.RemoteAddr(), e.Registration.Lifetime, e.Registration.Binding, e.Registration.QueueMode)
 	case server.Updated:
-		log.Printf("updated %s addr=%v lifetime=%v", e.Registration.Endpoint, e.Registration.Addr, e.Registration.Lifetime)
+		log.Printf("updated %s addr=%v lifetime=%v", e.Registration.Endpoint, e.Registration.RemoteAddr(), e.Registration.Lifetime)
 	case server.Deregistered:
 		log.Printf("deregistered %s: %s", e.Registration.Endpoint, e.Reason)
 	case server.Notification:
