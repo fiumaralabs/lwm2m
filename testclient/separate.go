@@ -14,7 +14,7 @@ import (
 // returns codes.Empty, which sends only the empty ACK.
 func (c *Client) RespondSeparately(ctx context.Context, tok message.Token, code codes.Code, cf *lwm2m.ContentFormat, body []byte, confirmable bool) error {
 	m := c.conn.AcquireMessage(ctx)
-	defer c.conn.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(code)
 	m.SetToken(tok)
 	if cf != nil {

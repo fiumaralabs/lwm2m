@@ -195,7 +195,7 @@ func (p oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.
 	}
 	inner, err := oscore.RoundTrip(p.e.Context(), plain, func(prot message.Message, _ *oscore.Exchange) (message.Message, error) {
 		pm := p.cc.AcquireMessage(ctx)
-		defer p.cc.ReleaseMessage(pm)
+		// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 		prot.MessageID, prot.Type = -1, message.Confirmable
 		pm.SetMessage(prot)
 		res, err := p.cc.Do(pm)

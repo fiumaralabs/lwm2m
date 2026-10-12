@@ -83,7 +83,7 @@ func (p *coapPeer) Binding() string           { return p.binding }
 
 func (p *coapPeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {
 	m := p.cc.AcquireMessage(ctx)
-	defer p.cc.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	if err := toPool(m, req); err != nil {
 		return nil, err
 	}

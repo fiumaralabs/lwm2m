@@ -336,7 +336,7 @@ func (o *OSCORE) peer(cc mux.Conn, e *oscore.Entry) *oscorePeer {
 	}
 	do := func(ctx context.Context, prot message.Message) (message.Message, error) {
 		pm := cc.AcquireMessage(ctx)
-		defer cc.ReleaseMessage(pm)
+		// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 		prot.MessageID, prot.Type = -1, message.Confirmable
 		pm.SetMessage(prot)
 		res, err := cc.Do(pm)

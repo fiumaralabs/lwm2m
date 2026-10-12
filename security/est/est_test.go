@@ -145,7 +145,7 @@ func do(t *testing.T, cc *client.Conn, code codes.Code, path string, cf, accept 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	m := cc.AcquireMessage(ctx)
-	defer cc.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(code)
 	m.SetType(message.Confirmable)
 	if err := m.SetPath(path); err != nil {

@@ -83,7 +83,7 @@ func TestFileServerBlock2(t *testing.T) {
 	defer cancel()
 	get := func(code codes.Code, path string, szx blockwise.SZX, num int64, query ...string) (codes.Code, []byte, uint32, bool) {
 		m := cc.AcquireMessage(ctx)
-		defer cc.ReleaseMessage(m)
+		// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 		m.SetCode(code)
 		m.SetType(message.Confirmable)
 		tok, _ := message.GetToken()

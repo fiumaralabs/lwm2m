@@ -111,7 +111,7 @@ func (t *TCPClient) Send(ctx context.Context, nodes []lwm2m.Node, cf lwm2m.Conte
 // Raw sends an arbitrary request to the server.
 func (t *TCPClient) Raw(ctx context.Context, code codes.Code, path string, query []string, cf *lwm2m.ContentFormat, body []byte) (*Response, error) {
 	m := t.conn.AcquireMessage(ctx)
-	defer t.conn.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(code)
 	if err := m.SetPath(path); err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func (t *TCPClient) Notify(ctx context.Context, tok message.Token, seq uint32) e
 		return fmt.Errorf("testclient: cannot encode notification")
 	}
 	m := t.conn.AcquireMessage(ctx)
-	defer t.conn.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(codes.Content)
 	m.SetToken(tok)
 	m.SetObserve(seq)

@@ -440,7 +440,7 @@ func (f *Firmware) pullCoAP(ctx context.Context, u *url.URL, secure bool) ([]byt
 		req.SetOptionUint32(message.Block2, blk)
 		req.SetOptionUint32(message.Size2, 0)
 		resp, err := conn.Do(req)
-		conn.ReleaseMessage(req)
+		// req not released: go-coap may still read it after Do (see coap.go).
 		if err != nil {
 			return nil, err
 		}

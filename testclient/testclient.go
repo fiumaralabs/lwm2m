@@ -474,7 +474,7 @@ func (c *Client) SendNON(ctx context.Context, nodes []lwm2m.Node, cf lwm2m.Conte
 
 func (c *Client) raw(ctx context.Context, typ message.Type, code codes.Code, path string, query []string, cf *lwm2m.ContentFormat, body []byte) (*Response, error) {
 	m := c.conn.AcquireMessage(ctx)
-	defer c.conn.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(code)
 	m.SetType(typ)
 	if err := m.SetPath(path); err != nil {
@@ -985,7 +985,7 @@ func (c *Client) NotifyRaw(ctx context.Context, tok message.Token, cf lwm2m.Cont
 
 func (c *Client) sendNotification(ctx context.Context, tok message.Token, seq uint32, cf lwm2m.ContentFormat, body []byte) (NotifyResult, error) {
 	m := c.conn.AcquireMessage(ctx)
-	defer c.conn.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(codes.Content)
 	m.SetType(message.Confirmable)
 	m.SetToken(tok)

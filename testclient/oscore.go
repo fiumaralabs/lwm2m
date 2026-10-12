@@ -166,7 +166,7 @@ func (o *OSCOREClient) Raw(ctx context.Context, code codes.Code, path string, qu
 
 func (o *OSCOREClient) send(ctx context.Context, prot message.Message, x *oscore.Exchange) (*OSCOREResponse, error) {
 	pm := o.conn.AcquireMessage(ctx)
-	defer o.conn.ReleaseMessage(pm)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	pm.SetMessage(prot)
 	res, err := o.conn.Do(pm)
 	if err != nil {
@@ -419,7 +419,7 @@ func (o *OSCOREClient) Notify(ctx context.Context, tok message.Token) error {
 		return err
 	}
 	pm := o.conn.AcquireMessage(ctx)
-	defer o.conn.ReleaseMessage(pm)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	pm.SetMessage(prot)
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

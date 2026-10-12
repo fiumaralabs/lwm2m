@@ -107,7 +107,7 @@ type PackResponse struct {
 // or leaves no Server Account; the client must then use Bootstrap-Request.
 func (b *BootstrapClient) PackRequest(ctx context.Context, query []string, accept *lwm2m.ContentFormat) (*PackResponse, error) {
 	m := b.conn.AcquireMessage(ctx)
-	defer b.conn.ReleaseMessage(m)
+	// Not released to the pool: go-coap's block-wise cache can still read a sent message after Do/WriteMessage returns (data race on Reset).
 	m.SetCode(codes.GET)
 	m.SetType(message.Confirmable)
 	if err := m.SetPath("/bspack"); err != nil {
