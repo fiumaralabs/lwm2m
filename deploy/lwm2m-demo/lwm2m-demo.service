@@ -1,0 +1,36 @@
+# System unit (recommended): a dynamic unprivileged user, no home access.
+# Install: sudo install -m755 lwm2m-demo /usr/local/bin/ && \
+#          sudo install -m644 lwm2m-demo.service /etc/systemd/system/ && \
+#          sudo systemctl enable --now lwm2m-demo
+[Unit]
+Description=LwM2M public demo server (github.com/fiumaralabs/lwm2m)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/lwm2m-demo -coap :5683 -coaps :5684 -http 127.0.0.1:8090
+Restart=always
+RestartSec=2
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+MemoryMax=256M
+TasksMax=512
+# Registrations are in memory; a daily restart also bounds slow leaks
+# (schema cache, see ROADMAP "Resource bounds").
+RuntimeMaxSec=1d
+
+[Install]
+WantedBy=multi-user.target
