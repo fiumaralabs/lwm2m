@@ -30,6 +30,7 @@ func main() {
 	ep := flag.String("ep", fmt.Sprintf("probe-%d", time.Now().Unix()), "endpoint name")
 	psk := flag.String("psk", "", "hex PSK: use DTLS with identity = endpoint")
 	version := flag.String("lwm2m", "1.1", "LwM2M version")
+	hold := flag.Duration("hold", 0, "stay registered this long before deregistering")
 	flag.Parse()
 
 	cfg := testclient.Config{Endpoint: *ep, Version: *version, Lifetime: 300, Binding: "U"}
@@ -78,6 +79,9 @@ func main() {
 	}
 	fmt.Printf("web read /3/0: %s", get(*web+"/api/clients/"+url.PathEscape(*ep)+"/read?path=/3/0"))
 
+	time.Sleep(*hold)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	resp, err = c.Deregister(ctx)
 	if err != nil {
 		log.Fatalf("deregister: %v", err)
