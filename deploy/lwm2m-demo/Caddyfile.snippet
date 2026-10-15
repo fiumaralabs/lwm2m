@@ -1,0 +1,11 @@
+# Append to /etc/caddy/Caddyfile, then: sudo systemctl reload caddy
+# Needs the DNS A/AAAA record (proxied OFF) first; Caddy gets the
+# certificate over TLS-ALPN-01 on 443 (port 80 is not required).
+lwm2m.fiumaralabs.com {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:8090
+}
