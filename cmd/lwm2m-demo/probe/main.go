@@ -31,6 +31,7 @@ func main() {
 	psk := flag.String("psk", "", "hex PSK: use DTLS with identity = endpoint")
 	version := flag.String("lwm2m", "1.1", "LwM2M version")
 	hold := flag.Duration("hold", 0, "stay registered this long before deregistering")
+	rich := flag.Bool("rich", false, "register a fuller device (Server, Device, Connectivity, Location, Temperature) whose temperature changes during -hold")
 	flag.Parse()
 
 	cfg := testclient.Config{Endpoint: *ep, Version: *version, Lifetime: 300, Binding: "U"}
@@ -47,6 +48,9 @@ func main() {
 	c.Set(lwm2m.MustParsePath("/3/0/1"), lwm2m.String("lwm2m-demo-probe"))
 	c.Set(lwm2m.MustParsePath("/3/0/2"), lwm2m.String("SN-PROBE"))
 	c.Set(lwm2m.MustParsePath("/3/0/16"), lwm2m.String("U"))
+	if *rich {
+		richDevice(c)
+	}
 	if err := c.Dial(*addr); err != nil {
 		log.Fatalf("dial: %v", err)
 	}
@@ -79,7 +83,7 @@ func main() {
 	}
 	fmt.Printf("web read /3/0: %s", get(*web+"/api/clients/"+url.PathEscape(*ep)+"/read?path=/3/0"))
 
-	time.Sleep(*hold)
+	holdFor(c, *hold, *rich, cfg.Lifetime)
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	resp, err = c.Deregister(ctx)

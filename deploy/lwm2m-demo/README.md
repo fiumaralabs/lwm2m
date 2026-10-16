@@ -11,6 +11,21 @@ registrations and 30 Register requests/min per source IP, lifetime clamped to
 1 h, endpoint names of at most 64 printable ASCII characters, web reads 20/min
 per IP and 4 concurrent, never `/0` (Security) or `/21` (OSCORE).
 
+## Web API (read-only)
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/clients` | registered clients: version, binding, security, lifetime, `expires_at`, object list with names |
+| `GET /api/clients/{ep}` | one client plus its objects with the OMA model (resource names, types, units, operations, enumerations) and the last Send |
+| `GET /api/clients/{ep}/read?path=/o[/i[/r]]` | a Read: CoAP code, content format, typed values (`v`), payload hex. Counts against the read rate limit (`X-RateLimit-Remaining`) |
+| `GET /api/clients/{ep}/observe?path=/o/i[/r]` | server-sent events: `open`, `value` (same shape as a read), `end` with a reason. One Observe per path shared by all viewers; 2 streams per IP (`-observe-per-ip`), 32 total (`-observe-max`), 4 paths per device, closed after 5 min (`-observe-for`), at most 4 updates/s. Starting one counts as a read |
+
+The page (`web/`, embedded) is plain HTML/CSS/JS with no external requests,
+served with `Content-Security-Policy: default-src 'none'; script-src 'self'; ...`.
+Object definitions: `model/registry` (core 0-28) plus `cmd/lwm2m-demo/objects`
+(IPSO 3200-3350, 3442, 10256 from the OMNA registry). Competitor notes:
+`COMPETITORS.md`.
+
 ## Build
 
 ```sh
@@ -39,7 +54,9 @@ go run ./cmd/lwm2m-demo/probe -coap lwm2m.fiumaralabs.com:5684 -web https://lwm2
 ```
 
 The probe registers, checks the client is listed, reads `/3/0` through the
-web API, deregisters and checks it is gone.
+web API, deregisters and checks it is gone. `-rich -hold 10m` registers a
+fuller device (Server, Device, Connectivity, Location, two Temperature
+instances, one Send) whose temperature changes every 5 s, for trying the page.
 
 ## Known risks
 
