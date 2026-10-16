@@ -172,6 +172,21 @@ func loadStatic() map[string]staticFile {
 		out["/"+p] = staticFile{body: b, ctype: ct, etag: `"` + hex.EncodeToString(sum[:8]) + `"`, cache: cache}
 		return nil
 	})
+	// Reference app.js and style.css from index.html by content hash, so a
+	// cache (browser or CDN) that kept an old copy can never pair it with a
+	// new page.
+	if idx, ok := out["/index.html"]; ok {
+		body := string(idx.body)
+		for _, a := range []string{"app.js", "style.css"} {
+			if f, ok := out["/"+a]; ok {
+				v := strings.Trim(f.etag, `"`)
+				body = strings.ReplaceAll(body, `"`+a+`"`, `"`+a+`?v=`+v+`"`)
+			}
+		}
+		sum := sha256.Sum256([]byte(body))
+		idx.body, idx.etag = []byte(body), `"`+hex.EncodeToString(sum[:8])+`"`
+		out["/index.html"] = idx
+	}
 	return out
 }
 
