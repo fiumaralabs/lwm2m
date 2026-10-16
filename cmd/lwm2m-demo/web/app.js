@@ -521,9 +521,9 @@
       h("a", { href: "#o-" + o.id, class: o.blocked ? "off" : "", onclick: (e) => { e.preventDefault(); const t = document.getElementById("o-" + o.id); if (t) t.scrollIntoView({ behavior: smooth(), block: "start" }); } },
         h("span", { text: o.model ? o.model.name : "Object " + o.id }), h("small", { text: "/" + o.id }))));
 
-    const body = h("div", { class: "w dv-body" }, tree, h("div", { class: "objects", id: "objects" }));
-    const extras = h("div", { class: "w", id: "extras" });
-    view.replaceChildren(h("div", { class: "view-in" }, top, tools, body, extras));
+    const body = h("div", { class: "w dv-body" }, tree,
+      h("div", { class: "objects-col" }, h("div", { class: "objects", id: "objects" }), h("div", { class: "objects extras", id: "extras" })));
+    view.replaceChildren(h("div", { class: "view-in" }, top, tools, body));
     spy();
     renderObjects();
     renderSummary();
