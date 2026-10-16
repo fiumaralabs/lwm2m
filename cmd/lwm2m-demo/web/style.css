@@ -166,6 +166,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .tree a.off span { color: var(--muted); }
 
 .objects { display: grid; gap: 20px; min-width: 0; }
+.objects-col { min-width: 0; }
+.extras { margin-top: 20px; }
+.extras:empty { display: none; }
+.rawlinks summary { cursor: pointer; list-style-position: inside; }
 .obj { border: 1px solid var(--line); border-radius: 12px; scroll-margin-top: 16px; min-width: 0; }
 .obj-h { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 16px 20px 12px; }
 .obj-h h3 { font: 600 19px/1.3 var(--display); color: var(--olive); margin: 0; }
