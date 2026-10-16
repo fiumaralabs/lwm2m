@@ -263,9 +263,11 @@ func (c *Client) fire(o *observer) {
 	if c.Offline() {
 		c.store(o)
 	} else if confirmable {
-		_, _ = c.Notify(context.Background(), o.token)
+		res, err := c.Notify(context.Background(), o.token)
+		c.reportNotify(o, true, res, err)
 	} else {
-		_ = c.NotifyNON(context.Background(), o.token)
+		err := c.NotifyNON(context.Background(), o.token)
+		c.reportNotify(o, false, NotifyAcked, err)
 	}
 	c.armPmax(o)
 }

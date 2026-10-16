@@ -54,9 +54,17 @@ go run ./cmd/lwm2m-demo/probe -coap lwm2m.fiumaralabs.com:5684 -web https://lwm2
 ```
 
 The probe registers, checks the client is listed, reads `/3/0` through the
-web API, deregisters and checks it is gone. `-rich -hold 10m` registers a
-fuller device (Server, Device, Connectivity, Location, two Temperature
-instances, one Send) whose temperature changes every 5 s, for trying the page.
+web API, deregisters and checks it is gone. `-rich -hold 10m` registers the
+simulated sensor that `cmd/lwm2m-client` runs (`internal/simdevice`: Server,
+Device, Connectivity, Location, Temperature, Humidity, Voltage, one Send),
+whose values change every 5 s, for trying the page.
+
+For a longer-running device, use the demo client:
+
+```sh
+go run ./cmd/lwm2m-client -server coap://lwm2m.fiumaralabs.com:5683
+go run ./cmd/lwm2m-client -server coaps://lwm2m.fiumaralabs.com:5684 -psk 000102030405060708090a0b0c0d0e0f
+```
 
 ## Known risks
 

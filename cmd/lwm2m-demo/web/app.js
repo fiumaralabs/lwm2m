@@ -26,12 +26,14 @@
   const LOCAL = ["localhost", "127.0.0.1", "::1", "[::1]", ""];
   const HOST = LOCAL.includes(location.hostname) ? "lwm2m.fiumaralabs.com" : location.hostname;
   const PSK = "000102030405060708090a0b0c0d0e0f";
+  // Module version for `go run ...@REF`; becomes "latest" once cmd/lwm2m-client is on main.
+  const GO_REF = "deploy-demo";
   const announce = (t) => { $("#announce").textContent = t; };
 
   const S = {
     clients: [], max: 200, maxLt: 3600, skew: 0, online: null, first: true,
     sec: localStorage.getItem("lwm2m.sec") === "psk" ? "psk" : "nosec",
-    client: localStorage.getItem("lwm2m.client") || "zephyr",
+    client: localStorage.getItem("lwm2m.client") || "go",
     ep: localStorage.getItem("lwm2m.ep") || "",
     seen: new Set(),
   };
@@ -124,6 +126,14 @@
   if (!EP_OK.test(S.ep)) S.ep = newName();
 
   const CLIENTS = {
+    go: {
+      intro: "A simulated battery-powered sensor from this repository: Device, Connectivity Monitoring, Location, Temperature, Humidity and Voltage, with values that change over time. No hardware needed; needs Go 1.21 or newer.",
+      code: (ep, sec) => [`go run github.com/fiumaralabs/lwm2m/cmd/lwm2m-client@${GO_REF} \\`,
+        sec === "psk" ? `  -server coaps://${HOST}:5684 -psk ${PSK} -ep ${ep}` : `  -server coap://${HOST}:5683 -ep ${ep}`],
+      note: (sec) => [(sec === "psk" ? "-psk is the key in hex; the PSK identity is the endpoint name. " : "") +
+        "It prints one line per server request, sends an Update every half lifetime (default 300 s) and deregisters on Ctrl-C. Run with -h for options (-lwm2m 1.0/1.1/1.2, -binding UQ, -send). ",
+        link("Source", "https://github.com/fiumaralabs/lwm2m/tree/" + GO_REF + "/cmd/lwm2m-client")],
+    },
     zephyr: {
       intro: "The lwm2m_client sample from the Zephyr tree. Replace <board> with your board target.",
       code: (ep, sec) => sec === "psk"
@@ -149,42 +159,6 @@
         "CONFIG_APP_LWM2M_PSK already defaults to the demo key. The endpoint name is urn:imei:<IMEI> (CONFIG_APP_ENDPOINT_PREFIX plus the modem IMEI) and it will be listed publicly on this page. The sample's default lifetime is 12 hours, above this server's cap, so the command lowers it. Use your own board target, e.g. nrf9151dk/nrf9151/ns. ",
         link("Sample docs", "https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/cellular/lwm2m_client/README.html")],
     },
-    anjay: {
-      intro: "AVSystem's Anjay demo client, built from source on Linux or macOS.",
-      code: (ep, sec) => sec === "psk"
-        ? ["git clone https://github.com/AVSystem/Anjay.git && cd Anjay",
-          "git submodule update --init", "cmake . && make -j",
-          `./output/bin/demo --endpoint-name ${ep} --lifetime 300 \\`,
-          `  --server-uri coaps://${HOST}:5684 \\`,
-          `  --security-mode psk --identity-as-string ${ep} \\`, `  --key ${PSK}`]
-        : ["git clone https://github.com/AVSystem/Anjay.git && cd Anjay",
-          "git submodule update --init", "cmake -DWITH_UNSECURE_CONNECTIONS=ON . && make -j",
-          `./output/bin/demo --endpoint-name ${ep} --lifetime 300 \\`, `  --server-uri coap://${HOST}:5683`],
-      note: (sec) => [sec === "psk" ? "--key takes the PSK in hex; --identity-as-string takes the identity as text. Needs mbedTLS; see the README for packages. "
-        : "Anjay refuses NoSec connections unless built with WITH_UNSECURE_CONNECTIONS=ON. Needs mbedTLS; see the README for packages. ",
-        link("Anjay README", "https://github.com/AVSystem/Anjay#readme")],
-    },
-    leshan: {
-      intro: "The Eclipse Leshan demo client: a single jar, no hardware. Needs Java 17 or newer.",
-      code: (ep, sec) => ["wget https://download.eclipse.org/leshan/2.x/lastSuccessfulBuild/artifact/leshan-demo-client.jar",
-        `java -jar leshan-demo-client.jar -n ${ep} -l 300 \\`,
-        sec === "psk" ? `  -u coaps://${HOST}:5684 -i ${ep} -p ${PSK}` : `  -u coap://${HOST}:5683`],
-      note: (sec) => [sec === "psk" ? "-i is the PSK identity as text, -p the key in hex. " : "", "Run with --help for all options. ",
-        link("Leshan on GitHub", "https://github.com/eclipse-leshan/leshan")],
-    },
-    wakaama: {
-      intro: "The Eclipse Wakaama example client, built with CMake.",
-      code: (ep, sec) => sec === "psk"
-        ? ["git clone --recurse-submodules https://github.com/eclipse-wakaama/wakaama.git && cd wakaama",
-          "cmake -S examples/client/tinydtls -B build-client-dtls && cmake --build build-client-dtls",
-          `./build-client-dtls/lwm2mclient_tinydtls -4 -h ${HOST} -p 5684 -n ${ep} -t 300 \\`,
-          `  -i ${ep} -s ${PSK}`]
-        : ["git clone --recurse-submodules https://github.com/eclipse-wakaama/wakaama.git && cd wakaama",
-          "cmake -S examples/client/udp -B build-client-udp && cmake --build build-client-udp",
-          `./build-client-udp/lwm2mclient -4 -h ${HOST} -p 5683 -n ${ep} -t 300`],
-      note: () => ["-4 selects IPv4; leave it out for IPv6. The client reads commands from stdin, so keep the terminal open. ",
-        link("Wakaama README", "https://github.com/eclipse-wakaama/wakaama#readme")],
-    },
   };
   function link(text, href) { return h("a", { href, text }); }
 
@@ -205,7 +179,7 @@
       b.setAttribute("aria-selected", String(on));
       b.tabIndex = on ? 0 : -1;
     });
-    const c = CLIENTS[S.client] || CLIENTS.zephyr;
+    const c = CLIENTS[S.client] || CLIENTS.go;
     $("#tp").setAttribute("aria-labelledby", "tab-" + S.client);
     $("#snip-intro").textContent = c.intro;
     $("#snip").textContent = c.code(ep, S.sec).join("\n");
@@ -257,7 +231,7 @@
         n.click();
       });
     });
-    if (!CLIENTS[S.client]) S.client = "zephyr";
+    if (!CLIENTS[S.client]) S.client = "go";
     renderConnect();
   }
 
@@ -299,9 +273,9 @@
     if (!S.clients.length) {
       box.replaceChildren(h("div", { class: "empty" },
         h("h3", { text: "No devices registered right now" }),
-        h("p", { text: "Be the first. Without hardware, the quickest route is the Leshan demo client (one Java command):" }),
+        h("p", { text: "Be the first. Without hardware, the quickest route is the demo client (one Go command):" }),
         h("ol", null,
-          h("li", null, "Pick ", h("a", { href: "#connect", onclick: (e) => { e.preventDefault(); S.client = "leshan"; renderConnect(); $("#connect").scrollIntoView({ behavior: smooth() }); } , text: "Leshan client" }), " above and copy the command."),
+          h("li", null, "Pick ", h("a", { href: "#connect", onclick: (e) => { e.preventDefault(); S.client = "go"; renderConnect(); $("#connect").scrollIntoView({ behavior: smooth() }); } , text: "Demo client (Go)" }), " above and copy the command."),
           h("li", { text: "Run it. The device appears here within a few seconds." }),
           h("li", { text: "Open it to browse its objects, read values and watch them live." }))));
       return;
