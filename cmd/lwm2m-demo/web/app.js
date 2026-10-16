@@ -474,7 +474,8 @@
       return frag;
     }
     if (t === "float" && typeof v === "number") {
-      frag.append(String(Math.round(v * 1e6) / 1e6));
+      const r6 = Math.round(v * 1e6) / 1e6;
+      frag.append(Number.isInteger(r6) && Math.abs(r6) < 1e15 ? r6.toFixed(1) : String(r6));
     } else {
       frag.append(v === undefined ? node.value : String(v));
     }
@@ -674,7 +675,7 @@
       }
       if (D.showRaw) {
         const raws = Object.entries(D.raw).filter(([k]) => k === opath || k.startsWith(opath + "/"));
-        parts.push(h("pre", { class: "raw", text: raws.length ? raws.map(([k, d]) => "GET " + k + "\n" + JSON.stringify(d, null, 2)).join("\n\n") : "No response yet. Read the object, an instance or a resource." }));
+        parts.push(h("pre", { class: "raw", text: raws.length ? raws.map(([k, d]) => (D.live[k] ? "Observe " : "Read ") + k + "\n" + JSON.stringify(d, null, 2)).join("\n\n") : "No response yet. Read the object, an instance or a resource." }));
       }
       return h("section", { class: "obj", id: "o-" + o.id, "aria-label": (m ? m.name : "Object " + o.id) }, parts);
     });
