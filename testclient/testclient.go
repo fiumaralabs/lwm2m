@@ -427,11 +427,16 @@ func (c *Client) Register(ctx context.Context) (*Response, error) {
 
 // RegisterRaw sends POST /rd with the given query and payload.
 func (c *Client) RegisterRaw(ctx context.Context, query []string, payload []byte, withCF bool) (*Response, error) {
+	// A Register voids the previous observations (OBS-03). Clear them before
+	// sending: a server may Observe as soon as it has the registration, before
+	// the 2.01 reaches us, and that observation belongs to the new one.
+	c.mu.Lock()
+	c.observers = map[string]*observer{}
+	c.mu.Unlock()
 	r, err := c.request(ctx, codes.POST, "/rd", query, payload, withCF)
 	if err == nil && r.Code == codes.Created && len(r.Location) == 2 {
 		c.mu.Lock()
 		c.location = r.Location[1]
-		c.observers = map[string]*observer{} // a Register voids observations (OBS-03)
 		c.mu.Unlock()
 	}
 	return r, err
