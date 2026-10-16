@@ -148,7 +148,9 @@ func TestRunAgainstServer(t *testing.T) {
 			distinct[v] = true
 		}
 		ev.mu.Unlock()
-		if len(distinct) >= 3 {
+		// The first Send goes out after cfg.send; wait for it too, or cancel can
+		// win the race and the log check below fails intermittently.
+		if len(distinct) >= 3 && strings.Contains(out.String(), "send /3303/0/5700=") {
 			break
 		}
 		if time.Now().After(deadline) {
