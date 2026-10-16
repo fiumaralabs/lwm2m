@@ -185,7 +185,6 @@
     $("#snip").textContent = c.code(ep, S.sec).join("\n");
     $("#snip-note").replaceChildren(...c.note(S.sec).map((x) => (typeof x === "string" ? document.createTextNode(x) : x)));
     $$("[data-maxlt]").forEach((e) => (e.textContent = dur(S.maxLt)));
-    renderWatch();
   }
 
   function setupConnect() {
@@ -233,22 +232,6 @@
     });
     if (!CLIENTS[S.client]) S.client = "go";
     renderConnect();
-  }
-
-  function renderWatch() {
-    const w = $("#watch");
-    if (S.online === null || S.client === "ncs") { w.replaceChildren(); return; }
-    const c = S.clients.find((x) => x.endpoint === S.ep);
-    if (c) {
-      w.replaceChildren(h("div", { class: "note found" },
-        h("span", { class: "dot on", "aria-hidden": "true" }),
-        h("span", null, h("b", { class: "mono", text: c.endpoint }), ` registered ${ago(c.registered_at)} over ${c.security}, LwM2M ${c.version}.`),
-        h("a", { class: "btn sm", href: "#/d/" + encodeURIComponent(c.endpoint), text: "Open device" })));
-    } else {
-      w.replaceChildren(h("div", { class: "note" },
-        h("span", { class: "wait", "aria-hidden": "true" }),
-        h("span", null, "Waiting for ", h("b", { class: "mono", text: S.ep }), " to register. It shows up here and in the list below within a few seconds.")));
-    }
   }
 
   // ---------- device list ----------
@@ -324,7 +307,7 @@
       S.online = false;
     }
     renderStatus();
-    if (!$("#view-home").hidden) { renderList(); renderWatch(); }
+    if (!$("#view-home").hidden) renderList();
     $$("[data-maxlt]").forEach((e) => (e.textContent = dur(S.maxLt)));
   }
 
@@ -760,7 +743,6 @@
       document.title = "LwM2M demo server · Fiumara Labs";
       $('.site-nav a[data-nav="home"]').setAttribute("aria-current", "page");
       renderList();
-      renderWatch();
       if (location.hash === "#connect") $("#connect").scrollIntoView();
     }
   }
