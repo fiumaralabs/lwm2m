@@ -375,3 +375,14 @@ func TestStaticHeaders(t *testing.T) {
 		t.Errorf("missing file: %d", r.StatusCode)
 	}
 }
+
+func TestIndexReferencesAssetsByHash(t *testing.T) {
+	files := loadStatic()
+	idx := string(files["/index.html"].body)
+	for _, a := range []string{"app.js", "style.css"} {
+		want := a + "?v=" + strings.Trim(files["/"+a].etag, `"`)
+		if !strings.Contains(idx, want) {
+			t.Errorf("index.html does not reference %s", want)
+		}
+	}
+}
