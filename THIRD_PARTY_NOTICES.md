@@ -34,6 +34,7 @@ Each vector's `source` field cites the originating file and line.
 ## OMNA LwM2M Registry (OMA object definitions)
 - https://github.com/OpenMobileAlliance/lwm2m-registry, commit `7d5204dde519bc3f9ae6435d5e8d62e25da4a8dd`
 - `model/registry/` holds unmodified copies of `version_history/<id>-<maj>_<min>.xml` for objects 0-28, embedded into the `model` package. Each file keeps its original licence header.
+- `cmd/lwm2m-demo/objects/` holds unmodified copies of the registry root files `<id>.xml` for objects 3200-3203, 3300-3350 (3307 and 3309 do not exist), 3442 and 10256, embedded into the demo server. Each file keeps its original licence header.
 - Licensed under the OMA BSD-3-Clause licence (`License/OMA-License.txt` in the registry). Copyright 2017-2026 Open Mobile Alliance.
 
 > Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
@@ -50,3 +51,7 @@ Each vector's `source` field cites the originating file and line.
 
 ## go-coap
 - https://github.com/plgd-dev/go-coap, v3.5.4 (Apache License 2.0, copyright (c) the go-coap authors). `internal/dtlscoap` adapts go-coap's `net.DTLSListener` and `dtls.Client` to pion/dtls v4.
+
+## Inter and Inter Tight fonts
+- https://github.com/rsms/inter and https://github.com/googlefonts/inter-tight. `cmd/lwm2m-demo/web/fonts/*.woff2` are served by the demo page.
+- Licensed under the SIL Open Font License 1.1; the licence text is in `cmd/lwm2m-demo/web/fonts/OFL.txt`.

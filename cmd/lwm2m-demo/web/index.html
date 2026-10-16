@@ -3,93 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Public LwM2M 1.0, 1.1 and 1.2 test server. Connect a Zephyr, nRF91, Anjay, Leshan or Wakaama client and browse its objects and resources by name.">
+<meta name="theme-color" content="#2e3a1f">
 <title>LwM2M demo server · Fiumara Labs</title>
+<link rel="icon" href="data:,">
+<link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/inter-tight.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>LwM2M demo server</h1>
-  <p>A public instance of <a href="https://github.com/fiumaralabs/lwm2m">github.com/fiumaralabs/lwm2m</a>,
-  an open-source Go LwM2M 1.0 / 1.1 / 1.2 server. Point a device or a client at it and it shows up below.</p>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site">
+  <div class="w bar">
+    <a class="mark" href="https://fiumaralabs.com" aria-label="Fiumara Labs home">Fiumara<span> Labs</span></a>
+    <nav class="site-nav" aria-label="Site">
+      <a href="#/" data-nav="home">Devices</a>
+      <a href="#connect" data-nav="connect">Connect</a>
+      <a href="https://github.com/fiumaralabs/lwm2m">Source <span aria-hidden="true">↗</span></a>
+    </nav>
+  </div>
 </header>
 
-<main>
-<section>
-  <h2>Connect</h2>
-  <table class="kv">
-    <tr><th>Host</th><td><code class="host">lwm2m.fiumaralabs.com</code></td></tr>
-    <tr><th>NoSec</th><td><code>coap://<span class="host">lwm2m.fiumaralabs.com</span>:5683</code> (UDP)</td></tr>
-    <tr><th>DTLS-PSK</th><td><code>coaps://<span class="host">lwm2m.fiumaralabs.com</span>:5684</code> (UDP, DTLS 1.2, CID supported)<br>
-      PSK identity = your endpoint name, key <code>000102030405060708090a0b0c0d0e0f</code> (hex, public: this is a demo, not security)</td></tr>
-    <tr><th>Bootstrap</th><td>none: configure the server URI directly</td></tr>
-  </table>
-  <p class="note">Anonymous and public. Everyone can see the endpoint names, so do not use a real IMEI or serial.
-  Limits: <span id="max">200</span> registrations, 10 per IP, lifetime capped at <span id="maxlt">3600</span>&nbsp;s
-  (use a lifetime of at most that, or your client drops off the list before it sends an Update).
-  The page can only list clients and read resources; it cannot write, execute or update firmware.
-  Registrations are in memory and lost on restart.</p>
+<main id="main" tabindex="-1">
+  <div id="view-home">
+    <section class="hero">
+      <div class="w">
+        <p class="eyebrow">LwM2M demo server</p>
+        <h1>Connect an LwM2M device and look inside it</h1>
+        <p class="lede">A public LwM2M 1.0, 1.1 and 1.2 server running <a href="https://github.com/fiumaralabs/lwm2m">fiumaralabs/lwm2m</a>, an open-source server written in Go. Register a client, then browse its objects and resources by name, read values and watch them change.</p>
+        <p class="status" id="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="status-text">Checking server…</span></p>
+      </div>
+    </section>
 
-  <details>
-    <summary>Zephyr <code>lwm2m_client</code> sample</summary>
-<pre>west build -b &lt;board&gt; samples/net/lwm2m_client -- \
-  -DCONFIG_LWM2M_APP_SERVER=\"coap://lwm2m.fiumaralabs.com:5683\" \
-  -DCONFIG_LWM2M_APP_ID=\"my-zephyr-demo\"
-# DTLS-PSK: -DEXTRA_CONF_FILE=overlay-dtls.conf and
-#   -DCONFIG_LWM2M_APP_SERVER=\"coaps://lwm2m.fiumaralabs.com:5684\"
-#   (the sample's default PSK is the demo key above)</pre>
-  </details>
-  <details>
-    <summary>Anjay demo</summary>
-<pre>./output/bin/demo --endpoint-name my-anjay-demo --lifetime 300 \
-  --server-uri coap://lwm2m.fiumaralabs.com:5683
-# DTLS-PSK:
-./output/bin/demo --endpoint-name my-anjay-demo --lifetime 300 \
-  --server-uri coaps://lwm2m.fiumaralabs.com:5684 \
-  --security-mode psk --identity "$(printf my-anjay-demo | xxd -p)" \
-  --key 000102030405060708090a0b0c0d0e0f</pre>
-  </details>
-  <details>
-    <summary>Leshan client demo</summary>
-<pre>java -jar leshan-client-demo.jar -n my-leshan-demo -l 300 \
-  -u coap://lwm2m.fiumaralabs.com:5683
-# DTLS-PSK:
-java -jar leshan-client-demo.jar -n my-leshan-demo -l 300 \
-  -u coaps://lwm2m.fiumaralabs.com:5684 \
-  -i my-leshan-demo -p 000102030405060708090a0b0c0d0e0f</pre>
-  </details>
-  <details>
-    <summary>Wakaama <code>lwm2mclient</code></summary>
-<pre>./lwm2mclient -n my-wakaama-demo -t 300 -h lwm2m.fiumaralabs.com -p 5683 -4
-# DTLS-PSK (build with DTLS):
-./lwm2mclient -n my-wakaama-demo -t 300 -h lwm2m.fiumaralabs.com -p 5684 -4 \
-  -i my-wakaama-demo -s 000102030405060708090a0b0c0d0e0f</pre>
-  </details>
-</section>
+    <section class="w sec" id="connect" aria-labelledby="connect-h">
+      <h2 id="connect-h">Connect</h2>
+      <div class="connect">
+        <div class="panel details">
+          <div class="field">
+            <label for="ep-input">Endpoint name</label>
+            <div class="ep-row">
+              <input id="ep-input" autocomplete="off" spellcheck="false" maxlength="64" aria-describedby="ep-help">
+              <button type="button" class="ghost sm" id="ep-new">New name</button>
+            </div>
+            <p class="help" id="ep-help">Used in every command on this page. Endpoint names are public here: do not use a real IMEI or serial number.</p>
+          </div>
+          <div class="field">
+            <span class="label" id="sec-label">Security</span>
+            <div class="seg" role="radiogroup" aria-labelledby="sec-label">
+              <button type="button" role="radio" aria-checked="true" data-sec="nosec">NoSec</button>
+              <button type="button" role="radio" aria-checked="false" data-sec="psk">DTLS-PSK</button>
+            </div>
+          </div>
+          <dl class="kv" id="conn-kv"></dl>
+          <p class="help">No bootstrap server: configure the server URI directly. DTLS 1.2, Connection ID supported. Lifetime is capped at <span data-maxlt>1 hour</span>: use at most that, or the device drops off the list before its next Update.</p>
+        </div>
 
-<section>
-  <h2>Registered clients <span id="count" class="badge">…</span></h2>
-  <p class="note">Refreshes every 5 s. Click a row to read a resource from that client.</p>
-  <div class="scroll">
-  <table id="clients">
-    <thead><tr><th>Endpoint</th><th>LwM2M</th><th>Binding</th><th>Security</th><th>Lifetime</th><th>Registered</th><th>Last seen</th><th>Objects</th></tr></thead>
-    <tbody></tbody>
-  </table>
+        <div class="panel snippets">
+          <div class="tabs" role="tablist" aria-label="Client">
+            <button type="button" role="tab" id="tab-zephyr" aria-controls="tp" data-client="zephyr">Zephyr</button>
+            <button type="button" role="tab" id="tab-ncs" aria-controls="tp" data-client="ncs">nRF91 (NCS)</button>
+            <button type="button" role="tab" id="tab-anjay" aria-controls="tp" data-client="anjay">Anjay</button>
+            <button type="button" role="tab" id="tab-leshan" aria-controls="tp" data-client="leshan">Leshan client</button>
+            <button type="button" role="tab" id="tab-wakaama" aria-controls="tp" data-client="wakaama">Wakaama</button>
+          </div>
+          <div id="tp" role="tabpanel" tabindex="0">
+            <p class="snip-intro" id="snip-intro"></p>
+            <div class="code"><div class="code-h"><span id="snip-lang">Shell</span><button type="button" class="copy" data-copy-from="snip" aria-label="Copy command">Copy</button></div><pre id="snip" tabindex="0"></pre></div>
+            <p class="help" id="snip-note"></p>
+          </div>
+        </div>
+      </div>
+      <div class="watch" id="watch" aria-live="polite"></div>
+    </section>
+
+    <section class="w sec" id="devices-sec" aria-labelledby="devices-h">
+      <div class="sec-head">
+        <h2 id="devices-h">Registered devices <span class="count" id="count"></span></h2>
+        <div class="filter" id="filter-wrap" hidden>
+          <label class="vh" for="filter">Filter devices</label>
+          <input id="filter" type="search" placeholder="Filter by name" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div id="devices"></div>
+      <p class="help small">Updates every 5 seconds. Registrations live in memory and are cleared when the server restarts.</p>
+    </section>
   </div>
-  <p id="empty" class="note" hidden>No clients registered right now. Be the first.</p>
-</section>
 
-<section id="reader" hidden>
-  <h2>Read from <code id="rep"></code></h2>
-  <form id="readform">
-    <input id="rpath" value="/3/0" size="16" aria-label="path">
-    <button type="submit">Read</button>
-    <span class="note">e.g. <code>/3/0</code> (Device), <code>/1</code> (Server), <code>/3303</code> (Temperature). Not /0 or /21.</span>
-  </form>
-  <pre id="rout"></pre>
-</section>
+  <div id="view-device" hidden></div>
 </main>
 
-<footer>Fiumara Labs · <a href="https://github.com/fiumaralabs/lwm2m">source</a> · API: <a href="api/clients">/api/clients</a></footer>
-<script src="app.js"></script>
+<footer class="site">
+  <div class="w">
+    <p>Read-only: this page lists devices, reads values and observes them. It cannot write, execute, delete or update firmware.</p>
+    <nav aria-label="Footer">
+      <a href="https://github.com/fiumaralabs/lwm2m">Source <span aria-hidden="true">↗</span></a>
+      <a href="api/clients">JSON API</a>
+      <a href="https://fiumaralabs.com">fiumaralabs.com</a>
+    </nav>
+  </div>
+</footer>
+<div class="vh" id="announce" aria-live="polite"></div>
+<script src="app.js" defer></script>
 </body>
 </html>

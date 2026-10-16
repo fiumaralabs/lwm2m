@@ -17,8 +17,9 @@
 //     endpoint name must equal the identity (Zephyr/Leshan demo convention).
 //     An endpoint seen over PSK cannot then register over NoSec (SEC-07);
 //
-//   - the web API only lists registrations and reads (never /0 or /21), with
-//     a global concurrency limit and a per-IP rate limit.
+//   - the web API only lists registrations, reads and observes (never /0 or
+//     /21), with a global concurrency limit and a per-IP rate limit; live
+//     values are shared Observes with per-IP, global and time limits.
 //
 //     go run ./cmd/lwm2m-demo -coap :5683 -coaps :5684 -http 127.0.0.1:8090
 package main
@@ -27,25 +28,19 @@ import (
 	"context"
 	"embed"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"sort"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 	"unicode"
 
-	"github.com/fiumaralabs/lwm2m"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
-	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
@@ -65,6 +60,9 @@ func main() {
 	pskHex := flag.String("psk-key", "000102030405060708090a0b0c0d0e0f", "the public demo PSK (hex)")
 	readsPerMin := flag.Int("reads-per-minute", 20, "web reads per client IP per minute")
 	trustProxy := flag.Bool("trust-proxy", true, "take the client IP from X-Forwarded-For when the peer is loopback")
+	observeMax := flag.Int("observe-max", 32, "web Observe streams open at once (all visitors)")
+	observePerIP := flag.Int("observe-per-ip", 2, "web Observe streams open at once per visitor IP")
+	observeFor := flag.Duration("observe-for", 5*time.Minute, "a web Observe stream is closed after this long")
 	flag.Parse()
 
 	key, err := hex.DecodeString(*pskHex)
@@ -72,18 +70,24 @@ func main() {
 		log.Fatalf("-psk-key: need hex")
 	}
 
-	models := server.NewModels(model.Default())
+	models := server.NewModels(demoRegistry())
 	store := &clampStore{Store: server.NewMemoryStore(), max: *maxLifetime}
 	sec := newDemoSecurity(key, *maxPSK)
 	lim := &regLimiter{max: *maxReg, perIP: *maxPerIP, rate: *regPerMin, store: store, hits: map[string][]time.Time{}}
+	web := newWebAPI(models, webLimits{maxReg: *maxReg, maxLifetime: *maxLifetime, trustProxy: *trustProxy,
+		readsPerMin: *readsPerMin, observeMax: *observeMax, observePerIP: *observePerIP, observeFor: *observeFor})
 	srv := server.New(server.Config{
 		Store:     store,
 		Security:  sec,
 		Schema:    models.Schema,
 		Validator: models,
 		Authorize: lim.authorize,
-		OnEvent:   logEvent,
+		OnEvent: func(e server.Event) {
+			logEvent(e)
+			web.onEvent(e)
+		},
 	})
+	web.srv = srv
 	cb := coap.New(srv)
 
 	if *coapAddr != "" {
@@ -109,8 +113,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	web := &webAPI{srv: srv, max: *maxReg, maxLifetime: *maxLifetime, trustProxy: *trustProxy,
-		rate: *readsPerMin, hits: map[string][]time.Time{}, sem: make(chan struct{}, 4)}
 	hs := &http.Server{Addr: *httpAddr, Handler: web.routes(), ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10,
 		BaseContext: func(net.Listener) context.Context { return ctx }}
@@ -293,175 +295,4 @@ func logEvent(e server.Event) {
 	case server.Deregistered:
 		log.Printf("deregistered %q: %s", e.Registration.Endpoint, e.Reason)
 	}
-}
-
-// webAPI serves the page and the read-only JSON API.
-type webAPI struct {
-	srv         *server.Server
-	max         int
-	maxLifetime time.Duration
-	trustProxy  bool
-	rate        int
-	sem         chan struct{}
-
-	mu   sync.Mutex
-	hits map[string][]time.Time
-}
-
-type clientJSON struct {
-	Endpoint     string    `json:"endpoint"`
-	Version      string    `json:"version"`
-	Binding      string    `json:"binding"`
-	Queue        bool      `json:"queue"`
-	Security     string    `json:"security"`
-	LifetimeS    int64     `json:"lifetime_s"`
-	RegisteredAt time.Time `json:"registered_at"`
-	LastSeen     time.Time `json:"last_seen"`
-	ObjectLinks  string    `json:"object_links"`
-}
-
-func (w *webAPI) routes() http.Handler {
-	mux := http.NewServeMux()
-	static, _ := fs.Sub(webFS, "web")
-	mux.Handle("GET /", http.FileServerFS(static))
-	mux.HandleFunc("GET /healthz", func(rw http.ResponseWriter, _ *http.Request) { _, _ = rw.Write([]byte("ok\n")) })
-	mux.HandleFunc("GET /api/clients", w.clients)
-	mux.HandleFunc("GET /api/clients/{ep}/read", w.read)
-	return securityHeaders(mux)
-}
-
-func securityHeaders(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		hd := rw.Header()
-		hd.Set("X-Content-Type-Options", "nosniff")
-		hd.Set("Referrer-Policy", "no-referrer")
-		hd.Set("X-Frame-Options", "DENY")
-		hd.Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'")
-		h.ServeHTTP(rw, r)
-	})
-}
-
-func writeJSON(rw http.ResponseWriter, code int, v any) {
-	rw.Header().Set("Content-Type", "application/json")
-	rw.Header().Set("Cache-Control", "no-store")
-	rw.WriteHeader(code)
-	_ = json.NewEncoder(rw).Encode(v)
-}
-
-func (w *webAPI) clients(rw http.ResponseWriter, _ *http.Request) {
-	regs := w.srv.Store().All()
-	out := make([]clientJSON, 0, len(regs))
-	for _, r := range regs {
-		links := r.RawLinks
-		if len(links) > 2048 {
-			links = links[:2048] + "…"
-		}
-		sec := "NoSec"
-		if r.Identity.Mode == server.ModePSK {
-			sec = "PSK"
-		}
-		out = append(out, clientJSON{Endpoint: r.Endpoint, Version: r.Version, Binding: r.Binding, Queue: r.QueueMode,
-			Security: sec, LifetimeS: int64(r.Lifetime / time.Second), RegisteredAt: r.RegisteredAt.UTC(),
-			LastSeen: r.LastUpdate.UTC(), ObjectLinks: links})
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].RegisteredAt.After(out[j].RegisteredAt) })
-	writeJSON(rw, 200, map[string]any{"clients": out, "max_registrations": w.max,
-		"max_lifetime_s": int64(w.maxLifetime / time.Second), "now": time.Now().UTC()})
-}
-
-func (w *webAPI) clientIP(r *http.Request) string {
-	ip := hostOf(r.RemoteAddr)
-	if w.trustProxy && net.ParseIP(ip) != nil && net.ParseIP(ip).IsLoopback() {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			parts := strings.Split(xff, ",")
-			return strings.TrimSpace(parts[len(parts)-1])
-		}
-	}
-	return ip
-}
-
-func (w *webAPI) allow(ip string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	now := time.Now()
-	recent := w.hits[ip][:0]
-	for _, t := range w.hits[ip] {
-		if now.Sub(t) < time.Minute {
-			recent = append(recent, t)
-		}
-	}
-	if len(recent) >= w.rate {
-		w.hits[ip] = recent
-		return false
-	}
-	w.hits[ip] = append(recent, now)
-	if len(w.hits) > 10000 {
-		for k, v := range w.hits {
-			if len(v) == 0 || now.Sub(v[len(v)-1]) > time.Minute {
-				delete(w.hits, k)
-			}
-		}
-	}
-	return true
-}
-
-type nodeJSON struct {
-	Path  string `json:"path"`
-	Type  string `json:"type,omitempty"`
-	Value string `json:"value"`
-}
-
-func (w *webAPI) read(rw http.ResponseWriter, r *http.Request) {
-	ep := r.PathValue("ep")
-	p, err := lwm2m.ParsePath(r.URL.Query().Get("path"))
-	if err != nil || p.Len() == 0 {
-		writeJSON(rw, 400, map[string]string{"error": "path must be /object[/instance[/resource]]"})
-		return
-	}
-	if oid := p.Object(); oid == 0 || oid == 21 { // Security, OSCORE: credentials
-		writeJSON(rw, 403, map[string]string{"error": "reading credentials objects is not allowed"})
-		return
-	}
-	if !w.allow(w.clientIP(r)) {
-		writeJSON(rw, 429, map[string]string{"error": "rate limited, try again in a minute"})
-		return
-	}
-	select {
-	case w.sem <- struct{}{}:
-		defer func() { <-w.sem }()
-	default:
-		writeJSON(rw, 503, map[string]string{"error": "busy, try again"})
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-	defer cancel()
-	resp, err := w.srv.Read(ctx, ep, p, server.ReadOptions{})
-	if err != nil {
-		writeJSON(rw, 502, map[string]string{"error": err.Error()})
-		return
-	}
-	out := map[string]any{"code": server.CodeString(resp.Code)}
-	if resp.HasFormat {
-		out["content_format"] = int(resp.ContentFormat)
-	}
-	nodes := make([]nodeJSON, 0, len(resp.Nodes))
-	for i, n := range resp.Nodes {
-		if i == 200 {
-			break
-		}
-		if n.Kind != lwm2m.KindValue {
-			nodes = append(nodes, nodeJSON{Path: n.PathString(), Value: "(empty)"})
-			continue
-		}
-		v := n.Value.String()
-		if len(v) > 512 {
-			v = v[:512] + "…"
-		}
-		nodes = append(nodes, nodeJSON{Path: n.PathString(), Type: n.Value.Type.String(), Value: v})
-	}
-	out["nodes"] = nodes
-	if resp.DecodeErr != nil {
-		out["decode_error"] = resp.DecodeErr.Error()
-	}
-	writeJSON(rw, 200, out)
 }
