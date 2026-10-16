@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,6 +52,12 @@ type Config struct {
 	// Formats lists the multi-value formats the client accepts in writes;
 	// others get 4.15. Default: all.
 	Formats []lwm2m.ContentFormat
+	// NoHistory stops recording requests (Requests, RawRequests stay
+	// empty), for a long-running client whose memory must not grow.
+	NoHistory bool
+	// Errors receives go-coap's connection errors (default: logged to
+	// stderr by go-coap).
+	Errors func(error)
 }
 
 // Request is one request the server sent to the client.
@@ -95,6 +102,7 @@ type Client struct {
 	notifyMu        sync.Mutex        // one notification in flight at a time
 	resetCh         chan message.Type // Reset for the notification in flight
 	nonSent         atomic.Int64      // NON notifications sent (NotifyNON)
+	notifyHook      NotifyHook        // hooks.go
 }
 
 type observer struct {
@@ -140,7 +148,7 @@ func New(cfg Config) *Client {
 // to the pending CON first (ending WriteMessage) and then still hands it to
 // this hook, so a Reset is seen right after WriteMessage returns.
 func (c *Client) process(req *pool.Message, cc *client.Conn, handler config.HandlerFunc[*client.Conn]) {
-	if req.Code() >= 1 && req.Code() < 32 {
+	if req.Code() >= 1 && req.Code() < 32 && !c.cfg.NoHistory {
 		raw := RawRequest{Code: req.Code()}
 		raw.RequestTag, _ = req.GetOptionBytes(message.OptionID(292))
 		raw.RequestTag = append([]byte(nil), raw.RequestTag...)
@@ -170,15 +178,22 @@ func (c *Client) Dial(addr string) error {
 	r := mux.NewRouter()
 	r.DefaultHandle(mux.HandlerFunc(c.handle))
 	hook := options.WithProcessReceivedMessageFunc(c.process)
+	errs := options.WithErrors(func(err error) {
+		if c.cfg.Errors != nil {
+			c.cfg.Errors(err)
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	})
 	if c.cfg.PSKIdentity != "" {
-		conn, err := dtlscoap.Dial(addr, pskOptions(c.cfg.PSKIdentity, c.cfg.PSKKey, c.cfg.CID), options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
+		conn, err := dtlscoap.Dial(addr, pskOptions(c.cfg.PSKIdentity, c.cfg.PSKKey, c.cfg.CID), options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook, errs)
 		if err != nil {
 			return err
 		}
 		c.conn = conn
 		return nil
 	}
-	conn, err := udp.Dial(addr, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook)
+	conn, err := udp.Dial(addr, options.WithMux(r), options.WithBlockwise(true, 0x6, 30*time.Second), hook, errs)
 	if err != nil {
 		return err
 	}
@@ -548,7 +563,9 @@ func (c *Client) Handle(r Request) (codes.Code, *lwm2m.ContentFormat, []byte) {
 
 func (c *Client) answer(r Request) (codes.Code, *lwm2m.ContentFormat, []byte, []message.Option) {
 	c.mu.Lock()
-	c.requests = append(c.requests, r)
+	if !c.cfg.NoHistory {
+		c.requests = append(c.requests, r)
+	}
 	ov := c.override
 	c.mu.Unlock()
 	if ov != nil {

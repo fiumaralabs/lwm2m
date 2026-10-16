@@ -39,6 +39,20 @@ The layout and the reasons behind it are in [doc/ARCHITECTURE.md](doc/ARCHITECTU
 | `leshanapi` | Leshan-compatible REST API, so the Zephyr interop suite runs unchanged |
 | `testclient` | Scriptable reference LwM2M client used to prove server behaviour |
 | `cmd/lwm2md` | Server binary |
+| `cmd/lwm2m-client` | Demo LwM2M client: a simulated sensor (see Try it) |
+
+## Try it
+
+A public demo server runs at [lwm2m.fiumaralabs.com](https://lwm2m.fiumaralabs.com). `cmd/lwm2m-client` is a simulated battery-powered sensor (Device, Connectivity Monitoring, Location, Temperature, Humidity, Voltage) built on `testclient`; it registers, answers Read/Observe/Discover/Write-Attributes, sends Updates and deregisters on Ctrl-C. Needs Go 1.21 or newer.
+
+```sh
+# NoSec
+go run github.com/fiumaralabs/lwm2m/cmd/lwm2m-client@deploy-demo -server coap://lwm2m.fiumaralabs.com:5683
+# DTLS-PSK (public demo key; the PSK identity is the endpoint name)
+go run github.com/fiumaralabs/lwm2m/cmd/lwm2m-client@deploy-demo -server coaps://lwm2m.fiumaralabs.com:5684 -psk 000102030405060708090a0b0c0d0e0f
+```
+
+The endpoint name is random (`demo-xxxxxx`) unless you pass `-ep`; it is listed publicly on the page. Other flags: `-lwm2m 1.0|1.1|1.2`, `-lifetime` (default 300 s, at most 3600), `-binding UQ` (queue mode), `-send 30s` (LwM2M 1.1+ Send). `-h` lists them.
 
 ## Quick start
 

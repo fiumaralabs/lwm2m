@@ -21,6 +21,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
+	"github.com/fiumaralabs/lwm2m/internal/simdevice"
 	"github.com/fiumaralabs/lwm2m/testclient"
 )
 
@@ -31,7 +32,7 @@ func main() {
 	psk := flag.String("psk", "", "hex PSK: use DTLS with identity = endpoint")
 	version := flag.String("lwm2m", "1.1", "LwM2M version")
 	hold := flag.Duration("hold", 0, "stay registered this long before deregistering")
-	rich := flag.Bool("rich", false, "register a fuller device (Server, Device, Connectivity, Location, Temperature) whose temperature changes during -hold")
+	rich := flag.Bool("rich", false, "register the simulated sensor of cmd/lwm2m-client (values change during -hold)")
 	flag.Parse()
 
 	cfg := testclient.Config{Endpoint: *ep, Version: *version, Lifetime: 300, Binding: "U"}
@@ -43,13 +44,14 @@ func main() {
 		cfg.PSKIdentity, cfg.PSKKey, cfg.CID = *ep, k, true
 	}
 	c := testclient.New(cfg)
-	c.AddObject(3)
-	c.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String("Fiumara Labs"))
-	c.Set(lwm2m.MustParsePath("/3/0/1"), lwm2m.String("lwm2m-demo-probe"))
-	c.Set(lwm2m.MustParsePath("/3/0/2"), lwm2m.String("SN-PROBE"))
-	c.Set(lwm2m.MustParsePath("/3/0/16"), lwm2m.String("U"))
+	var dev *simdevice.Device
 	if *rich {
-		richDevice(c)
+		dev = richDevice(c, *ep, cfg.Lifetime)
+	} else {
+		c.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String("Fiumara Labs"))
+		c.Set(lwm2m.MustParsePath("/3/0/1"), lwm2m.String("lwm2m-demo-probe"))
+		c.Set(lwm2m.MustParsePath("/3/0/2"), lwm2m.String("SN-PROBE"))
+		c.Set(lwm2m.MustParsePath("/3/0/16"), lwm2m.String("U"))
 	}
 	if err := c.Dial(*addr); err != nil {
 		log.Fatalf("dial: %v", err)
@@ -83,7 +85,7 @@ func main() {
 	}
 	fmt.Printf("web read /3/0: %s", get(*web+"/api/clients/"+url.PathEscape(*ep)+"/read?path=/3/0"))
 
-	holdFor(c, *hold, *rich, cfg.Lifetime)
+	holdFor(c, *hold, dev, cfg.Lifetime)
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	resp, err = c.Deregister(ctx)
