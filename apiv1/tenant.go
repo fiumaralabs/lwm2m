@@ -17,7 +17,9 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 				WriteProblem(w, 401, "unauthorized", "Authentication required")
 				return
 			}
-			if scope == "" || !strings.Contains(scopes, ","+scope+",") || (!strings.Contains(entry.scopes, ",admin,") && !strings.Contains(entry.scopes, ","+scope+",")) {
+			// Admin implies tenant scopes, not the operator-only platform scope.
+			admin := scope != "platform" && strings.Contains(entry.scopes, ",admin,")
+			if scope == "" || !strings.Contains(scopes, ","+scope+",") || (!admin && !strings.Contains(entry.scopes, ","+scope+",")) {
 				WriteProblem(w, 403, "forbidden", "Insufficient scope")
 				return
 			}

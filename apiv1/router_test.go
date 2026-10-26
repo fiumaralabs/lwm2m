@@ -46,7 +46,7 @@ func TestRouter(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil {
 				t.Fatal(err)
 			}
-			if w.Header().Get("Content-Type") != "application/problem+json" || p.Status != tc.status || p.Type != "https://lwm2m.dev/errors/"+strings.ReplaceAll(p.Code, "_", "-") || p.Title == "" || p.Detail == "" {
+			if w.Header().Get("Content-Type") != "application/problem+json" || p.Status != tc.status || p.Type != "about:blank" || p.Title == "" || p.Detail == "" {
 				t.Fatalf("invalid problem: %+v", p)
 			}
 		}

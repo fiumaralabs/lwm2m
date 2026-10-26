@@ -65,6 +65,35 @@ func TestRequireScope(t *testing.T) {
 	}
 }
 
+func TestRequirePlatformScope(t *testing.T) {
+	for _, tc := range []struct {
+		scopes string
+		want   int
+	}{
+		{"admin", http.StatusForbidden},
+		{"platform", http.StatusNoContent},
+		{"admin,platform", http.StatusNoContent},
+		{"devices:read", http.StatusForbidden},
+	} {
+		t.Run(tc.scopes, func(t *testing.T) {
+			keys, err := LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x %s", sha256.Sum256([]byte("lwm_test_secret")), tc.scopes)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			handler := Authenticate(keys, RequireScope("platform")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})))
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", "Bearer lwm_test_secret")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != tc.want {
+				t.Fatalf("status=%d want=%d", rec.Code, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadKeys(t *testing.T) {
 	line := fmt.Sprintf("key_test sha256:%x devices:read", sha256.Sum256([]byte("lwm_test_secret")))
 	for _, tc := range []struct {

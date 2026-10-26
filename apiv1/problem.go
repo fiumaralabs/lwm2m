@@ -3,7 +3,6 @@ package apiv1
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 )
 
 type FieldError struct {
@@ -26,5 +25,7 @@ func WriteProblem(w http.ResponseWriter, status int, code, detail string) {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 	}
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(Problem{Type: "https://lwm2m.dev/errors/" + strings.ReplaceAll(code, "_", "-"), Title: http.StatusText(status), Status: status, Detail: detail, Code: code})
+	// RFC 9457's about:blank type describes the HTTP status without a product domain.
+	// Code carries the more specific machine-readable error identifier.
+	_ = json.NewEncoder(w).Encode(Problem{Type: "about:blank", Title: http.StatusText(status), Status: status, Detail: detail, Code: code})
 }
