@@ -37,16 +37,15 @@ It replaces nothing: `leshanapi` stays, only so the Zephyr interop suite runs un
 
 ```json
 {
-  "type": "https://example.com/errors/device-not-found",
-  "title": "Device not found",
+  "type": "about:blank",
+  "title": "Not Found",
   "status": 404,
   "detail": "no device urn:imei:350000000000001 in tenant acme",
-  "code": "device_not_found",
-  "errors": [{"field": "values[2].value", "message": "not an integer"}]
+  "code": "device_not_found"
 }
 ```
 
-`code` is the stable, machine-readable value. `type` is formed by appending the code, replacing underscores with hyphens, to a deployment-configured error-type base URI ending in `/` (for example, `https://example.com/errors/`). The base URI must be an absolute HTTPS URI supplied through server configuration, not a hard-coded product domain. Changing the deployment domain or base URI does not change `code`. Clients must use `code` for programmatic error handling, not a deployment-specific `type` URL. `errors` lists field-level validation failures.
+`type` is `about:blank` (RFC 9457): it describes the HTTP status without a deployment-specific domain or configuration. `title` is the standard HTTP status text, such as `Bad Request`, `Unauthorized`, `Forbidden` or `Not Found`; `status` matches the response's HTTP status. `detail` describes the specific failure without exposing credentials. `code` is the stable, machine-readable identifier for that failure. Clients must use `code` for programmatic error handling, not `type`, `title` or `detail`. The optional `errors` extension lists field-level validation failures when supplied; `WriteProblem` currently omits it.
 
 A device answering a request with an error code is **not** an HTTP error. The operation completes with `status: "failed"` and the CoAP code (§6.4); the HTTP call that fetched it returns 200. HTTP errors are only about the API call itself.
 
