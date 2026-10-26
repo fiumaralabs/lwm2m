@@ -1,0 +1,5 @@
+# Native API keys
+Run `lwm2md -api-keys /path/to/keys` to load keys once at startup. Without a file `/v1` returns 401; `/api` is unchanged. Use HTTPS at the reverse proxy.
+Each line is `key_<id> sha256:<64 hex characters> <scope>[,<scope>...]`. Hash the full `lwm_<id>_<secret>` token with SHA-256; IDs cannot contain underscores. Blank lines and lines starting with `#` are ignored. Invalid entries or duplicate IDs fail startup.
+Keep raw tokens on clients and send `Authorization: Bearer <token>`. Protect the file with owner-only permissions; restart to rotate or revoke keys. All file keys belong to tenant `default`.
+Scopes: `devices:read`, `devices:write`, `operations:write`, `operations:raw`, `credentials:write`, `bootstrap:write`, `firmware:write`, `jobs:write`, `admin`, `platform`. `admin` implies all scopes. `GET /v1/info` accepts any valid key.
