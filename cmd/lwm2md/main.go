@@ -29,6 +29,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/bootstrap"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/fota"
+	"github.com/fiumaralabs/lwm2m/internal/obs"
 	"github.com/fiumaralabs/lwm2m/leshanapi"
 	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
@@ -40,6 +41,7 @@ func main() {
 	coaps := flag.String("coaps", ":5684", "CoAP/DTLS address; empty disables")
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
+	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
 	bsCoap := flag.String("bs-coap", ":5783", "Bootstrap-Server CoAP/UDP address; empty disables")
@@ -138,18 +140,23 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	probes := obs.New(nil, func() int { return len(srv.Store().All()) }, *metrics)
 	var servers []*http.Server
 	serve := func(name, addr string, h http.Handler) {
 		if addr == "" {
 			return
 		}
 		// Request contexts derive from ctx, so open SSE streams end on a signal.
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatalf("%s %s: %v", name, addr, err)
+		}
 		hs := &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 10 * time.Second,
 			BaseContext: func(net.Listener) context.Context { return ctx }}
 		servers = append(servers, hs)
 		go func() {
 			log.Printf("%s listening on %s%s", name, addr, *prefix)
-			if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := hs.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				log.Fatalf("%s %s: %v", name, addr, err)
 			}
 		}()
@@ -158,6 +165,11 @@ func main() {
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	serve("rest", *httpAddr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz", "/readyz", "/metrics":
+			probes.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1" || strings.HasPrefix(r.URL.Path, "/v1/") {
 			native.ServeHTTP(w, r)
 			return
@@ -165,8 +177,10 @@ func main() {
 		api.ServeHTTP(w, r)
 	}))
 	serve("bs rest", *bsHTTP, leshanapi.NewBootstrap(*prefix, configs, bs.Security()))
+	probes.SetReady(true)
 
 	<-ctx.Done()
+	probes.SetReady(false)
 	log.Print("shutting down")
 	for _, hs := range servers {
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
