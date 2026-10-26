@@ -83,10 +83,12 @@ Pion's contribution policy applies: the submitter reviews and explains the code 
 
 - **Persistence.** Registrations, observations, queued requests, DTLS sessions, OSCORE contexts and counters live in memory only. Add pluggable stores (`server.Store`, `SecurityStore`, a session store) with a durable implementation, for example SQL or Redis.
 - **Scale-out.** Routing by Connection ID across nodes, sharing DTLS session state, and node restarts without forcing every device to re-handshake (the original M10 milestone). Also leader-free expiry, and fan-out of observations and events.
-- **Native northbound API.** A typed API beyond the Leshan-compatible one:
+- **Native northbound API.** Our own API, not a copy of Leshan's; the design is in [doc/API.md](doc/API.md):
   - async, queued commands with results;
   - a durable event stream for registration, notification and Send events (webhooks or a message bus);
   - multi-tenancy and authentication/authorisation (the Leshan API has no auth today).
+
+  `leshanapi` stays only for the Zephyr interop suite. What the server needs first is in doc/API.md Appendix B.
 - **Operations.** Metrics (Prometheus: registrations, handshakes, retransmissions, queue depth), structured logs, tracing, health and readiness endpoints, a config file for `lwm2md` (flags only today), a container image, and release tooling (tagged releases, changelog, semver; we are pre-v0.1).
 - **Hardening.**
   - Fuzz every codec and parser (TLV, SenML, LwM2M CBOR, link-format, attributes, CoAP framing, SMS packets).
