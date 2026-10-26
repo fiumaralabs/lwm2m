@@ -2,3 +2,6 @@
 /bin/
 *.test
 *.out
+
+# Hermes kanban worktrees
+/.worktrees/
