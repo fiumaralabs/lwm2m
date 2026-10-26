@@ -37,7 +37,7 @@ It replaces nothing: `leshanapi` stays, only so the Zephyr interop suite runs un
 
 ```json
 {
-  "type": "https://lwm2m.dev/errors/device-not-found",
+  "type": "https://example.com/errors/device-not-found",
   "title": "Device not found",
   "status": 404,
   "detail": "no device urn:imei:350000000000001 in tenant acme",
@@ -46,7 +46,7 @@ It replaces nothing: `leshanapi` stays, only so the Zephyr interop suite runs un
 }
 ```
 
-`code` is the stable, machine-readable value; `type` is its URL form. `errors` lists field-level validation failures.
+`code` is the stable, machine-readable value. `type` is formed by appending the code, replacing underscores with hyphens, to a deployment-configured error-type base URI ending in `/` (for example, `https://example.com/errors/`). The base URI must be an absolute HTTPS URI supplied through server configuration, not a hard-coded product domain. Changing the deployment domain or base URI does not change `code`. Clients must use `code` for programmatic error handling, not a deployment-specific `type` URL. `errors` lists field-level validation failures.
 
 A device answering a request with an error code is **not** an HTTP error. The operation completes with `status: "failed"` and the CoAP code (§6.4); the HTTP call that fetched it returns 200. HTTP errors are only about the API call itself.
 
