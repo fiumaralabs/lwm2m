@@ -21,9 +21,11 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/apiv1"
 	"github.com/fiumaralabs/lwm2m/bootstrap"
 	_ "github.com/fiumaralabs/lwm2m/codec/all"
 	"github.com/fiumaralabs/lwm2m/fota"
@@ -39,6 +41,7 @@ func main() {
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	prefix := flag.String("prefix", "/api", "REST mount point")
+	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
 	bsCoap := flag.String("bs-coap", ":5783", "Bootstrap-Server CoAP/UDP address; empty disables")
 	bsCoaps := flag.String("bs-coaps", ":5784", "Bootstrap-Server CoAP/DTLS address; empty disables")
 	bsHTTP := flag.String("bs-http", ":8081", "Leshan-compatible bootstrap REST address; empty disables")
@@ -48,6 +51,18 @@ func main() {
 	fwCoaps := flag.String("fw-coaps", ":5694", "firmware CoAP/DTLS address (server PSKs), with -fw-dir")
 	verbose := flag.Bool("v", false, "log registration, notification and bootstrap events")
 	flag.Parse()
+	var keys apiv1.Keys
+	if *keyFile != "" {
+		f, err := os.Open(*keyFile)
+		if err != nil {
+			log.Fatal("cannot open API key file")
+		}
+		keys, err = apiv1.LoadKeys(f)
+		_ = f.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	models := server.NewModels(model.Default())
 	api := leshanapi.New(leshanapi.Options{Prefix: *prefix, Schema: models.Schema})
@@ -139,7 +154,16 @@ func main() {
 			}
 		}()
 	}
-	serve("rest", *httpAddr, api)
+	native := apiv1.New(apiv1.Options{Keys: keys, Version: "dev",
+		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
+		Endpoints: map[string]map[string]string{}})
+	serve("rest", *httpAddr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1" || strings.HasPrefix(r.URL.Path, "/v1/") {
+			native.ServeHTTP(w, r)
+			return
+		}
+		api.ServeHTTP(w, r)
+	}))
 	serve("bs rest", *bsHTTP, leshanapi.NewBootstrap(*prefix, configs, bs.Security()))
 
 	<-ctx.Done()
