@@ -33,8 +33,27 @@ import (
 	"github.com/fiumaralabs/lwm2m/leshanapi"
 	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/store/memory"
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
+
+func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys) (*server.Server, http.Handler) {
+	devices := &memory.Devices{}
+	onEvent := cfg.OnEvent
+	deviceEvents := apiv1.DeviceEvents(devices, "default")
+	cfg.OnEvent = func(e server.Event) {
+		deviceEvents(e)
+		if onEvent != nil {
+			onEvent(e)
+		}
+	}
+	srv := server.New(cfg)
+	api.Attach(srv)
+	native := apiv1.New(apiv1.Options{Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
+		Endpoints: map[string]map[string]string{}})
+	return srv, native
+}
 
 func main() {
 	coapAddr := flag.String("coap", ":5683", "CoAP/UDP (NoSec) address; empty disables")
@@ -77,8 +96,7 @@ func main() {
 			api.OnEvent(e)
 		}
 	}
-	srv := server.New(server.Config{OnEvent: onEvent, Schema: models.Schema})
-	api.Attach(srv)
+	srv, native := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys)
 	cb := coap.New(srv)
 
 	listen := func(name, addr string, f func(string) (net.Addr, error)) {
@@ -161,9 +179,6 @@ func main() {
 			}
 		}()
 	}
-	native := apiv1.New(apiv1.Options{Keys: keys, Version: "dev",
-		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
-		Endpoints: map[string]map[string]string{}})
 	serve("rest", *httpAddr, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/healthz", "/readyz", "/metrics":
