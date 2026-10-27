@@ -15,11 +15,12 @@ type Options struct {
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
 	EventOptions
-	Webhooks   store.Webhooks       `json:"-"`
-	Operations store.Operations     `json:"-"`
-	Executor   *operations.Executor `json:"-"`
-	Devices    store.Devices        `json:"-"`
-	Server     *server.Server       `json:"-"`
+	Webhooks     store.Webhooks       `json:"-"`
+	Observations store.Observations   `json:"-"`
+	Operations   store.Operations     `json:"-"`
+	Executor     *operations.Executor `json:"-"`
+	Devices      store.Devices        `json:"-"`
+	Server       *server.Server       `json:"-"`
 	// ServerTenant identifies the sole tenant served by Server (default: default).
 	ServerTenant  string                       `json:"-"`
 	Keys          Keys                         `json:"-"`
@@ -33,6 +34,9 @@ type Options struct {
 func New(o Options) http.Handler {
 	if o.State == nil {
 		o.State = &memory.State{}
+	}
+	if o.Observations == nil {
+		o.Observations = &memory.Observations{}
 	}
 	if o.Settings == nil {
 		o.Settings = &memory.Settings{}
@@ -71,6 +75,10 @@ func New(o Options) http.Handler {
 		}
 		if r.URL.Path == "/v1/events" {
 			events.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/observations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/observations") && r.URL.EscapedPath() != "/v1/devices/observations" {
+			o.observations(w, r)
 			return
 		}
 		if r.URL.Path == "/v1/api-keys" || strings.HasPrefix(r.URL.Path, "/v1/api-keys/") {
