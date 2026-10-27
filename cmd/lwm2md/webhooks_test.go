@@ -114,6 +114,14 @@ func TestDaemonWebhookDelivery(t *testing.T) {
 			if err := json.Unmarshal(event.Data, &data); err != nil || data.Registration["id"] == nil || data.Reason != reason {
 				t.Fatalf("unexpected data: %s err=%v", event.Data, err)
 			}
+			for _, field := range []string{"contentFormats", "identity", "transport", "awake"} {
+				if _, ok := data.Registration[field]; !ok {
+					t.Errorf("delivery missing registration.%s: %s", field, event.Data)
+				}
+			}
+			if data.Registration["transport"] != "U" || data.Registration["awake"] != (kind != "deleted") {
+				t.Errorf("unexpected reachability: %s", event.Data)
+			}
 			mac := hmac.New(sha256.New, key)
 			mac.Write([]byte(event.ID + "." + d.header.Get("Webhook-Timestamp") + "."))
 			mac.Write(d.body)

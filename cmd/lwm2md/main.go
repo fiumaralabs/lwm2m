@@ -82,22 +82,11 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 
 // Expiration is a Deregistered event with ReasonExpired, not a distinct type.
 func registrationEvent(events store.Events, e server.Event) {
-	view := func(r *server.Registration) map[string]any {
+	view := func(r *server.Registration, awake bool) map[string]any {
 		if r == nil {
 			return nil
 		}
-		objects := make([]map[string]any, 0, len(r.Objects))
-		for _, o := range r.Objects {
-			objects = append(objects, map[string]any{"id": o.ID, "version": o.Version, "instances": o.Instances})
-		}
-		v := map[string]any{"id": r.ID, "lwm2mVersion": r.Version, "lifetimeSeconds": int64(r.Lifetime / time.Second), "binding": r.Binding, "queueMode": r.QueueMode, "rootPath": r.RootPath, "objects": objects, "registeredAt": r.RegisteredAt.UTC(), "lastUpdateAt": r.LastUpdate.UTC()}
-		if r.Lifetime > 0 {
-			v["expiresAt"] = r.LastUpdate.Add(r.Lifetime).UTC()
-		}
-		if a := r.RemoteAddr(); a != nil {
-			v["address"] = a.String()
-		}
-		return v
+		return apiv1.RegistrationView(r, awake)
 	}
 	var r *server.Registration
 	var kind string
@@ -105,12 +94,13 @@ func registrationEvent(events store.Events, e server.Event) {
 	switch e := e.(type) {
 	case server.Registered:
 		r, kind = e.Registration, "created"
-		data = map[string]any{"registration": view(r), "replaced": view(e.Replaced)}
+		// Register and Update mark the session awake before emitting the event.
+		data = map[string]any{"registration": view(r, true), "replaced": view(e.Replaced, false)}
 	case server.Updated:
 		r, kind = e.Registration, "updated"
-		current, previous := view(r), view(&e.Previous)
+		current, previous := view(r, true), view(&e.Previous, true)
 		changed := []string{}
-		for _, key := range []string{"lwm2mVersion", "lifetimeSeconds", "binding", "queueMode", "rootPath", "objects", "address"} {
+		for _, key := range []string{"lwm2mVersion", "lifetimeSeconds", "binding", "queueMode", "sms", "profileIds", "rootPath", "objects", "contentFormats", "identity", "transport", "address"} {
 			if !reflect.DeepEqual(current[key], previous[key]) {
 				changed = append(changed, key)
 			}
@@ -118,7 +108,7 @@ func registrationEvent(events store.Events, e server.Event) {
 		data = map[string]any{"registration": current, "changed": changed}
 	case server.Deregistered:
 		r, kind = e.Registration, "deleted"
-		data = map[string]any{"registration": view(r), "reason": e.Reason.String()}
+		data = map[string]any{"registration": view(r, false), "reason": e.Reason.String()}
 	default:
 		return
 	}
