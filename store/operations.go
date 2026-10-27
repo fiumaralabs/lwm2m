@@ -9,9 +9,10 @@ var (
 	ErrNotFound = errors.New("store: not found")
 	ErrExists   = errors.New("store: already exists")
 	ErrTenant   = errors.New("store: tenant mismatch")
+	ErrCursor   = errors.New("store: invalid pagination cursor")
 )
 
-// Operations scopes every method by tenant. List is newest first (empty device
+// Operations scopes every method by tenant. List is newest first (empty filter
 // means all devices); Pending is queued-only, oldest first. ID breaks time ties.
 // Update atomically checks expected and applies a legal lifecycle change.
 // Pending is a snapshot, not a claim; delivery must first Update queued to sent.

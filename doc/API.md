@@ -59,7 +59,7 @@ A device answering a request with an error code is **not** an HTTP error. The op
 | 412 | `If-Match` mismatch |
 | 422 | Valid JSON that the server refuses: invalid bootstrap config, weak PSK (BS-10) |
 | 429 | Rate limited, with `Retry-After` |
-| 501 | A feature that waits upstream, e.g. RPK credentials (`code: "rpk_unsupported"`) |
+| 501 | An unsupported feature, e.g. RPK credentials (`code: "rpk_unsupported"`) or operation prefixes (`code: "prefix_unsupported"`) |
 
 ## 3. Authentication, authorisation and tenancy
 

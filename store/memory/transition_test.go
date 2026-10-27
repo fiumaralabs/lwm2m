@@ -45,7 +45,11 @@ func TestAtomicClaimAndResultSnapshots(t *testing.T) {
 	if got.Result[0] != '{' || got.Error.Code != "not_found" {
 		t.Fatal("result aliases store")
 	}
-	for _, read := range []func(context.Context, string, string) ([]operations.Operation, error){s.List, s.Pending} {
+	listRead := func(ctx context.Context, tenant, device string) ([]operations.Operation, error) {
+		items, _, err := s.List(ctx, tenant, operations.ListFilter{Device: device}, "", 50)
+		return items, err
+	}
+	for _, read := range []func(context.Context, string, string) ([]operations.Operation, error){listRead, s.Pending} {
 		list, err := read(ctx, "other", "d")
 		if err != nil || len(list) != 0 {
 			t.Fatal("cross-tenant list")
