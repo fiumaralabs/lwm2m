@@ -39,20 +39,19 @@ func Authenticate(keys Keys, next http.Handler) http.Handler {
 			token := headers[0][7:]
 			parts := strings.SplitN(strings.TrimPrefix(token, "lwm_"), "_", 2)
 			if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
-				state.mu.Lock()
-				entry, ok := state.entries[parts[0]]
+				key, err := state.Get(parts[0])
 				hash := sha256.Sum256([]byte(token))
-				if subtle.ConstantTimeCompare(hash[:], entry.hash[:]) == 1 && ok && (state.metadata[parts[0]].ExpiresAt == nil || time.Now().Before(*state.metadata[parts[0]].ExpiresAt)) {
-					meta := state.metadata[parts[0]]
-					now := time.Now().UTC()
-					meta.LastUsedAt = &now
-					state.metadata[parts[0]] = meta
-					state.mu.Unlock()
+				if subtle.ConstantTimeCompare(hash[:], key.Hash[:]) == 1 && err == nil && (key.ExpiresAt == nil || time.Now().Before(*key.ExpiresAt)) {
+					if err := state.Touch(parts[0], time.Now().UTC()); err != nil {
+						WriteProblem(w, 401, "unauthorized", "Invalid or missing credentials")
+						return
+					}
+					entry := credential{hash: key.Hash, scopes: "," + strings.Join(key.Scopes, ",") + ",", tenant: key.Tenant}
 					ctx := context.WithValue(r.Context(), keyStoreContext{}, state)
 					next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, credentialKey{}, entry)))
 					return
 				}
-				state.mu.Unlock()
+
 			}
 		}
 		WriteProblem(w, http.StatusUnauthorized, "unauthorized", "Invalid or missing credentials")
@@ -90,6 +89,5 @@ func LoadKeys(r io.Reader) (Keys, error) {
 	if err := scanner.Err(); err != nil {
 		return Keys{}, errors.New("cannot read keys")
 	}
-	keys.state = newKeyStore(keys.entries)
 	return keys, nil
 }

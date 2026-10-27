@@ -51,6 +51,7 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 	var operationStore operations.Operations = memory.NewOperations()
 	var events store.Events = &memory.Events{}
 	if durable, ok := devices.(*sqlite.Devices); ok {
+		keys = keys.WithStore(durable.APIKeys())
 		operationStore = durable.Operations()
 		events = durable.Events()
 	}
