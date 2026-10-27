@@ -65,7 +65,7 @@ func TestSettingsAccessAndTransport(t *testing.T) {
 	for _, tc := range []struct {
 		method, token, content string
 		status                 int
-	}{{"GET", "reader", "", 200}, {"PATCH", "reader", "application/merge-patch+json", 403}, {"GET", "writer", "", 403}, {"GET", "", "", 401}, {"PATCH", "root", "application/json", 415}, {"PATCH", "root", "", 415}, {"PATCH", "root", "application/merge-patch+json; charset=utf-8", 200}, {"PUT", "root", "", 405}} {
+	}{{"GET", "root", "", 200}, {"GET", "reader", "", 403}, {"PATCH", "reader", "application/merge-patch+json", 403}, {"GET", "writer", "", 403}, {"GET", "", "", 401}, {"PATCH", "root", "application/json", 415}, {"PATCH", "root", "", 415}, {"PATCH", "root", "application/merge-patch+json; charset=utf-8", 200}, {"PUT", "root", "", 405}} {
 		r := httptest.NewRequest(tc.method, "/v1/settings", strings.NewReader(`{}`))
 		if tc.token != "" {
 			r.Header.Set("Authorization", "Bearer lwm_"+tc.token+"_synthetic")
@@ -75,6 +75,9 @@ func TestSettingsAccessAndTransport(t *testing.T) {
 		h.ServeHTTP(w, r)
 		if w.Code != tc.status {
 			t.Errorf("%+v: %d %s", tc, w.Code, w.Body)
+		}
+		if tc.status == 403 && w.Header().Get("Content-Type") != "application/problem+json" {
+			t.Errorf("%+v: expected problem+json, got %q", tc, w.Header().Get("Content-Type"))
 		}
 	}
 	settingsRequest(h, "PATCH", `{"events":{"retentionDays":90}}`, "")
