@@ -184,20 +184,18 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	}
 	err := e.kickLocked(k)
 	if o.TTLSeconds == 0 {
-		got, getErr := e.st.Get(ctx, tenant, o.ID)
-		if getErr != nil {
-			return Operation{}, errors.Join(err, getErr)
-		}
-		if got.Status == Queued {
-			// A persistence failure must not grant another immediate-send chance.
-			e.expiryOnly[[2]string{tenant, o.ID}] = true
-			updateErr := e.update(ctx, tenant, o.ID, Queued, Change{Status: Expired, At: e.now()})
+		// The immediate-send chance has ended. Guard before any fallible store
+		// call, and use the conditional update rather than a separate lookup.
+		e.expiryOnly[[2]string{tenant, o.ID}] = true
+		updateErr := e.st.Update(ctx, tenant, o.ID, Queued, Change{Status: Expired, At: e.now()})
+		if updateErr == nil || errors.Is(updateErr, ErrTransition) {
+			// A transition conflict means the operation was already claimed or
+			// terminal. Neither case needs queued-only bookkeeping or expiry.
+			e.stopTimer(tenant, o.ID)
+		} else {
+			e.logger.Error("operation expiry failed", "tenant", tenant, "operation", o.ID, "error", updateErr)
 			err = errors.Join(err, updateErr)
-			if updateErr == nil {
-				e.stopTimer(tenant, o.ID)
-			} else {
-				e.retryLocked(k)
-			}
+			e.retryLocked(k)
 		}
 	}
 	got, getErr := e.st.Get(ctx, tenant, o.ID)
