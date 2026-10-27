@@ -2,15 +2,18 @@ package store
 
 import (
 	"errors"
+	"strconv"
 	"time"
 )
 
 var ErrWebhookNotFound = errors.New("webhook not found")
 var ErrWebhookExists = errors.New("webhook exists")
 var ErrWebhookCursor = errors.New("invalid webhook cursor")
+var ErrWebhookPrecondition = errors.New("webhook precondition failed")
 
 // Webhook holds metadata and private signing material. Secrets never marshal.
 type Webhook struct {
+	Version         uint64          `json:"-"`
 	ID              string          `json:"id"`
 	URL             string          `json:"url"`
 	Types           []string        `json:"types"`
@@ -33,9 +36,31 @@ type Webhooks interface {
 	Create(string, Webhook, string) (Webhook, error)
 	Get(string, string) (Webhook, error)
 	List(string, string, int) ([]Webhook, string, error)
-	Patch(string, string, WebhookPatch) (Webhook, error)
+	Patch(string, string, WebhookPatch, WebhookMatch) (Webhook, error)
 	Rotate(string, string, string, string) (Webhook, error)
-	Delete(string, string) error
+	Delete(string, string, WebhookMatch) error
+}
+
+// WebhookMatch is an optional strong version condition, evaluated atomically
+// after tenant-scoped existence lookup. Any matches any existing resource.
+type WebhookMatch struct {
+	Required bool
+	Any      bool
+	Tags     []string
+}
+
+func (v Webhook) ETag() string { return `"` + v.ID + "-" + strconv.FormatUint(v.Version, 10) + `"` }
+
+func (m WebhookMatch) Matches(v Webhook) bool {
+	if !m.Required || m.Any {
+		return true
+	}
+	for _, tag := range m.Tags {
+		if tag == v.ETag() {
+			return true
+		}
+	}
+	return false
 }
 
 // WebhookPatch applies only supplied fields; an empty Selector clears it.

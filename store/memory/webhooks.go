@@ -76,6 +76,7 @@ func (s *Webhooks) Create(tenant string, v store.Webhook, idempotencyKey string)
 	}
 	v.CreatedAt = s.now()
 	v.UpdatedAt = v.CreatedAt
+	v.Version = 1
 	s.records[tenant][v.ID] = cloneWebhook(v)
 	s.remember(k, v)
 	return cloneWebhook(v), nil
@@ -89,12 +90,15 @@ func (s *Webhooks) Get(tenant, id string) (store.Webhook, error) {
 	}
 	return cloneWebhook(v), nil
 }
-func (s *Webhooks) Patch(tenant, id string, p store.WebhookPatch) (store.Webhook, error) {
+func (s *Webhooks) Patch(tenant, id string, p store.WebhookPatch, match store.WebhookMatch) (store.Webhook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.records[tenant][id]
 	if !ok {
 		return v, store.ErrWebhookNotFound
+	}
+	if !match.Matches(v) {
+		return store.Webhook{}, store.ErrWebhookPrecondition
 	}
 	if p.URL != nil {
 		v.URL = *p.URL
@@ -108,7 +112,8 @@ func (s *Webhooks) Patch(tenant, id string, p store.WebhookPatch) (store.Webhook
 	if p.Status != nil {
 		v.Status = *p.Status
 	}
-	v.UpdatedAt = time.Now().UTC()
+	v.UpdatedAt = s.now()
+	v.Version++
 	s.records[tenant][id] = v
 	return cloneWebhook(v), nil
 }
@@ -133,15 +138,20 @@ func (s *Webhooks) Rotate(tenant, id, secret, idempotencyKey string) (store.Webh
 	v.PreviousSecrets = append(previous, store.WebhookSecret{Secret: v.Secret, ExpiresAt: now.Add(24 * time.Hour)})
 	v.Secret = secret
 	v.UpdatedAt = now
+	v.Version++
 	s.records[tenant][id] = v
 	s.remember(k, v)
 	return cloneWebhook(v), nil
 }
-func (s *Webhooks) Delete(tenant, id string) error {
+func (s *Webhooks) Delete(tenant, id string, match store.WebhookMatch) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.records[tenant][id]; !ok {
+	v, ok := s.records[tenant][id]
+	if !ok {
 		return store.ErrWebhookNotFound
+	}
+	if !match.Matches(v) {
+		return store.ErrWebhookPrecondition
 	}
 	delete(s.records[tenant], id)
 	return nil

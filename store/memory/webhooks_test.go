@@ -25,7 +25,7 @@ func TestWebhooksOwnedCopies(t *testing.T) {
 	}
 	items[0].Types[0] = "changed"
 	types := []string{"lwm2m.notification"}
-	patched, e := s.Patch("a", "wh_1", store.WebhookPatch{Types: &types})
+	patched, e := s.Patch("a", "wh_1", store.WebhookPatch{Types: &types}, store.WebhookMatch{})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -53,7 +53,7 @@ func TestWebhooksRotationRetention(t *testing.T) {
 				t.Error(e)
 			}
 			url := secret
-			if _, e := s.Patch("a", "wh_1", store.WebhookPatch{URL: &url}); e != nil {
+			if _, e := s.Patch("a", "wh_1", store.WebhookPatch{URL: &url}, store.WebhookMatch{}); e != nil {
 				t.Error(e)
 			}
 		})

@@ -57,6 +57,9 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, store.ErrWebhookCursor) {
 			code, status = "invalid_cursor", 400
 		}
+		if errors.Is(err, store.ErrWebhookPrecondition) {
+			code, status = "precondition_failed", 412
+		}
 		WriteProblem(w, status, code, "Webhook request failed")
 		return true
 	}
@@ -89,12 +92,13 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		v, e := o.Webhooks.Get(tenant, key)
 		if !fail(e) {
+			w.Header().Set("ETag", v.ETag())
 			deviceJSON(w, 200, v)
 		}
 		return
 	}
 	if r.Method == "DELETE" {
-		if !fail(o.Webhooks.Delete(tenant, key)) {
+		if !fail(o.Webhooks.Delete(tenant, key, webhookIfMatch(r))) {
 			w.WriteHeader(204)
 		}
 		return
@@ -160,8 +164,9 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !collection {
-			v, e := o.Webhooks.Patch(tenant, key, p)
+			v, e := o.Webhooks.Patch(tenant, key, p, webhookIfMatch(r))
 			if !fail(e) {
+				w.Header().Set("ETag", v.ETag())
 				deviceJSON(w, 200, v)
 			}
 			return
@@ -210,6 +215,7 @@ func webhookSecret(w http.ResponseWriter) (string, bool) {
 	return "whsec_" + base64.StdEncoding.EncodeToString(random[:]), true
 }
 func webhookSecretJSON(w http.ResponseWriter, status int, v store.Webhook) {
+	w.Header().Set("ETag", v.ETag())
 	deviceJSON(w, status, struct {
 		store.Webhook
 		Secret string `json:"secret"`
@@ -217,3 +223,8 @@ func webhookSecretJSON(w http.ResponseWriter, status int, v store.Webhook) {
 }
 
 var webhookType = regexp.MustCompile(`^lwm2m\.(?:[a-zA-Z0-9_-]+\.)*(?:[a-zA-Z0-9_-]+|\*)$`)
+
+func webhookIfMatch(r *http.Request) store.WebhookMatch {
+	values := r.Header.Values("If-Match")
+	return store.WebhookMatch{Required: len(values) > 0, Tags: values}
+}
