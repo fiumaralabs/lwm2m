@@ -40,12 +40,15 @@ import (
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
-func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler) {
+func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor) {
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
 	}
-	operationStore := memory.NewOperations()
+	var operationStore operations.Operations = memory.NewOperations()
+	if durable, ok := devices.(*sqlite.Devices); ok {
+		operationStore = durable.Operations()
+	}
 	var executor *operations.Executor
 	onQueued := cfg.OnQueued
 	cfg.OnQueued = func(r *server.Registration) {
@@ -69,7 +72,7 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 	native := apiv1.New(apiv1.Options{Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
-	return srv, native
+	return srv, native, executor
 }
 
 func main() {
@@ -78,7 +81,7 @@ func main() {
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
-	storeFlag := flag.String("store", "memory", "device metadata store: memory or sqlite:<path>; operations remain in memory")
+	storeFlag := flag.String("store", "memory", "device metadata and operations store: memory or sqlite:<path>")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
 	bsCoap := flag.String("bs-coap", ":5783", "Bootstrap-Server CoAP/UDP address; empty disables")
@@ -125,7 +128,12 @@ func main() {
 			api.OnEvent(e)
 		}
 	}
-	srv, native := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, devices)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv, native, executor := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, devices)
+	if err := executor.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
 	cb := coap.New(srv)
 
 	listen := func(name, addr string, f func(string) (net.Addr, error)) {
@@ -185,8 +193,6 @@ func main() {
 		return bs.ListenDTLS(a, bootstrap.DTLSConfig{CIDLength: *cidLen, DisableCID: *cidLen == 0})
 	})
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	probes := obs.New(nil, func() int { return len(srv.Store().All()) }, *metrics)
 	var servers []*http.Server
 	serve := func(name, addr string, h http.Handler) {
@@ -232,6 +238,9 @@ func main() {
 			_ = hs.Close()
 		}
 		cancel()
+	}
+	if err := executor.Close(); err != nil {
+		log.Print(err)
 	}
 	if err := bs.Close(); err != nil {
 		log.Print(err)
