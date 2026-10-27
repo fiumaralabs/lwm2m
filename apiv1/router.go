@@ -46,6 +46,7 @@ func New(o Options) http.Handler {
 		o.Executor = operations.NewExecutor(o.Server, o.Operations, operations.ExecutorOptions{})
 	}
 	ops := o.operationHandler()
+	models := o.modelHandler()
 	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/webhooks" || strings.HasPrefix(r.URL.Path, "/v1/webhooks/") {
 			RequireScope("admin")(http.HandlerFunc(o.webhooks)).ServeHTTP(w, r)
@@ -64,6 +65,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/model") && r.URL.EscapedPath() != "/v1/devices/model" {
+				models.ServeHTTP(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/registration") && r.URL.EscapedPath() != "/v1/devices/registration" {
 				o.registration(w, r)
 				return
