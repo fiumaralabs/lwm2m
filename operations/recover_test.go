@@ -31,7 +31,16 @@ func TestClose(t *testing.T) {
 	<-entered
 	queued := h.submit(t, "read", `{"paths":["/3/0/0"]}`)
 	done := make(chan struct{})
-	go func() { h.e.Close(); h.e.Close(); close(done) }()
+	go func() {
+		var closeExecutor func() error = h.e.Close
+		if err := closeExecutor(); err != nil {
+			t.Error(err)
+		}
+		if err := closeExecutor(); err != nil {
+			t.Error(err)
+		}
+		close(done)
+	}()
 	select {
 	case <-done:
 	case <-time.After(time.Second):

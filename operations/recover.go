@@ -3,8 +3,9 @@ package operations
 import (
 	"context"
 	"errors"
-	"github.com/fiumaralabs/lwm2m/server"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 )
 
 // Recoverer optionally enumerates durable work left by a previous executor.
@@ -16,7 +17,7 @@ var ErrRecoveryUnsupported = errors.New("operations: store does not support reco
 var ErrClosed = errors.New("operations: executor closed")
 
 // Close cancels delivery, stops scheduling and waits for all delivery workers.
-func (e *Executor) Close() {
+func (e *Executor) Close() error {
 	e.mu.Lock()
 	e.closed = true
 	e.cancel()
@@ -30,6 +31,7 @@ func (e *Executor) Close() {
 	}
 	e.mu.Unlock()
 	e.wg.Wait()
+	return nil
 }
 
 // Start reconciles unfinished work before enabling recovered FIFO delivery.
