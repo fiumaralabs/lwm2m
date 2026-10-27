@@ -10,12 +10,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"reflect"
-
-	"github.com/fiumaralabs/lwm2m/store"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -23,6 +21,7 @@ import (
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/operations"
+	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
@@ -173,21 +172,19 @@ func TestSQLiteOperationsAndEventsRestart(t *testing.T) {
 		return nil
 	}
 	global := stream("", 4)
-	paths := []string{"/v1/devices/persisted/events"}
-	full, first, rest := map[string]eventPage{}, map[string]eventPage{}, map[string]eventPage{}
-	for i, path := range paths {
-		full[path] = history(path)
-		if len(full[path].Items) != 3+i {
-			t.Fatalf("%s: unexpected initial history: %+v", path, full[path])
-		}
-		first[path] = history(path + "?limit=1")
-		if len(first[path].Items) != 1 || first[path].NextCursor == "" {
-			t.Fatalf("%s: missing first page/cursor: %+v", path, first[path])
-		}
-		rest[path] = history(path + "?limit=1&cursor=" + url.QueryEscape(first[path].NextCursor))
-		if len(rest[path].Items) != 1 || rest[path].Items[0].ID != full[path].Items[1].ID {
-			t.Fatalf("%s: cursor did not advance: %+v", path, rest[path])
-		}
+	const path = "/v1/devices/persisted/events"
+	full := history(path)
+	if len(full.Items) != 3 {
+		t.Fatalf("unexpected initial device history: %+v", full)
+	}
+	first := history(path + "?limit=1")
+	if len(first.Items) != 1 || first.NextCursor == "" {
+		t.Fatalf("missing first page/cursor: %+v", first)
+	}
+	continuation := "?limit=1&cursor=" + url.QueryEscape(first.NextCursor)
+	rest := history(path + continuation)
+	if len(rest.Items) != 1 || rest.Items[0].ID != full.Items[1].ID {
+		t.Fatalf("cursor did not advance: %+v", rest)
 	}
 	before := request("GET", "/v1/devices/persisted", "", 200)
 	queued := decode(request("POST", "/v1/devices/persisted/operations", `{"type":"read","paths":["/3/0/0"],"ttlSeconds":120}`, 202))
@@ -206,18 +203,16 @@ func TestSQLiteOperationsAndEventsRestart(t *testing.T) {
 	if got := stream(global[1].Sequence, 2); !reflect.DeepEqual(got, global[2:]) {
 		t.Fatalf("global replay cursor changed after restart: %+v", got)
 	}
-	for _, path := range paths {
-		for _, check := range []struct {
-			query string
-			want  eventPage
-		}{
-			{"", full[path]},
-			{"?limit=1", first[path]},
-			{"?limit=1&cursor=" + url.QueryEscape(first[path].NextCursor), rest[path]},
-		} {
-			if got := history(path + check.query); !reflect.DeepEqual(got, check.want) {
-				t.Fatalf("%s%s changed after kill/restart: before=%+v after=%+v", path, check.query, check.want, got)
-			}
+	for _, check := range []struct {
+		query string
+		want  eventPage
+	}{
+		{"", full},
+		{"?limit=1", first},
+		{continuation, rest},
+	} {
+		if got := history(path + check.query); !reflect.DeepEqual(got, check.want) {
+			t.Fatalf("%s%s changed after kill/restart: before=%+v after=%+v", path, check.query, check.want, got)
 		}
 	}
 	request("POST", "/v1/devices", `{"endpoint":"after-restart"}`, 201)
