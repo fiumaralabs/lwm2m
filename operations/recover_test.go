@@ -197,6 +197,63 @@ func TestSubmitZeroExpiryStoreErrorDoesNotSend(t *testing.T) {
 	}
 }
 
+type lookupFailingStore struct {
+	operations.Operations
+	mu    sync.Mutex
+	calls int
+	err   error
+}
+
+func (s *lookupFailingStore) Get(ctx context.Context, tenant, id string) (operations.Operation, error) {
+	s.mu.Lock()
+	s.calls++
+	fail := s.calls == 2
+	s.mu.Unlock()
+	if fail {
+		return operations.Operation{}, s.err
+	}
+	return s.Operations.Get(ctx, tenant, id)
+}
+
+func TestSubmitZeroTTLLookupStoreErrorDoesNotSendLate(t *testing.T) {
+	for _, followup := range []bool{false, true} {
+		name := "alone"
+		if followup {
+			name = "with_queued_work"
+		}
+		t.Run(name, func(t *testing.T) {
+			h := setup(t, operations.ExecutorOptions{})
+			h.e.Close()
+			lookupErr := errors.New("post-kick lookup failed")
+			st := &lookupFailingStore{Operations: h.st, err: lookupErr}
+			h.e = operations.NewExecutor(h.s, st, operations.ExecutorOptions{})
+			defer h.e.Close()
+			zero := 0
+			o := operations.New("t", "dev", "read", json.RawMessage(`{"paths":["/3/0/0"]}`), &zero, time.Now())
+			if _, err := h.e.Submit(h.ctx, "t", o); !errors.Is(err, lookupErr) {
+				t.Fatalf("submit error: %v", err)
+			}
+			var next operations.Operation
+			if followup {
+				next = h.submit(t, "read", `{"paths":["/1/0/1"]}`)
+				if next.Status != operations.Queued {
+					t.Fatalf("followup was not queued: %+v", next)
+				}
+			}
+			c := h.register(t)
+			h.wait(t, o, operations.Expired)
+			wantRequests := 0
+			if followup {
+				h.wait(t, next, operations.Succeeded)
+				wantRequests = 1
+			}
+			if requests := c.Requests(); len(requests) != wantRequests {
+				t.Fatalf("requests: %+v, want %d", requests, wantRequests)
+			}
+		})
+	}
+}
+
 func TestRecoveryZeroExpiryFailureDoesNotSend(t *testing.T) {
 	h := setup(t, operations.ExecutorOptions{})
 	c := h.register(t)
