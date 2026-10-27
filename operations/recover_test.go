@@ -158,6 +158,45 @@ func TestStoreErrorZeroTTLDoesNotSendLate(t *testing.T) {
 	}
 }
 
+func TestSubmitZeroExpiryStoreErrorDoesNotSend(t *testing.T) {
+	for _, followup := range []bool{false, true} {
+		name := "alone"
+		if followup {
+			name = "with_queued_work"
+		}
+		t.Run(name, func(t *testing.T) {
+			h := setup(t, operations.ExecutorOptions{})
+			h.e.Close()
+			st := &failingStore{Operations: h.st, updateFailure: operations.Expired}
+			h.e = operations.NewExecutor(h.s, st, operations.ExecutorOptions{})
+			defer h.e.Close()
+			zero := 0
+			o := operations.New("t", "dev", "read", json.RawMessage(`{"paths":["/3/0/0"]}`), &zero, time.Now())
+			got, err := h.e.Submit(h.ctx, "t", o)
+			if err == nil || !strings.Contains(err.Error(), "update failed") || got.Status != operations.Queued {
+				t.Fatalf("submit: %+v %v", got, err)
+			}
+			var next operations.Operation
+			if followup {
+				next = h.submit(t, "read", `{"paths":["/1/0/1"]}`)
+				if next.Status != operations.Queued {
+					t.Fatalf("followup was not queued: %+v", next)
+				}
+			}
+			c := h.register(t)
+			h.wait(t, o, operations.Expired)
+			wantRequests := 0
+			if followup {
+				h.wait(t, next, operations.Succeeded)
+				wantRequests = 1
+			}
+			if requests := c.Requests(); len(requests) != wantRequests {
+				t.Fatalf("requests: %+v, want %d", requests, wantRequests)
+			}
+		})
+	}
+}
+
 func TestRecoveryZeroExpiryFailureDoesNotSend(t *testing.T) {
 	h := setup(t, operations.ExecutorOptions{})
 	c := h.register(t)
