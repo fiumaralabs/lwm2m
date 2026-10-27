@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"errors"
 	"github.com/fiumaralabs/lwm2m/operations"
 )
@@ -16,10 +15,5 @@ var (
 // means all devices); Pending is queued-only, oldest first. ID breaks time ties.
 // Update atomically checks expected and applies a legal lifecycle change.
 // Pending is a snapshot, not a claim; delivery must first Update queued to sent.
-type Operations interface {
-	Create(context.Context, string, operations.Operation) error
-	Get(context.Context, string, string) (operations.Operation, error)
-	List(context.Context, string, string) ([]operations.Operation, error)
-	Pending(context.Context, string, string) ([]operations.Operation, error)
-	Update(context.Context, string, string, operations.Status, operations.Change) error
-}
+// The alias lets the executor use this exact contract without an import cycle.
+type Operations = operations.Operations
