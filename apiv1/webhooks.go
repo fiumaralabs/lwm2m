@@ -196,7 +196,7 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v, e := o.Webhooks.Rotate(tenant, key, secret)
+	v, e := o.Webhooks.Rotate(tenant, key, secret, r.Header.Get("Idempotency-Key"))
 	if !fail(e) {
 		webhookSecretJSON(w, 200, v)
 	}

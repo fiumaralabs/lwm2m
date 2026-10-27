@@ -34,7 +34,7 @@ type Webhooks interface {
 	Get(string, string) (Webhook, error)
 	List(string, string, int) ([]Webhook, string, error)
 	Patch(string, string, WebhookPatch) (Webhook, error)
-	Rotate(string, string, string) (Webhook, error)
+	Rotate(string, string, string, string) (Webhook, error)
 	Delete(string, string) error
 }
 

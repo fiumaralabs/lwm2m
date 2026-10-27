@@ -31,7 +31,7 @@ func TestWebhooksOwnedCopies(t *testing.T) {
 	}
 	types[0] = "changed"
 	patched.Types[0] = "changed"
-	rotated, e := s.Rotate("a", "wh_1", "new")
+	rotated, e := s.Rotate("a", "wh_1", "new", "")
 	if e != nil || len(rotated.PreviousSecrets) != 1 || rotated.PreviousSecrets[0].Secret != "current" || rotated.Types[0] != "lwm2m.notification" {
 		t.Fatal(rotated, e)
 	}
@@ -49,7 +49,7 @@ func TestWebhooksRotationRetention(t *testing.T) {
 	for i := range 10 {
 		wg.Go(func() {
 			secret := string(rune('a' + i))
-			if _, e := s.Rotate("a", "wh_1", secret); e != nil {
+			if _, e := s.Rotate("a", "wh_1", secret, ""); e != nil {
 				t.Error(e)
 			}
 			url := secret
@@ -78,7 +78,7 @@ func TestWebhooksRotationRetention(t *testing.T) {
 	if again.PreviousSecrets[0].Secret == "tampered" {
 		t.Fatal("unowned previous secrets")
 	}
-	if _, e = s.Rotate("b", "wh_1", "foreign"); e != store.ErrWebhookNotFound {
+	if _, e = s.Rotate("b", "wh_1", "foreign", ""); e != store.ErrWebhookNotFound {
 		t.Fatal(e)
 	}
 }

@@ -112,14 +112,18 @@ func (s *Webhooks) Patch(tenant, id string, p store.WebhookPatch) (store.Webhook
 	s.records[tenant][id] = v
 	return cloneWebhook(v), nil
 }
-func (s *Webhooks) Rotate(tenant, id, secret string) (store.Webhook, error) {
+func (s *Webhooks) Rotate(tenant, id, secret, idempotencyKey string) (store.Webhook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	k := webhookReplayKey{tenant, "rotate/" + id, idempotencyKey}
+	if previous, ok := s.replay(k); ok {
+		return previous, nil
+	}
 	v, ok := s.records[tenant][id]
 	if !ok {
 		return v, store.ErrWebhookNotFound
 	}
-	now := time.Now().UTC()
+	now := s.now()
 	previous := make([]store.WebhookSecret, 0, len(v.PreviousSecrets)+1)
 	for _, p := range v.PreviousSecrets {
 		if p.ExpiresAt.After(now) {
@@ -130,6 +134,7 @@ func (s *Webhooks) Rotate(tenant, id, secret string) (store.Webhook, error) {
 	v.Secret = secret
 	v.UpdatedAt = now
 	s.records[tenant][id] = v
+	s.remember(k, v)
 	return cloneWebhook(v), nil
 }
 func (s *Webhooks) Delete(tenant, id string) error {
