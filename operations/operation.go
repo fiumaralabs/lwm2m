@@ -80,7 +80,7 @@ type Change struct {
 
 // Apply checks lifecycle edges. Expiry scheduling and device delivery belong to the executor.
 func (o *Operation) Apply(c Change) error {
-	valid := o.Status == Queued && (c.Status == Sent || c.Status == Expired || c.Status == Dropped || c.Status == Cancelled) ||
+	valid := o.Status == Queued && (c.Status == Sent || c.Status == Failed || c.Status == Expired || c.Status == Dropped || c.Status == Cancelled) ||
 		o.Status == Sent && (c.Status == Succeeded || c.Status == Failed || c.Status == Timeout)
 	if !valid {
 		return ErrTransition

@@ -1,6 +1,8 @@
 package operations
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -19,6 +21,28 @@ func TestLifecycle(t *testing.T) {
 	}
 	if err := op.Apply(Change{Status: Cancelled, At: now}); err == nil {
 		t.Fatal("terminal operation changed")
+	}
+}
+
+func TestQueuedEncodingFailure(t *testing.T) {
+	now := time.Now().UTC()
+	completed := now.Add(time.Second)
+	op := New("t", "d", "write", nil, nil, now)
+	failure := &Error{Code: "encode", Message: "cannot encode request"}
+	if err := op.Apply(Change{Status: Failed, At: completed, Error: failure}); err != nil {
+		t.Fatal(err)
+	}
+	if op.Status != Failed || op.CompletedAt == nil || !op.CompletedAt.Equal(completed) || op.SentAt != nil || !reflect.DeepEqual(op.Error, failure) {
+		t.Fatalf("pre-send failure: %+v", op)
+	}
+	before := op
+	for _, status := range []Status{Queued, Sent, Succeeded, Failed, Timeout, Expired, Dropped, Cancelled} {
+		if err := op.Apply(Change{Status: status, At: completed.Add(time.Second)}); !errors.Is(err, ErrTransition) {
+			t.Fatalf("failed -> %s: %v", status, err)
+		}
+		if !reflect.DeepEqual(op, before) {
+			t.Fatalf("rejected transition to %s mutated operation", status)
+		}
 	}
 }
 

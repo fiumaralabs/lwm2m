@@ -10,6 +10,40 @@ import (
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
+func TestOperationsQueuedEncodingFailure(t *testing.T) {
+	ctx, now := context.Background(), time.Now().UTC()
+	completed := now.Add(time.Second)
+	s := NewOperations()
+	op := operations.New("tenant", "device", "write", nil, nil, now)
+	if err := s.Create(ctx, "tenant", op); err != nil {
+		t.Fatal(err)
+	}
+	failure := &operations.Error{Code: "encode", Message: "cannot encode request"}
+	if err := s.Update(ctx, "tenant", op.ID, operations.Queued, operations.Change{Status: operations.Failed, At: completed, Error: failure}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(ctx, "tenant", op.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != operations.Failed || got.CompletedAt == nil || !got.CompletedAt.Equal(completed) || got.SentAt != nil || got.Error == nil || *got.Error != *failure {
+		t.Fatalf("stored pre-send failure: %+v", got)
+	}
+	pending, err := s.Pending(ctx, "tenant", "device")
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("failed operation still pending: %+v, %v", pending, err)
+	}
+	for _, status := range []operations.Status{operations.Queued, operations.Sent, operations.Succeeded, operations.Failed, operations.Timeout, operations.Expired, operations.Dropped, operations.Cancelled} {
+		if err := s.Update(ctx, "tenant", op.ID, operations.Failed, operations.Change{Status: status, At: completed.Add(time.Second)}); !errors.Is(err, operations.ErrTransition) {
+			t.Fatalf("failed -> %s: %v", status, err)
+		}
+	}
+	got, err = s.Get(ctx, "tenant", op.ID)
+	if err != nil || got.Status != operations.Failed || got.CompletedAt == nil || !got.CompletedAt.Equal(completed) || got.SentAt != nil || got.Error == nil || *got.Error != *failure {
+		t.Fatalf("rejected transitions changed stored failure: %+v, %v", got, err)
+	}
+}
+
 func TestOperations(t *testing.T) {
 	ctx, now := context.Background(), time.Now().UTC()
 	s := NewOperations()
