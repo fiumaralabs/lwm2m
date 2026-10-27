@@ -135,6 +135,29 @@ func TestFIFOStoreErrors(t *testing.T) {
 	}
 }
 
+func TestStoreErrorZeroTTLDoesNotSendLate(t *testing.T) {
+	h := setup(t, operations.ExecutorOptions{})
+	h.e.Close()
+	st := &failingStore{Operations: h.st, updateFailure: operations.Expired}
+	h.e = operations.NewExecutor(h.s, st, operations.ExecutorOptions{})
+	defer h.e.Close()
+	zero := 0
+	o := operations.New("t", "dev", "read", json.RawMessage(`{"paths":["/3/0/0"]}`), &zero, time.Now())
+	if _, err := h.e.Submit(h.ctx, "t", o); err == nil {
+		t.Fatal("missing expiry update error")
+	}
+	c := h.register(t)
+	h.wait(t, o, operations.Expired)
+	if got := len(c.Requests()); got != 0 {
+		t.Fatalf("expired operation sent late: %d requests", got)
+	}
+	next := h.submit(t, "read", `{"paths":["/1/0/1"]}`)
+	h.wait(t, next, operations.Succeeded)
+	if got := len(c.Requests()); got != 1 {
+		t.Fatalf("FIFO did not resume with only the later operation: %d requests", got)
+	}
+}
+
 func TestRecoveryZeroExpiryFailureDoesNotSend(t *testing.T) {
 	h := setup(t, operations.ExecutorOptions{})
 	c := h.register(t)
