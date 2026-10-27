@@ -133,7 +133,7 @@ func TestDeviceModelVersions(t *testing.T) {
 			t.Fatalf("object %d must include explicit null definition: %s", i, w.Body.String())
 		}
 	}
-	for i, version := range []string{"1.0", "1.0", "1.99", "9.0", "invalid", "01.02"} {
+	for i, version := range []string{"1.2", "1.0", "1.99", "9.0", "invalid", "01.02"} {
 		obj := body.Objects[i]
 		if obj.Version != version || obj.Instances == nil {
 			t.Fatalf("object %d: %s", i, w.Body.String())

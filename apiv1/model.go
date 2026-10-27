@@ -75,13 +75,13 @@ func (o Options) modelHandler() http.Handler {
 		objects := make([]deviceModelObject, 0, len(reg.Objects))
 		for _, obj := range reg.Objects {
 			entry := deviceModelObject{ID: obj.ID, Version: obj.Version, Instances: obj.Instances}
+			version, err := model.ResolveVersion(reg.Version, obj.ID, obj.Version)
 			if entry.Version == "" {
-				entry.Version = "1.0"
+				entry.Version = version.String()
 			}
 			if entry.Instances == nil {
 				entry.Instances = []uint16{}
 			}
-			version, err := model.ParseVersion(entry.Version)
 			if err == nil {
 				if def, ok := registry.Get(obj.ID, version); ok {
 					entry.Definition = definitionView(def)
