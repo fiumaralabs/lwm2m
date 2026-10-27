@@ -44,6 +44,72 @@ func TestOperationsQueuedEncodingFailure(t *testing.T) {
 	}
 }
 
+func TestOperationsList(t *testing.T) {
+	ctx, now, s := context.Background(), time.Now().UTC(), NewOperations()
+	job := "job"
+	for i, id := range []string{"a", "b", "c", "d", "e"} {
+		o := operations.New("t", "dev", "read", []byte(`{}`), nil, now)
+		o.ID, o.Job = id, &job
+		if i == 1 {
+			o.Status = operations.Failed
+		}
+		if i == 2 {
+			o.Type = "write"
+		}
+		if i == 3 {
+			o.Device = "other"
+		}
+		if i == 4 {
+			o.Job = nil
+		}
+		if err := s.Create(ctx, "t", o); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := operations.ListFilter{Device: "dev", Status: []operations.Status{operations.Queued, operations.Failed}, Type: "read", Job: job}
+	items, next, err := s.List(ctx, "t", f, "", 1)
+	if err != nil || len(items) != 1 || items[0].ID != "b" || next == "" {
+		t.Fatalf("first page: %+v %q %v", items, next, err)
+	}
+	items[0].Request[0], *items[0].Job = '!', "changed"
+	got, _ := s.Get(ctx, "t", "b")
+	if string(got.Request) != `{}` || *got.Job != job {
+		t.Fatal("list aliases record")
+	}
+	items, end, err := s.List(ctx, "t", f, next, 1)
+	if err != nil || len(items) != 1 || items[0].ID != "a" || end != "" {
+		t.Fatalf("last page: %+v %q %v", items, end, err)
+	}
+	for _, tenant := range []string{"", "other"} {
+		items, _, err := s.List(ctx, tenant, operations.ListFilter{}, "", 50)
+		if err != nil || len(items) != 0 {
+			t.Fatalf("tenant %q: %+v %v", tenant, items, err)
+		}
+	}
+	items, _, err = s.List(ctx, "t", operations.ListFilter{}, "", 50)
+	if err != nil || len(items) != 5 || items[0].ID != "e" {
+		t.Fatalf("unrestricted: %+v %v", items, err)
+	}
+	for _, tc := range []struct {
+		tenant string
+		f      operations.ListFilter
+		cursor string
+		limit  int
+	}{
+		{"t", f, "!", 1}, {"t", f, "e30", 1}, {"other", f, next, 1},
+		{"t", operations.ListFilter{}, next, 1}, {"t", f, "", 0}, {"t", f, "", 501},
+	} {
+		if _, _, err := s.List(ctx, tc.tenant, tc.f, tc.cursor, tc.limit); !errors.Is(err, store.ErrCursor) {
+			t.Fatalf("invalid query %+v: %v", tc, err)
+		}
+	}
+	cancel, stop := context.WithCancel(ctx)
+	stop()
+	if _, _, err := s.List(cancel, "t", f, "", 1); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}
+
 func TestOperations(t *testing.T) {
 	ctx, now := context.Background(), time.Now().UTC()
 	s := NewOperations()
@@ -64,7 +130,7 @@ func TestOperations(t *testing.T) {
 	if _, err := s.Get(ctx, "b", a.ID); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("cross tenant: %v", err)
 	}
-	list, _ := s.List(ctx, "a", "device")
+	list, _, _ := s.List(ctx, "a", operations.ListFilter{Device: "device"}, "", 50)
 	pending, _ := s.Pending(ctx, "a", "device")
 	if len(list) != 2 || list[0].ID != b.ID || len(pending) != 2 || pending[0].ID != a.ID {
 		t.Fatal("ordering")

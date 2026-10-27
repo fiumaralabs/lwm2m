@@ -78,6 +78,15 @@ func (o Options) operationHandler() http.Handler {
 }
 func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 	tenant := TenantFrom(r.Context())
+	if r.URL.Path == "/v1/operations" {
+		if r.Method != "GET" {
+			w.Header().Set("Allow", "GET")
+			WriteProblem(w, 405, "method_not_allowed", "Expected GET")
+			return
+		}
+		o.listOperations(w, r, r.URL.Query().Get("device"))
+		return
+	}
 	wait := -1
 	if r.URL.Query().Has("wait") {
 		var err error
@@ -98,9 +107,13 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			WriteProblem(w, 404, "device_not_found", "Device not found")
 			return
 		}
+		if r.Method == "GET" {
+			o.listOperations(w, r, ep)
+			return
+		}
 		if r.Method != "POST" {
-			w.Header().Set("Allow", "POST")
-			WriteProblem(w, 405, "method_not_allowed", "Expected POST")
+			w.Header().Set("Allow", "GET, POST")
+			WriteProblem(w, 405, "method_not_allowed", "Expected GET or POST")
 			return
 		}
 		if o.Executor == nil || tenant != o.ServerTenant {
@@ -196,8 +209,48 @@ func (o Options) waitOperation(r *http.Request, op operations.Operation, seconds
 	}
 	return op
 }
+func (o Options) listOperations(w http.ResponseWriter, r *http.Request, device string) {
+	limit := 50
+	if r.URL.Query().Has("limit") {
+		var err error
+		limit, err = strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil || limit < 1 || limit > 500 {
+			WriteProblem(w, 400, "invalid_limit", "limit must be between 1 and 500")
+			return
+		}
+	}
+	f := operations.ListFilter{Device: device, Type: r.URL.Query().Get("type"), Job: r.URL.Query().Get("job")}
+	if r.URL.Query().Has("status") {
+		for _, status := range strings.Split(r.URL.Query().Get("status"), ",") {
+			switch operations.Status(status) {
+			case operations.Queued, operations.Sent, operations.Succeeded, operations.Failed, operations.Timeout, operations.Expired, operations.Dropped, operations.Cancelled:
+				f.Status = append(f.Status, operations.Status(status))
+			default:
+				WriteProblem(w, 400, "invalid_filter", "Unknown operation status")
+				return
+			}
+		}
+	}
+	items, next, err := o.Operations.List(r.Context(), TenantFrom(r.Context()), f, r.URL.Query().Get("cursor"), limit)
+	if err != nil {
+		if errors.Is(err, store.ErrCursor) {
+			WriteProblem(w, 400, "invalid_cursor", "Invalid pagination cursor")
+		} else {
+			operationError(w, err)
+		}
+		return
+	}
+	deviceJSON(w, 200, struct {
+		Items []operations.Operation `json:"items"`
+		Next  string                 `json:"nextCursor,omitempty"`
+	}{items, next})
+}
+
 func operationError(w http.ResponseWriter, err error) {
+	var prefix *operations.ErrPrefixUnsupported
 	switch {
+	case errors.As(err, &prefix):
+		WriteProblem(w, 501, "prefix_unsupported", err.Error())
 	case errors.Is(err, store.ErrNotFound), errors.Is(err, store.ErrTenant):
 		WriteProblem(w, 404, "not_found", "Operation not found")
 	case errors.Is(err, operations.ErrNotRegistered):

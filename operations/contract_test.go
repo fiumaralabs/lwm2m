@@ -60,7 +60,7 @@ func TestContractPrefix(t *testing.T) {
 			t.Fatalf("prefix: %v", err)
 		}
 	}
-	stored, err := h.st.List(h.ctx, "t", "dev")
+	stored, _, err := h.st.List(h.ctx, "t", operations.ListFilter{Device: "dev"}, "", 50)
 	if err != nil || len(stored) != 0 {
 		t.Fatalf("stored rejected prefixes: %+v %v", stored, err)
 	}

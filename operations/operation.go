@@ -9,6 +9,14 @@ import (
 	"github.com/fiumaralabs/lwm2m/internal/id"
 )
 
+// ListFilter combines fields with AND and statuses with OR.
+type ListFilter struct {
+	Device string
+	Status []Status
+	Type   string
+	Job    string
+}
+
 type Status string
 
 const (

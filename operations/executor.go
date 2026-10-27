@@ -20,7 +20,7 @@ import (
 type Operations interface {
 	Create(context.Context, string, Operation) error
 	Get(context.Context, string, string) (Operation, error)
-	List(context.Context, string, string) ([]Operation, error)
+	List(context.Context, string, ListFilter, string, int) ([]Operation, string, error)
 	Pending(context.Context, string, string) ([]Operation, error)
 	Update(context.Context, string, string, Status, Change) error
 }

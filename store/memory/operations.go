@@ -3,8 +3,12 @@ package memory
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"slices"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m/operations"
 	"github.com/fiumaralabs/lwm2m/store"
@@ -72,8 +76,50 @@ func (s *Operations) Get(ctx context.Context, tenant, id string) (operations.Ope
 	return cloneOperation(o), nil
 }
 
-func (s *Operations) List(ctx context.Context, tenant, device string) ([]operations.Operation, error) {
-	return s.list(ctx, tenant, device, false)
+type operationCursor struct {
+	Tenant, Filter, ID string
+	At                 time.Time
+}
+
+func (s *Operations) List(ctx context.Context, tenant string, f operations.ListFilter, cursor string, limit int) ([]operations.Operation, string, error) {
+	f.Status = slices.Clone(f.Status)
+	slices.Sort(f.Status)
+	f.Status = slices.Compact(f.Status)
+	if len(f.Status) == 0 {
+		f.Status = nil
+	}
+	query, _ := json.Marshal(f)
+	c := operationCursor{Tenant: tenant, Filter: string(query)}
+	if cursor != "" {
+		b, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil || json.Unmarshal(b, &c) != nil || c.Tenant != tenant || c.Filter != string(query) || c.ID == "" {
+			return nil, "", store.ErrCursor
+		}
+	}
+	if limit < 1 || limit > 500 {
+		return nil, "", store.ErrCursor
+	}
+	items, err := s.list(ctx, tenant, f.Device, false)
+	if err != nil {
+		return nil, "", err
+	}
+	out := make([]operations.Operation, 0)
+	for _, o := range items {
+		if (f.Type != "" && o.Type != f.Type) || (f.Job != "" && (o.Job == nil || *o.Job != f.Job)) || (len(f.Status) != 0 && !slices.Contains(f.Status, o.Status)) {
+			continue
+		}
+		if c.ID != "" && (o.CreatedAt.After(c.At) || (o.CreatedAt.Equal(c.At) && o.ID >= c.ID)) {
+			continue
+		}
+		if len(out) == limit {
+			last := out[len(out)-1]
+			c.ID, c.At = last.ID, last.CreatedAt
+			b, _ := json.Marshal(c)
+			return out, base64.RawURLEncoding.EncodeToString(b), nil
+		}
+		out = append(out, o)
+	}
+	return out, "", nil
 }
 func (s *Operations) Pending(ctx context.Context, tenant, device string) ([]operations.Operation, error) {
 	return s.list(ctx, tenant, device, true)
