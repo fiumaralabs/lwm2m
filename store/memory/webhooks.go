@@ -31,6 +31,16 @@ type webhookReplay struct {
 	expires time.Time
 }
 
+func (s *Webhooks) Replay(tenant, targetID, key string) (store.Webhook, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	endpoint := "create"
+	if targetID != "" {
+		endpoint = "rotate/" + targetID
+	}
+	return s.replay(webhookReplayKey{tenant, endpoint, key})
+}
+
 func (s *Webhooks) now() time.Time {
 	if s.Now != nil {
 		return s.Now().UTC()

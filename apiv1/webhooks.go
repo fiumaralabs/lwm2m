@@ -97,6 +97,23 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// A completed POST owns its response even if the retry body differs. This
+	// fast path is only a lookup; Create/Rotate still atomically arbitrate misses.
+	if r.Method == "POST" && r.Header.Get("Idempotency-Key") != "" {
+		targetID := key
+		if collection {
+			targetID = ""
+		}
+		if v, ok := o.Webhooks.Replay(tenant, targetID, r.Header.Get("Idempotency-Key")); ok {
+			status := http.StatusOK
+			if collection {
+				status = http.StatusCreated
+				w.Header().Set("Location", "/v1/webhooks/"+v.ID)
+			}
+			webhookSecretJSON(w, status, v)
+			return
+		}
+	}
 	if r.Method == "DELETE" {
 		if !fail(o.Webhooks.Delete(tenant, key, webhookIfMatch(r))) {
 			w.WriteHeader(204)

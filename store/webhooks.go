@@ -33,6 +33,9 @@ type WebhookSecret struct {
 
 // Webhooks implementations are tenant-isolated, concurrency-safe and return owned copies.
 type Webhooks interface {
+	// Replay returns an unexpired successful POST snapshot; an empty target ID
+	// selects create, otherwise it selects rotation of that webhook.
+	Replay(tenant, targetID, key string) (Webhook, bool)
 	Create(string, Webhook, string) (Webhook, error)
 	Get(string, string) (Webhook, error)
 	List(string, string, int) ([]Webhook, string, error)
