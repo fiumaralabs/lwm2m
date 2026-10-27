@@ -10,6 +10,7 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
+	EventOptions
 	Devices store.Devices  `json:"-"`
 	Server  *server.Server `json:"-"`
 	// ServerTenant identifies the sole tenant served by Server (default: default).
@@ -30,7 +31,12 @@ func New(o Options) http.Handler {
 		o.ServerTenant = "default"
 	}
 
+	events := o.eventHandler()
 	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/events" {
+			events.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
 			o.devices(w, r)
 			return
