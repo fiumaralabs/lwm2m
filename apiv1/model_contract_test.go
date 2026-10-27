@@ -76,6 +76,38 @@ func TestDeviceModelBoundaries(t *testing.T) {
 	}
 }
 
+func TestDeviceModelImplicitCoreVersions(t *testing.T) {
+	for _, version := range []string{"1.0", "1.1", "1.2"} {
+		t.Run(version, func(t *testing.T) {
+			o, r := registrationFixture(t)
+			r.Version = version
+			r.Objects = []link.Object{{ID: 3, Instances: []uint16{0}}, {ID: 3, Version: "1.0"}, {ID: 65000}}
+			w := deviceRequest(New(o), "GET", "/v1/devices/pump/model", "")
+			var body struct {
+				Objects []deviceModelObject `json:"objects"`
+			}
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &body) != nil || len(body.Objects) != 3 {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			implicit := body.Objects[0]
+			if implicit.Version != version || implicit.Definition == nil || implicit.Definition.Version != version {
+				t.Errorf("implicit Device must resolve to %s: %s", version, w.Body.String())
+			}
+			if implicit.ID != 3 || !reflect.DeepEqual(implicit.Instances, []uint16{0}) {
+				t.Errorf("registered object identity changed: %s", w.Body.String())
+			}
+			explicit := body.Objects[1]
+			if explicit.Version != "1.0" || explicit.Definition == nil || explicit.Definition.Version != "1.0" {
+				t.Errorf("explicit version must override registration version: %s", w.Body.String())
+			}
+			unknown := body.Objects[2]
+			if unknown.Version != "1.0" || unknown.Definition != nil {
+				t.Errorf("unknown object must retain default version and no definition: %s", w.Body.String())
+			}
+		})
+	}
+}
+
 func TestDeviceModelVersions(t *testing.T) {
 	o, r := registrationFixture(t)
 	r.Objects = []link.Object{{ID: 3}, {ID: 65000}, {ID: 3, Version: "1.99"}, {ID: 3, Version: "9.0"}, {ID: 3, Version: "invalid"}, {ID: 3, Version: "01.02"}}
