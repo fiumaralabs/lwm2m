@@ -34,12 +34,17 @@ import (
 	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/operations"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
+	"github.com/fiumaralabs/lwm2m/store/sqlite"
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
-func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys) (*server.Server, http.Handler) {
-	devices := &memory.Devices{}
+func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler) {
+	var devices store.Devices = &memory.Devices{}
+	if len(stores) > 0 {
+		devices = stores[0]
+	}
 	operationStore := memory.NewOperations()
 	var executor *operations.Executor
 	onQueued := cfg.OnQueued
@@ -73,6 +78,7 @@ func main() {
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
+	storeFlag := flag.String("store", "memory", "device metadata store: memory or sqlite:<path>; operations remain in memory")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
 	bsCoap := flag.String("bs-coap", ":5783", "Bootstrap-Server CoAP/UDP address; empty disables")
@@ -84,6 +90,17 @@ func main() {
 	fwCoaps := flag.String("fw-coaps", ":5694", "firmware CoAP/DTLS address (server PSKs), with -fw-dir")
 	verbose := flag.Bool("v", false, "log registration, notification and bootstrap events")
 	flag.Parse()
+	var devices store.Devices = &memory.Devices{}
+	if strings.HasPrefix(*storeFlag, "sqlite:") && strings.TrimPrefix(*storeFlag, "sqlite:") != "" {
+		durable, err := sqlite.Open(strings.TrimPrefix(*storeFlag, "sqlite:"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer durable.Close()
+		devices = durable
+	} else if *storeFlag != "memory" {
+		log.Fatal("invalid -store: expected memory or sqlite:<path>")
+	}
 	var keys apiv1.Keys
 	if *keyFile != "" {
 		f, err := os.Open(*keyFile)
@@ -108,7 +125,7 @@ func main() {
 			api.OnEvent(e)
 		}
 	}
-	srv, native := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys)
+	srv, native := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, devices)
 	cb := coap.New(srv)
 
 	listen := func(name, addr string, f func(string) (net.Addr, error)) {

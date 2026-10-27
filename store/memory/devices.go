@@ -79,13 +79,17 @@ func (s *Devices) Seen(tenant, ep string, at time.Time) {
 	}
 }
 
-type deviceCursor struct{ Tenant, Q, Status, After string }
+type deviceCursor struct {
+	Tenant, Q, Status *string
+	After             string
+}
 
 func (s *Devices) List(tenant string, f store.DeviceFilter, cursor string, limit int) ([]store.Device, string, error) {
-	c := deviceCursor{Tenant: tenant, Q: f.Q, Status: f.Status}
+	c := deviceCursor{Tenant: &tenant, Q: &f.Q, Status: &f.Status}
 	if cursor != "" {
+		c = deviceCursor{}
 		b, err := base64.RawURLEncoding.DecodeString(cursor)
-		if err != nil || json.Unmarshal(b, &c) != nil || c.Tenant != tenant || c.Q != f.Q || c.Status != f.Status || c.After == "" {
+		if err != nil || json.Unmarshal(b, &c) != nil || c.Tenant == nil || c.Q == nil || c.Status == nil || *c.Tenant != tenant || *c.Q != f.Q || *c.Status != f.Status || c.After == "" {
 			return nil, "", store.ErrDeviceCursor
 		}
 	}
