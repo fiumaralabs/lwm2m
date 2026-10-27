@@ -29,6 +29,8 @@ type Operations interface {
 // ExecutorOptions injects the lifecycle clock; nil uses time.Now. Scheduling
 // uses real timers, while events and Wait also check the injected clock.
 type ExecutorOptions struct {
+	// State records successful results before they become visible to Wait callers.
+	State  interface{ Record(Operation) error }
 	Now    func() time.Time
 	Logger *slog.Logger
 }
@@ -37,6 +39,7 @@ type deviceKey struct{ tenant, device string }
 // Executor claims queued operations before asynchronously delivering them.
 // Wire HandleEvent to Config.OnEvent and HandleQueued to Config.OnQueued.
 type Executor struct {
+	state      interface{ Record(Operation) error }
 	expiryOnly map[[2]string]bool // zero-TTL operations whose immediate delivery chance has ended
 	logger     *slog.Logger
 	retries    map[deviceKey]*time.Timer
@@ -86,7 +89,7 @@ func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Execu
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	return &Executor{expiryOnly: make(map[[2]string]bool), logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
+	return &Executor{state: opts.State, expiryOnly: make(map[[2]string]bool), logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
 }
 
 var ErrNotRegistered = server.ErrNotRegistered
@@ -131,7 +134,7 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	if closed {
 		return Operation{}, ErrClosed
 	}
-	if o.Type != "read" && o.Type != "write" && o.Type != "execute" {
+	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" {
 		return Operation{}, ErrInvalid
 	}
 	var q request
@@ -152,7 +155,7 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		return Operation{}, ErrInvalid
 	}
 	for _, s := range paths {
-		if _, err := lwm2m.ParsePath(s); err != nil {
+		if p, err := lwm2m.ParsePath(s); err != nil || o.Type == "delete" && !p.IsInstance() {
 			return Operation{}, ErrInvalid
 		}
 	}
@@ -291,6 +294,13 @@ func (e *Executor) kickLocked(k deviceKey) (result error) {
 			}
 			e.mu.Lock()
 			if !e.closed {
+				if c.Status == Succeeded && e.state != nil {
+					snapshot := o
+					snapshot.Status, snapshot.Result, snapshot.CompletedAt = c.Status, c.Result, &c.At
+					if err := e.state.Record(snapshot); err != nil {
+						e.logger.Error("record device state", "error", err)
+					}
+				}
 				e.update(context.Background(), k.tenant, o.ID, Sent, c)
 			}
 			e.devices[k] = false
@@ -389,6 +399,15 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		} else {
 			r, err = e.srv.Write(ctx, o.Device, p, nodes, server.WriteOptions{Mode: mode, Format: format(o.Format)})
 		}
+		if err == nil && r != nil {
+			r.Nodes = nodes
+		}
+	} else if o.Type == "delete" {
+		p, pe := lwm2m.ParsePath(q.Path)
+		if pe != nil {
+			return resultJSON{}, pe
+		}
+		r, err = e.srv.Delete(ctx, o.Device, p)
 	} else if o.Type == "execute" {
 		p, pe := lwm2m.ParsePath(q.Path)
 		if pe != nil {

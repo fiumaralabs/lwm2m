@@ -55,6 +55,7 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 		events = durable.Events()
 	}
 	var executor *operations.Executor
+	state := &memory.State{}
 	hooks := &memory.Webhooks{}
 	onQueued := cfg.OnQueued
 	cfg.OnQueued = func(r *server.Registration) {
@@ -74,9 +75,9 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 		}
 	}
 	srv := server.New(cfg)
-	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{})
+	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{State: state})
 	api.Attach(srv)
-	native := apiv1.New(apiv1.Options{EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})

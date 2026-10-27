@@ -11,6 +11,8 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
+	// When supplying Executor, also pass this store in its ExecutorOptions.State.
+	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
 	EventOptions
 	Webhooks   store.Webhooks       `json:"-"`
@@ -29,6 +31,9 @@ type Options struct {
 
 // New returns the authenticated native API handler.
 func New(o Options) http.Handler {
+	if o.State == nil {
+		o.State = &memory.State{}
+	}
 	if o.Settings == nil {
 		o.Settings = &memory.Settings{}
 	}
@@ -47,7 +52,7 @@ func New(o Options) http.Handler {
 		o.Operations = memory.NewOperations()
 	}
 	if o.Executor == nil && o.Server != nil {
-		o.Executor = operations.NewExecutor(o.Server, o.Operations, operations.ExecutorOptions{})
+		o.Executor = operations.NewExecutor(o.Server, o.Operations, operations.ExecutorOptions{State: o.State})
 	}
 	ops := o.operationHandler()
 	models := o.modelHandler()
@@ -73,6 +78,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/state") && r.URL.EscapedPath() != "/v1/devices/state" {
+				o.state(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/model") && r.URL.EscapedPath() != "/v1/devices/model" {
 				models.ServeHTTP(w, r)
 				return
