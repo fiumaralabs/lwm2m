@@ -30,7 +30,7 @@ type WebhookSecret struct {
 
 // Webhooks implementations are tenant-isolated, concurrency-safe and return owned copies.
 type Webhooks interface {
-	Create(string, Webhook) (Webhook, error)
+	Create(string, Webhook, string) (Webhook, error)
 	Get(string, string) (Webhook, error)
 	List(string, string, int) ([]Webhook, string, error)
 	Patch(string, string, WebhookPatch) (Webhook, error)

@@ -14,6 +14,9 @@ import (
 type Webhooks struct {
 	mu      sync.Mutex
 	records map[string]map[string]store.Webhook
+	replays map[webhookReplayKey]webhookReplay
+	// Now optionally supplies the clock; configure before concurrent use.
+	Now func() time.Time
 }
 
 func cloneWebhook(v store.Webhook) store.Webhook {
@@ -21,9 +24,47 @@ func cloneWebhook(v store.Webhook) store.Webhook {
 	v.PreviousSecrets = slices.Clone(v.PreviousSecrets)
 	return v
 }
-func (s *Webhooks) Create(tenant string, v store.Webhook) (store.Webhook, error) {
+
+type webhookReplayKey struct{ tenant, endpoint, key string }
+type webhookReplay struct {
+	value   store.Webhook
+	expires time.Time
+}
+
+func (s *Webhooks) now() time.Time {
+	if s.Now != nil {
+		return s.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+// replay and remember run under mu, atomically with the effect they describe.
+func (s *Webhooks) replay(k webhookReplayKey) (store.Webhook, bool) {
+	now := s.now()
+	for key, entry := range s.replays {
+		if !entry.expires.After(now) {
+			delete(s.replays, key)
+		}
+	}
+	entry, ok := s.replays[k]
+	return cloneWebhook(entry.value), k.key != "" && ok
+}
+func (s *Webhooks) remember(k webhookReplayKey, v store.Webhook) {
+	if k.key == "" {
+		return
+	}
+	if s.replays == nil {
+		s.replays = make(map[webhookReplayKey]webhookReplay)
+	}
+	s.replays[k] = webhookReplay{cloneWebhook(v), s.now().Add(24 * time.Hour)}
+}
+func (s *Webhooks) Create(tenant string, v store.Webhook, idempotencyKey string) (store.Webhook, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	k := webhookReplayKey{tenant, "create", idempotencyKey}
+	if previous, ok := s.replay(k); ok {
+		return previous, nil
+	}
 	if s.records == nil {
 		s.records = map[string]map[string]store.Webhook{}
 	}
@@ -33,9 +74,10 @@ func (s *Webhooks) Create(tenant string, v store.Webhook) (store.Webhook, error)
 	if _, ok := s.records[tenant][v.ID]; ok {
 		return store.Webhook{}, store.ErrWebhookExists
 	}
-	v.CreatedAt = time.Now().UTC()
+	v.CreatedAt = s.now()
 	v.UpdatedAt = v.CreatedAt
 	s.records[tenant][v.ID] = cloneWebhook(v)
+	s.remember(k, v)
 	return cloneWebhook(v), nil
 }
 func (s *Webhooks) Get(tenant, id string) (store.Webhook, error) {

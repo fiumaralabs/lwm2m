@@ -11,12 +11,12 @@ import (
 func TestWebhooksOwnedCopies(t *testing.T) {
 	s := &Webhooks{}
 	input := store.Webhook{ID: "wh_1", URL: "original", Types: []string{"lwm2m.*"}, Secret: "current", PreviousSecrets: []store.WebhookSecret{{Secret: "expired", ExpiresAt: time.Now().Add(-time.Hour)}}}
-	if _, e := s.Create("a", input); e != nil {
+	if _, e := s.Create("a", input, ""); e != nil {
 		t.Fatal(e)
 	}
 	input.Types[0] = "changed"
 	input.PreviousSecrets[0].Secret = "changed"
-	if _, e := s.Create("a", store.Webhook{ID: "wh_1", URL: "overwrite"}); e == nil {
+	if _, e := s.Create("a", store.Webhook{ID: "wh_1", URL: "overwrite"}, ""); e == nil {
 		t.Fatal("duplicate create overwrote webhook")
 	}
 	items, _, e := s.List("a", "", 50)
@@ -39,7 +39,7 @@ func TestWebhooksOwnedCopies(t *testing.T) {
 
 func TestWebhooksRotationRetention(t *testing.T) {
 	s := &Webhooks{}
-	v, e := s.Create("a", store.Webhook{ID: "wh_1", Types: []string{"lwm2m.*"}, Secret: "initial"})
+	v, e := s.Create("a", store.Webhook{ID: "wh_1", Types: []string{"lwm2m.*"}, Secret: "initial"}, "")
 	if e != nil {
 		t.Fatal(e)
 	}

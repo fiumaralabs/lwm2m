@@ -184,7 +184,7 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v.Secret = secret
-		v, e := o.Webhooks.Create(tenant, v)
+		v, e := o.Webhooks.Create(tenant, v, r.Header.Get("Idempotency-Key"))
 		if fail(e) {
 			return
 		}
