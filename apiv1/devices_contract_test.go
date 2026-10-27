@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/fiumaralabs/lwm2m/transport/coap"
@@ -117,7 +119,7 @@ func TestDeviceSelector(t *testing.T) {
 	get(query+"&limit=1&cursor="+url.QueryEscape(cursor), []string{"e"}, true)
 	get("selector=env%3Dmissing", nil, false)
 	get(query+"&q=c&status=never-seen", []string{"c"}, false)
-	for _, q := range []string{"selector=env%3Ddev&cursor=" + cursor, "cursor=" + cursor, query + "&q=x&cursor=" + cursor, query + "&cursor=bogus"} {
+	for _, q := range []string{"selector=env%3Ddev&cursor=" + cursor, "cursor=" + cursor, query + "&q=x&cursor=" + cursor, query + "&status=offline&cursor=" + cursor, query + "&cursor=sel.bnVsbA", query + "&cursor=bogus"} {
 		if w := deviceRequest(h, "GET", "/v1/devices?"+q, ""); w.Code != 400 {
 			t.Fatal(q, w.Code)
 		}
@@ -142,6 +144,68 @@ func TestDeviceSelector(t *testing.T) {
 	entry.tenant = "default"
 	keys.entries["test"] = entry
 	get(query, []string{"a", "c", "e", "g"}, false)
+}
+
+type countedDevices struct {
+	store.Devices
+	calls int
+}
+
+func (d *countedDevices) List(tenant string, f store.DeviceFilter, cursor string, limit int) ([]store.Device, string, error) {
+	d.calls++
+	return d.Devices.List(tenant, f, cursor, limit)
+}
+
+func TestDeviceSelectorBatchedScan(t *testing.T) {
+	for _, n := range []int{1000, 3000} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			d := &countedDevices{Devices: &memory.Devices{}}
+			for i := 0; i < n; i++ {
+				if _, err := d.Create("default", store.Device{Endpoint: fmt.Sprintf("%04d", i), Labels: map[string]string{"env": "prod"}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := New(Options{Keys: deviceKeys(), Devices: d})
+			start := time.Now()
+			w := deviceRequest(h, "GET", "/v1/devices?selector=env%3Dmissing&limit=1", "")
+			t.Logf("no-match scan: %s, %d store calls", time.Since(start), d.calls)
+			if w.Code != 200 || !strings.Contains(w.Body.String(), `"items":[]`) || d.calls > (n+499)/500 {
+				t.Fatalf("status=%d calls=%d body=%s", w.Code, d.calls, w.Body.String())
+			}
+			// Cross both HTTP page and store batch boundaries without losing matches.
+			cursor, seen := "", 0
+			for {
+				w = deviceRequest(h, "GET", "/v1/devices?selector=env%3Dprod&limit=333&cursor="+url.QueryEscape(cursor), "")
+				var page struct {
+					Items      []deviceView
+					NextCursor string
+				}
+				if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil {
+					t.Fatal(w.Code, w.Body.String())
+				}
+				want := min(333, n-seen)
+				if len(page.Items) != want {
+					t.Fatalf("page size=%d want=%d", len(page.Items), want)
+				}
+				for _, item := range page.Items {
+					if item.Endpoint != fmt.Sprintf("%04d", seen) {
+						t.Fatal("lost or repeated device", seen, item.Endpoint)
+					}
+					seen++
+				}
+				cursor = page.NextCursor
+				if cursor == "" {
+					break
+				}
+				if seen >= n {
+					t.Fatal("unexpected continuation")
+				}
+			}
+			if seen != n {
+				t.Fatalf("got %d devices, want %d", seen, n)
+			}
+		})
+	}
 }
 
 func TestDeviceRegistrationLifecycle(t *testing.T) {
