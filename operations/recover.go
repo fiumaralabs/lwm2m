@@ -58,13 +58,11 @@ func (e *Executor) Start(ctx context.Context) error {
 		return ErrClosed
 	}
 	keys := map[deviceKey]bool{}
-	if e.recoveredZero == nil {
-		e.recoveredZero = make(map[[2]string]bool)
-	}
+
 	var result error
 	for _, o := range rows {
 		if o.Status == Queued && o.TTLSeconds == 0 {
-			e.recoveredZero[[2]string{o.Tenant, o.ID}] = true
+			e.expiryOnly[[2]string{o.Tenant, o.ID}] = true
 		}
 		k := deviceKey{o.Tenant, o.Device}
 		keys[k] = true

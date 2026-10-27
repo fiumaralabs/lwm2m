@@ -37,20 +37,20 @@ type deviceKey struct{ tenant, device string }
 // Executor claims queued operations before asynchronously delivering them.
 // Wire HandleEvent to Config.OnEvent and HandleQueued to Config.OnQueued.
 type Executor struct {
-	recoveredZero map[[2]string]bool
-	logger        *slog.Logger
-	retries       map[deviceKey]*time.Timer
-	ctx           context.Context
-	cancel        context.CancelFunc
-	closed        bool
-	wg            sync.WaitGroup
-	srv           *server.Server
-	st            Operations
-	now           func() time.Time
-	mu            sync.Mutex
-	devices       map[deviceKey]bool
-	timers        map[[2]string]*time.Timer
-	sessions      map[[2]string]string // reject operations belong to one registration
+	expiryOnly map[[2]string]bool // zero-TTL operations whose immediate delivery chance has ended
+	logger     *slog.Logger
+	retries    map[deviceKey]*time.Timer
+	ctx        context.Context
+	cancel     context.CancelFunc
+	closed     bool
+	wg         sync.WaitGroup
+	srv        *server.Server
+	st         Operations
+	now        func() time.Time
+	mu         sync.Mutex
+	devices    map[deviceKey]bool
+	timers     map[[2]string]*time.Timer
+	sessions   map[[2]string]string // reject operations belong to one registration
 }
 type request struct {
 	Arguments string   `json:"arguments"`
@@ -86,7 +86,7 @@ func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Execu
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	return &Executor{logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
+	return &Executor{expiryOnly: make(map[[2]string]bool), logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
 }
 
 var ErrNotRegistered = server.ErrNotRegistered
@@ -189,10 +189,14 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 			return Operation{}, errors.Join(err, getErr)
 		}
 		if got.Status == Queued {
+			// A persistence failure must not grant another immediate-send chance.
+			e.expiryOnly[[2]string{tenant, o.ID}] = true
 			updateErr := e.update(ctx, tenant, o.ID, Queued, Change{Status: Expired, At: e.now()})
 			err = errors.Join(err, updateErr)
 			if updateErr == nil {
 				e.stopTimer(tenant, o.ID)
+			} else {
+				e.retryLocked(k)
 			}
 		}
 	}
@@ -625,7 +629,7 @@ func (e *Executor) expire(tenant, id string) (bool, error) {
 // stopTimer releases queued-only bookkeeping on claim or terminal transition.
 func (e *Executor) stopTimer(tenant, id string) {
 	k := [2]string{tenant, id}
-	delete(e.recoveredZero, k)
+	delete(e.expiryOnly, k)
 	delete(e.sessions, k)
 	if t := e.timers[k]; t != nil {
 		t.Stop()
@@ -641,7 +645,7 @@ func (e *Executor) expireLocked(tenant, id string) (bool, error) {
 		e.logger.Error("operation lookup failed", "error", err)
 		return false, err
 	}
-	if o.Status != Queued || o.TTLSeconds == 0 && !e.recoveredZero[[2]string{tenant, id}] || e.now().Before(o.ExpiresAt) {
+	if o.Status != Queued || o.TTLSeconds == 0 && !e.expiryOnly[[2]string{tenant, id}] || e.now().Before(o.ExpiresAt) {
 		return false, nil
 	}
 	if err := e.update(context.Background(), tenant, id, Queued, Change{Status: Expired, At: e.now()}); err != nil {
