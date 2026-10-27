@@ -224,7 +224,46 @@ func webhookSecretJSON(w http.ResponseWriter, status int, v store.Webhook) {
 
 var webhookType = regexp.MustCompile(`^lwm2m\.(?:[a-zA-Z0-9_-]+\.)*(?:[a-zA-Z0-9_-]+|\*)$`)
 
+// Parse the HTTP entity-tag list without splitting commas inside opaque tags.
+// Weak validators never satisfy If-Match. Invalid conditions fail closed.
 func webhookIfMatch(r *http.Request) store.WebhookMatch {
 	values := r.Header.Values("If-Match")
-	return store.WebhookMatch{Required: len(values) > 0, Tags: values}
+	match := store.WebhookMatch{Required: len(values) > 0}
+	invalid := match
+	raw := strings.Trim(strings.Join(values, ","), " 	")
+	if raw == "*" {
+		match.Any = true
+		return match
+	}
+	for raw != "" {
+		raw = strings.TrimLeft(raw, " 	,")
+		if raw == "" {
+			break
+		}
+		weak := strings.HasPrefix(raw, "W/")
+		if weak {
+			raw = raw[2:]
+		}
+		if len(raw) == 0 || raw[0] != '"' {
+			return invalid
+		}
+		end := 1
+		for end < len(raw) && raw[end] != '"' {
+			if raw[end] < 0x21 || raw[end] == 0x7f {
+				return invalid
+			}
+			end++
+		}
+		if end == len(raw) {
+			return invalid
+		}
+		if !weak {
+			match.Tags = append(match.Tags, raw[:end+1])
+		}
+		raw = strings.TrimLeft(raw[end+1:], " 	")
+		if raw != "" && raw[0] != ',' {
+			return invalid
+		}
+	}
+	return match
 }
