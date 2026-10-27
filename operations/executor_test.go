@@ -392,10 +392,19 @@ func TestExecutorUndecodablePayload(t *testing.T) {
 		return codes.Content, &cf, []byte("oops"), true
 	})
 	o := h.wait(t, h.submit(t, "read", `{"paths":["/1/0/1"]}`), operations.Succeeded)
-	var r struct{ Payload []byte }
-	json.Unmarshal(o.Result, &r)
-	if string(r.Payload) != "oops" {
-		t.Fatalf("payload %s", o.Result)
+	var r struct {
+		Payload []byte
+		Code    string
+		Format  string
+	}
+	if err := json.Unmarshal(o.Result, &r); err != nil {
+		t.Fatal(err)
+	}
+	if string(r.Payload) != "oops" || r.Code != "2.05" || r.Format != "text" {
+		t.Fatalf("undecodable result %s", o.Result)
+	}
+	if o.Error == nil || o.Error.Code != "decode" || o.Error.Message == "" {
+		t.Fatalf("expected decode error with message, got %+v", o.Error)
 	}
 }
 func TestExecutorTimeout(t *testing.T) {

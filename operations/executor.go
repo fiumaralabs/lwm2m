@@ -58,10 +58,11 @@ type valueJSON struct {
 	Value     any        `json:"value,omitempty"`
 }
 type resultJSON struct {
-	Payload []byte      `json:"payload,omitempty"`
-	Format  string      `json:"format,omitempty"`
-	Code    string      `json:"code"`
-	Values  []valueJSON `json:"values,omitempty"`
+	decodeErr error
+	Payload   []byte      `json:"payload,omitempty"`
+	Format    string      `json:"format,omitempty"`
+	Code      string      `json:"code"`
+	Values    []valueJSON `json:"values,omitempty"`
 }
 
 func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Executor {
@@ -182,6 +183,9 @@ func (e *Executor) kickLocked(k deviceKey) {
 			}
 		} else {
 			c.Result, _ = json.Marshal(r)
+			if r.decodeErr != nil {
+				c.Error = &Error{Code: "decode", Message: r.decodeErr.Error()}
+			}
 			if len(r.Code) > 0 && r.Code[0] != '2' {
 				c.Status = Failed
 				c.Error = &Error{Code: deviceErrorCodes[r.Code], Message: "device returned " + r.Code}
@@ -279,7 +283,7 @@ func (e *Executor) deliver(o Operation) (resultJSON, error) {
 	if err != nil {
 		return resultJSON{}, err
 	}
-	out := resultJSON{Code: server.CodeString(r.Code)}
+	out := resultJSON{Code: server.CodeString(r.Code), decodeErr: r.DecodeErr}
 	if r.DecodeErr != nil || len(r.Nodes) == 0 {
 		out.Payload = r.Payload
 	}
