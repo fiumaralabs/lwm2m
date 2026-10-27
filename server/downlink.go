@@ -79,9 +79,21 @@ func uriPath(reg *Registration, prefix string, p lwm2m.Path) string {
 	return strings.TrimSuffix(reg.RootPath, "/") + lwm2m.PrefixedPath(prefix, p)
 }
 
+type registrationContextKey struct{}
+
+// WithRegistration binds downlink delivery to one registration. Bound requests
+// must not follow a replacement session, unlike ordinary queued requests.
+func WithRegistration(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, registrationContextKey{}, id)
+}
+
 // exchange sends one request to reg, honouring queue mode (QM-02), and
 // decodes the response.
 func (s *Server) exchange(ctx context.Context, reg *Registration, rq request) (*Response, error) {
+	id, _ := ctx.Value(registrationContextKey{}).(string)
+	if id != "" && reg.ID != id {
+		return nil, ErrQueueDropped
+	}
 	if err := validateTarget(rq); err != nil {
 		return nil, err
 	}
@@ -89,6 +101,9 @@ func (s *Server) exchange(ctx context.Context, reg *Registration, rq request) (*
 	// each transmission by RequestTimeout (RFC 7252 §4.8.2).
 	var resp *Response
 	err := s.queues.run(ctx, reg, func(cur *Registration) error {
+		if id != "" && cur.ID != id {
+			return ErrQueueDropped
+		}
 		tctx, cancel := context.WithTimeout(ctx, s.cfg.RequestTimeout)
 		defer cancel()
 		r, err := s.transmit(tctx, cur, rq)
