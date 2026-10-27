@@ -4,11 +4,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
 	"github.com/fiumaralabs/lwm2m/testclient"
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +76,138 @@ func TestDevicePaginationAndTenants(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 }
+func TestDeviceSelector(t *testing.T) {
+	keys := deviceKeys()
+	h := New(Options{Keys: keys})
+	for _, ep := range []string{"a", "c", "e", "g"} {
+		w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"`+ep+`","labels":{"env":"prod","region":"eu"}}`)
+		if w.Code != 201 {
+			t.Fatal(w.Body.String())
+		}
+	}
+	for _, ep := range []string{"b", "d", "f", "h"} {
+		if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"`+ep+`"}`); w.Code != 201 {
+			t.Fatal(w.Body.String())
+		}
+	}
+	query := "selector=" + url.QueryEscape("env=prod,region in (eu,us),!beta")
+	get := func(query string, want []string, more bool) string {
+		t.Helper()
+		w := deviceRequest(h, "GET", "/v1/devices?"+query, "")
+		var page struct {
+			Items      []deviceView
+			NextCursor string
+		}
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		got := make([]string, 0, len(page.Items))
+		for _, d := range page.Items {
+			got = append(got, d.Endpoint)
+		}
+		if !slices.Equal(got, want) || (page.NextCursor != "") != more {
+			t.Fatalf("got %v next=%q, want %v more=%v", got, page.NextCursor, want, more)
+		}
+		return page.NextCursor
+	}
+	get(query, []string{"a", "c", "e", "g"}, false)
+	cursor := get(query+"&limit=2", []string{"a", "c"}, true)
+	if again := get(query+"&limit=2", []string{"a", "c"}, true); again != cursor {
+		t.Fatal("unstable cursor")
+	}
+	get(query+"&limit=2&cursor="+url.QueryEscape(cursor), []string{"e", "g"}, false)
+	get(query+"&limit=1&cursor="+url.QueryEscape(cursor), []string{"e"}, true)
+	get("selector=env%3Dmissing", nil, false)
+	get(query+"&q=c&status=never-seen", []string{"c"}, false)
+	for _, q := range []string{"selector=env%3Ddev&cursor=" + cursor, "cursor=" + cursor, query + "&q=x&cursor=" + cursor, query + "&status=offline&cursor=" + cursor, query + "&cursor=sel.bnVsbA", query + "&cursor=bogus"} {
+		if w := deviceRequest(h, "GET", "/v1/devices?"+q, ""); w.Code != 400 {
+			t.Fatal(q, w.Code)
+		}
+	}
+	for _, invalid := range []string{"env in (prod", "env,,region", "env in ()"} {
+		w := deviceRequest(h, "GET", "/v1/devices?selector="+url.QueryEscape(invalid), "")
+		var p Problem
+		if w.Code != 400 || w.Header().Get("Content-Type") != "application/problem+json" || json.Unmarshal(w.Body.Bytes(), &p) != nil || p.Code != "invalid_selector" || p.Type != "about:blank" {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	entry := keys.entries["test"]
+	entry.tenant = "other"
+	keys.entries["test"] = entry
+	if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"foreign","labels":{"env":"prod","region":"eu"}}`); w.Code != 201 {
+		t.Fatal(w.Body.String())
+	}
+	get(query, []string{"foreign"}, false)
+	if w := deviceRequest(h, "GET", "/v1/devices?"+query+"&cursor="+cursor, ""); w.Code != 400 {
+		t.Fatal(w.Code)
+	}
+	entry.tenant = "default"
+	keys.entries["test"] = entry
+	get(query, []string{"a", "c", "e", "g"}, false)
+}
+
+type countedDevices struct {
+	store.Devices
+	calls int
+}
+
+func (d *countedDevices) List(tenant string, f store.DeviceFilter, cursor string, limit int) ([]store.Device, string, error) {
+	d.calls++
+	return d.Devices.List(tenant, f, cursor, limit)
+}
+
+func TestDeviceSelectorBatchedScan(t *testing.T) {
+	for _, n := range []int{1000, 3000} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			d := &countedDevices{Devices: &memory.Devices{}}
+			for i := 0; i < n; i++ {
+				if _, err := d.Create("default", store.Device{Endpoint: fmt.Sprintf("%04d", i), Labels: map[string]string{"env": "prod"}}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := New(Options{Keys: deviceKeys(), Devices: d})
+			start := time.Now()
+			w := deviceRequest(h, "GET", "/v1/devices?selector=env%3Dmissing&limit=1", "")
+			t.Logf("no-match scan: %s, %d store calls", time.Since(start), d.calls)
+			if w.Code != 200 || !strings.Contains(w.Body.String(), `"items":[]`) || d.calls > (n+499)/500 {
+				t.Fatalf("status=%d calls=%d body=%s", w.Code, d.calls, w.Body.String())
+			}
+			// Cross both HTTP page and store batch boundaries without losing matches.
+			cursor, seen := "", 0
+			for {
+				w = deviceRequest(h, "GET", "/v1/devices?selector=env%3Dprod&limit=333&cursor="+url.QueryEscape(cursor), "")
+				var page struct {
+					Items      []deviceView
+					NextCursor string
+				}
+				if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil {
+					t.Fatal(w.Code, w.Body.String())
+				}
+				want := min(333, n-seen)
+				if len(page.Items) != want {
+					t.Fatalf("page size=%d want=%d", len(page.Items), want)
+				}
+				for _, item := range page.Items {
+					if item.Endpoint != fmt.Sprintf("%04d", seen) {
+						t.Fatal("lost or repeated device", seen, item.Endpoint)
+					}
+					seen++
+				}
+				cursor = page.NextCursor
+				if cursor == "" {
+					break
+				}
+				if seen >= n {
+					t.Fatal("unexpected continuation")
+				}
+			}
+			if seen != n {
+				t.Fatalf("got %d devices, want %d", seen, n)
+			}
+		})
+	}
+}
+
 func TestDeviceRegistrationLifecycle(t *testing.T) {
 	d := &memory.Devices{}
 	srv := server.New(server.Config{QueueAwake: time.Millisecond, OnEvent: DeviceEvents(d, "default")})
