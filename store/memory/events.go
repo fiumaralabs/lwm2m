@@ -1,10 +1,12 @@
 package memory
 
 import (
+	"container/heap"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +26,27 @@ type eventLog struct {
 	sequence uint64
 	low      string
 	items    []store.Event
+	expiry   eventExpiries
+	dead     int
+}
+
+// Expiry order is independent of sequence order: the clock may move backwards.
+type eventExpiry struct {
+	at    time.Time
+	index int
+}
+type eventExpiries []eventExpiry
+
+func (q eventExpiries) Len() int           { return len(q) }
+func (q eventExpiries) Less(i, j int) bool { return q[i].at.Before(q[j].at) }
+func (q eventExpiries) Swap(i, j int)      { q[i], q[j] = q[j], q[i] }
+func (q *eventExpiries) Push(v any)        { *q = append(*q, v.(eventExpiry)) }
+func (q *eventExpiries) Pop() any {
+	old := *q
+	v := old[len(old)-1]
+	old[len(old)-1] = eventExpiry{}
+	*q = old[:len(old)-1]
+	return v
 }
 
 func (s *Events) now() time.Time {
@@ -41,17 +64,33 @@ func (s *Events) trim(log *eventLog, now time.Time) {
 	if retention <= 0 {
 		retention = 7 * 24 * time.Hour
 	}
-	kept := make([]store.Event, 0, len(log.items))
-	for _, e := range log.items {
-		if e.Time.Before(now.Add(-retention)) {
-			if e.Sequence > log.low {
-				log.low = e.Sequence
-			}
-		} else {
-			kept = append(kept, e)
+	cutoff := now.Add(-retention)
+	for len(log.expiry) > 0 && log.expiry[0].at.Before(cutoff) {
+		expired := heap.Pop(&log.expiry).(eventExpiry)
+		e := log.items[expired.index]
+		if e.Sequence > log.low {
+			log.low = e.Sequence
 		}
+		// Release payloads immediately, but keep sequence keys for cursor search.
+		log.items[expired.index] = store.Event{Sequence: e.Sequence}
+		log.dead++
 	}
-	log.items = kept
+	// Reclaim holes only when at least half the slice is dead. The scan and
+	// heap rebuild are amortized over expired events, never over every poll.
+	if log.dead > 0 && log.dead >= len(log.items)-log.dead {
+		kept := log.items[:0]
+		log.expiry = log.expiry[:0]
+		for _, e := range log.items {
+			if e.SpecVersion != "" {
+				log.expiry = append(log.expiry, eventExpiry{at: e.Time, index: len(kept)})
+				kept = append(kept, e)
+			}
+		}
+		clear(log.items[len(kept):])
+		log.items = kept
+		log.dead = 0
+		heap.Init(&log.expiry)
+	}
 }
 func matchesEvent(kind, filter string) bool {
 	if filter == "" {
@@ -76,13 +115,20 @@ func (s *Events) List(tenant string, f store.EventFilter) ([]store.Event, bool, 
 		return result, false, nil
 	}
 	s.trim(log, s.now())
-	for offset := range log.items {
-		i := offset
+	start, end := 0, len(log.items)
+	if f.After != "" {
+		start = sort.Search(len(log.items), func(i int) bool { return log.items[i].Sequence > f.After })
+	}
+	if f.Before != "" {
+		end = sort.Search(len(log.items), func(i int) bool { return log.items[i].Sequence >= f.Before })
+	}
+	for offset := 0; offset < end-start; offset++ {
+		i := start + offset
 		if f.Newest {
-			i = len(log.items) - 1 - offset
+			i = end - 1 - offset
 		}
 		e := log.items[i]
-		if f.After != "" && e.Sequence <= f.After || f.Before != "" && e.Sequence >= f.Before || f.Device != "" && e.Subject != f.Device || !matchesEvent(e.Type, f.Type) {
+		if e.SpecVersion == "" || f.Device != "" && e.Subject != f.Device || !matchesEvent(e.Type, f.Type) {
 			continue
 		}
 		result = append(result, cloneEvent(e))
@@ -122,7 +168,8 @@ func (s *Events) Append(tenant, kind, device string, data json.RawMessage) (stor
 	}
 	log.sequence++
 	e := store.Event{SpecVersion: "1.0", ID: "evt_" + string(encoded[:]), Source: "/tenants/" + tenant, Type: kind, Time: now, Subject: device, Sequence: fmt.Sprintf("%018d", log.sequence), DataContentType: "application/json", Data: data}
-	log.items = append(log.items, cloneEvent(e))
 	s.trim(log, now)
+	log.items = append(log.items, cloneEvent(e))
+	heap.Push(&log.expiry, eventExpiry{at: now, index: len(log.items) - 1})
 	return cloneEvent(e), nil
 }
