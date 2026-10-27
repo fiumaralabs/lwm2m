@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"math"
 	"strconv"
 	"strings"
@@ -27,19 +28,29 @@ type Operations interface {
 
 // ExecutorOptions injects the lifecycle clock; nil uses time.Now. Scheduling
 // uses real timers, while events and Wait also check the injected clock.
-type ExecutorOptions struct{ Now func() time.Time }
+type ExecutorOptions struct {
+	Now    func() time.Time
+	Logger *slog.Logger
+}
 type deviceKey struct{ tenant, device string }
 
 // Executor claims queued operations before asynchronously delivering them.
 // Wire HandleEvent to Config.OnEvent and HandleQueued to Config.OnQueued.
 type Executor struct {
-	srv      *server.Server
-	st       Operations
-	now      func() time.Time
-	mu       sync.Mutex
-	devices  map[deviceKey]bool
-	timers   map[[2]string]*time.Timer
-	sessions map[[2]string]string // reject operations belong to one registration
+	recoveredZero map[[2]string]bool
+	logger        *slog.Logger
+	retries       map[deviceKey]*time.Timer
+	ctx           context.Context
+	cancel        context.CancelFunc
+	closed        bool
+	wg            sync.WaitGroup
+	srv           *server.Server
+	st            Operations
+	now           func() time.Time
+	mu            sync.Mutex
+	devices       map[deviceKey]bool
+	timers        map[[2]string]*time.Timer
+	sessions      map[[2]string]string // reject operations belong to one registration
 }
 type request struct {
 	Arguments string   `json:"arguments"`
@@ -71,7 +82,11 @@ func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Execu
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	return &Executor{srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
+	ctx, cancel := context.WithCancel(context.Background())
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	return &Executor{logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
 }
 
 var ErrNotRegistered = server.ErrNotRegistered
@@ -96,7 +111,7 @@ func (e *Executor) Cancel(ctx context.Context, tenant, id string) (Operation, er
 	if o.Status != Queued {
 		return o, ErrConflict
 	}
-	err = e.st.Update(ctx, tenant, id, Queued, Change{Status: Cancelled, At: e.now()})
+	err = e.update(ctx, tenant, id, Queued, Change{Status: Cancelled, At: e.now()})
 	if errors.Is(err, ErrTransition) {
 		err = ErrConflict
 	}
@@ -110,6 +125,12 @@ func (e *Executor) Cancel(ctx context.Context, tenant, id string) (Operation, er
 // Submit persists an operation initialized by New. Delivery outlives ctx once
 // accepted; TTL zero is claimed or expired before Submit returns.
 func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Operation, error) {
+	e.mu.Lock()
+	closed := e.closed
+	e.mu.Unlock()
+	if closed {
+		return Operation{}, ErrClosed
+	}
 	if o.Type != "read" && o.Type != "write" && o.Type != "execute" {
 		return Operation{}, ErrInvalid
 	}
@@ -138,6 +159,9 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var session string
+	if e.closed {
+		return Operation{}, ErrClosed
+	}
 	if o.WhenOffline == "reject" {
 		r, ok := e.srv.Store().ByEndpoint(o.Device)
 		if !ok {
@@ -158,34 +182,60 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	if o.TTLSeconds > 0 {
 		e.timers[[2]string{tenant, o.ID}] = time.AfterFunc(max(0, o.ExpiresAt.Sub(e.now())), func() { e.kick(k) })
 	}
-	e.kickLocked(k)
+	err := e.kickLocked(k)
 	if o.TTLSeconds == 0 {
-		if e.st.Update(context.Background(), tenant, o.ID, Queued, Change{Status: Expired, At: e.now()}) == nil {
-			e.stopTimer(tenant, o.ID)
+		got, getErr := e.st.Get(ctx, tenant, o.ID)
+		if getErr != nil {
+			return Operation{}, errors.Join(err, getErr)
+		}
+		if got.Status == Queued {
+			updateErr := e.update(ctx, tenant, o.ID, Queued, Change{Status: Expired, At: e.now()})
+			err = errors.Join(err, updateErr)
+			if updateErr == nil {
+				e.stopTimer(tenant, o.ID)
+			}
 		}
 	}
-	return e.st.Get(context.Background(), tenant, o.ID)
+	got, getErr := e.st.Get(ctx, tenant, o.ID)
+	return got, errors.Join(err, getErr)
 }
 func (e *Executor) kick(k deviceKey) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.kickLocked(k)
 }
-func (e *Executor) kickLocked(k deviceKey) {
+func (e *Executor) kickLocked(k deviceKey) (result error) {
+	if e.closed {
+		return
+	}
 	pending, err := e.st.Pending(context.Background(), k.tenant, k.device)
-	if err != nil || len(pending) == 0 {
+	if err != nil {
+		e.logger.Error("pending operations failed", "tenant", k.tenant, "device", k.device, "error", err)
+		e.retryLocked(k)
+		return err
+	}
+	if len(pending) == 0 {
 		return
 	}
 	var live []Operation
 	for _, o := range pending {
-		if e.expireLocked(k.tenant, o.ID) {
+		expired, expireErr := e.expireLocked(k.tenant, o.ID)
+		result = errors.Join(result, expireErr)
+		if expireErr != nil {
+			e.retryLocked(k)
+			continue
+		}
+		if expired {
 			continue
 		}
 		if o.WhenOffline == "reject" {
 			r, ok := e.srv.Store().ByEndpoint(o.Device)
 			if !ok || r.ID != e.sessions[[2]string{k.tenant, o.ID}] {
-				if e.st.Update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
+				if err := e.update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}); err == nil {
 					e.stopTimer(k.tenant, o.ID)
+				} else {
+					result = errors.Join(result, err)
+					e.retryLocked(k)
 				}
 				continue
 			}
@@ -195,53 +245,62 @@ func (e *Executor) kickLocked(k deviceKey) {
 	if e.devices[k] || !e.srv.Awake(k.device) || len(live) == 0 {
 		return
 	}
-	o := live[0]
-	session := e.sessions[[2]string{k.tenant, o.ID}]
-	if e.st.Update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Sent, At: e.now()}) != nil {
-		return
-	}
-	e.stopTimer(k.tenant, o.ID)
-	e.devices[k] = true
-	go func() {
-		r, err := e.deliver(o, session)
-		c := Change{Status: Succeeded, At: e.now()}
-		if err != nil {
-			c.Status = Failed
-			c.Error = &Error{Code: "transport", Message: err.Error()}
-			var enc *encodeError
-			if errors.As(err, &enc) || o.Type == "write" && errors.Is(err, server.ErrBadRequest) {
-				c.Error.Code = "encode"
-			}
-			if errors.Is(err, context.DeadlineExceeded) {
-				c.Status = Timeout
-				c.Error.Code = "timeout"
-			}
-			if errors.Is(err, server.ErrQueueDropped) || session != "" && errors.Is(err, server.ErrNotRegistered) {
-				c.Status = Dropped
-				c.Error = &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}
-			}
-		} else {
-			c.Result, _ = json.Marshal(r)
-			if r.decodeErr != nil {
-				c.Error = &Error{Code: "decode", Message: r.decodeErr.Error()}
-			}
-			if len(r.Code) > 0 && r.Code[0] != '2' {
+	for _, o := range live {
+		session := e.sessions[[2]string{k.tenant, o.ID}]
+		if err := e.update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Sent, At: e.now()}); err != nil {
+			result = errors.Join(result, err)
+			e.retryLocked(k)
+			continue
+		}
+		e.stopTimer(k.tenant, o.ID)
+		e.devices[k] = true
+		e.wg.Add(1)
+		go func() {
+			defer e.wg.Done()
+			r, err := e.deliver(o, session)
+			c := Change{Status: Succeeded, At: e.now()}
+			if err != nil {
 				c.Status = Failed
-				c.Error = &Error{Code: deviceErrorCodes[r.Code], Message: "device returned " + r.Code}
-				if c.Error.Code == "" {
-					c.Error.Code = r.Code
+				c.Error = &Error{Code: "transport", Message: err.Error()}
+				var enc *encodeError
+				if errors.As(err, &enc) || o.Type == "write" && errors.Is(err, server.ErrBadRequest) {
+					c.Error.Code = "encode"
+				}
+				if errors.Is(err, context.DeadlineExceeded) {
+					c.Status = Timeout
+					c.Error.Code = "timeout"
+				}
+				if errors.Is(err, server.ErrQueueDropped) || session != "" && errors.Is(err, server.ErrNotRegistered) {
+					c.Status = Dropped
+					c.Error = &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}
+				}
+			} else {
+				c.Result, _ = json.Marshal(r)
+				if r.decodeErr != nil {
+					c.Error = &Error{Code: "decode", Message: r.decodeErr.Error()}
+				}
+				if len(r.Code) > 0 && r.Code[0] != '2' {
+					c.Status = Failed
+					c.Error = &Error{Code: deviceErrorCodes[r.Code], Message: "device returned " + r.Code}
+					if c.Error.Code == "" {
+						c.Error.Code = r.Code
+					}
 				}
 			}
-		}
-		e.st.Update(context.Background(), k.tenant, o.ID, Sent, c)
-		e.mu.Lock()
-		e.devices[k] = false
-		e.mu.Unlock()
-		e.kick(k)
-	}()
+			e.mu.Lock()
+			if !e.closed {
+				e.update(context.Background(), k.tenant, o.ID, Sent, c)
+			}
+			e.devices[k] = false
+			e.mu.Unlock()
+			e.kick(k)
+		}()
+		return
+	}
+	return
 }
 func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, deliveryErr error) {
-	ctx := context.Background()
+	ctx := e.ctx
 	if session != "" {
 		ctx = server.WithRegistration(ctx, session)
 	}
@@ -416,18 +475,23 @@ func (e *Executor) dropRegistration(r *server.Registration) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.closed {
+		return
+	}
 	for k := range e.devices {
 		if k.device != r.Endpoint {
 			continue
 		}
 		pending, err := e.st.Pending(context.Background(), k.tenant, k.device)
 		if err != nil {
+			e.logger.Error("pending operations failed", "error", err)
+			e.retryLocked(k)
 			continue
 		}
 		for _, o := range pending {
 			key := [2]string{k.tenant, o.ID}
 			if o.WhenOffline == "reject" && e.sessions[key] == r.ID {
-				if e.st.Update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
+				if e.update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
 					e.stopTimer(k.tenant, o.ID)
 				}
 			}
@@ -441,7 +505,9 @@ func (e *Executor) Wait(ctx context.Context, tenant, id string) (Operation, erro
 	tick := time.NewTicker(time.Millisecond)
 	defer tick.Stop()
 	for {
-		e.expire(tenant, id)
+		if _, err := e.expire(tenant, id); err != nil {
+			return Operation{}, err
+		}
 		o, err := e.st.Get(context.Background(), tenant, id)
 		if err != nil || o.Status != Queued && o.Status != Sent {
 			return o, err
@@ -550,7 +616,7 @@ func encodeValue(v lwm2m.Value) any {
 	}
 	return nil
 }
-func (e *Executor) expire(tenant, id string) bool {
+func (e *Executor) expire(tenant, id string) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.expireLocked(tenant, id)
@@ -559,20 +625,28 @@ func (e *Executor) expire(tenant, id string) bool {
 // stopTimer releases queued-only bookkeeping on claim or terminal transition.
 func (e *Executor) stopTimer(tenant, id string) {
 	k := [2]string{tenant, id}
+	delete(e.recoveredZero, k)
 	delete(e.sessions, k)
 	if t := e.timers[k]; t != nil {
 		t.Stop()
 		delete(e.timers, k)
 	}
 }
-func (e *Executor) expireLocked(tenant, id string) bool {
-	o, err := e.st.Get(context.Background(), tenant, id)
-	if err != nil || o.Status != Queued || o.TTLSeconds == 0 || e.now().Before(o.ExpiresAt) {
-		return false
+func (e *Executor) expireLocked(tenant, id string) (bool, error) {
+	if e.closed {
+		return false, nil
 	}
-	if e.st.Update(context.Background(), tenant, id, Queued, Change{Status: Expired, At: e.now()}) != nil {
-		return false
+	o, err := e.st.Get(context.Background(), tenant, id)
+	if err != nil {
+		e.logger.Error("operation lookup failed", "error", err)
+		return false, err
+	}
+	if o.Status != Queued || o.TTLSeconds == 0 && !e.recoveredZero[[2]string{tenant, id}] || e.now().Before(o.ExpiresAt) {
+		return false, nil
+	}
+	if err := e.update(context.Background(), tenant, id, Queued, Change{Status: Expired, At: e.now()}); err != nil {
+		return false, err
 	}
 	e.stopTimer(tenant, id)
-	return true
+	return true, nil
 }
