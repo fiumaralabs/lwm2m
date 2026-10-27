@@ -12,6 +12,7 @@ import (
 // Options configures the native API and its server information.
 type Options struct {
 	EventOptions
+	Webhooks   store.Webhooks       `json:"-"`
 	Operations store.Operations     `json:"-"`
 	Executor   *operations.Executor `json:"-"`
 	Devices    store.Devices        `json:"-"`
@@ -27,6 +28,9 @@ type Options struct {
 
 // New returns the authenticated native API handler.
 func New(o Options) http.Handler {
+	if o.Webhooks == nil {
+		o.Webhooks = &memory.Webhooks{}
+	}
 	if o.Devices == nil {
 		o.Devices = &memory.Devices{}
 	}
@@ -43,6 +47,10 @@ func New(o Options) http.Handler {
 	}
 	ops := o.operationHandler()
 	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/webhooks" || strings.HasPrefix(r.URL.Path, "/v1/webhooks/") {
+			RequireScope("admin")(http.HandlerFunc(o.webhooks)).ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/operations" || strings.HasPrefix(r.URL.Path, "/v1/operations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/operations") && r.URL.EscapedPath() != "/v1/devices/operations" {
 			ops.ServeHTTP(w, r)
 			return
