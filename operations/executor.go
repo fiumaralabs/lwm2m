@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/codec"
 	"github.com/fiumaralabs/lwm2m/server"
 )
 
@@ -32,12 +33,13 @@ type deviceKey struct{ tenant, device string }
 // Executor claims queued operations before asynchronously delivering them.
 // Wire HandleEvent to Config.OnEvent and HandleQueued to Config.OnQueued.
 type Executor struct {
-	srv     *server.Server
-	st      Operations
-	now     func() time.Time
-	mu      sync.Mutex
-	devices map[deviceKey]bool
-	timers  map[[2]string]*time.Timer
+	srv      *server.Server
+	st       Operations
+	now      func() time.Time
+	mu       sync.Mutex
+	devices  map[deviceKey]bool
+	timers   map[[2]string]*time.Timer
+	sessions map[[2]string]string // reject operations belong to one registration
 }
 type request struct {
 	Arguments string   `json:"arguments"`
@@ -69,12 +71,19 @@ func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Execu
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	return &Executor{srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer)}
+	return &Executor{srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
 }
 
 var ErrNotRegistered = server.ErrNotRegistered
 var ErrInvalid = errors.New("operations: invalid operation")
 var ErrConflict = errors.New("operations: operation is not queued")
+
+type encodeError struct{ error }
+
+// ErrPrefixUnsupported identifies an operation the server cannot route with a prefix.
+type ErrPrefixUnsupported struct{ Type string }
+
+func (e *ErrPrefixUnsupported) Error() string { return "operations: prefix unsupported for " + e.Type }
 
 // Cancel atomically cancels only a queued operation; sent operations cannot be recalled.
 func (e *Executor) Cancel(ctx context.Context, tenant, id string) (Operation, error) {
@@ -109,6 +118,9 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		return Operation{}, ErrInvalid
 	}
 	paths := q.Paths
+	if o.Prefix != "" && (o.Type != "read" || len(paths) > 1) {
+		return Operation{}, &ErrPrefixUnsupported{Type: o.Type}
+	}
 	if o.Type != "read" {
 		paths = []string{q.Path}
 		if o.Type == "write" && q.Path == "" {
@@ -123,17 +135,23 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 			return Operation{}, ErrInvalid
 		}
 	}
-	if o.WhenOffline == "reject" {
-		if _, ok := e.srv.Store().ByEndpoint(o.Device); !ok {
-			return Operation{}, ErrNotRegistered
-		}
-	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	var session string
+	if o.WhenOffline == "reject" {
+		r, ok := e.srv.Store().ByEndpoint(o.Device)
+		if !ok {
+			return Operation{}, ErrNotRegistered
+		}
+		session = r.ID
+	}
 	if err := e.st.Create(ctx, tenant, o); err != nil {
 		return Operation{}, err
 	}
 	k := deviceKey{tenant, o.Device}
+	if o.WhenOffline == "reject" {
+		e.sessions[[2]string{tenant, o.ID}] = session
+	}
 	if _, ok := e.devices[k]; !ok {
 		e.devices[k] = false
 	}
@@ -142,7 +160,9 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	}
 	e.kickLocked(k)
 	if o.TTLSeconds == 0 {
-		e.st.Update(context.Background(), tenant, o.ID, Queued, Change{Status: Expired, At: e.now()})
+		if e.st.Update(context.Background(), tenant, o.ID, Queued, Change{Status: Expired, At: e.now()}) == nil {
+			e.stopTimer(tenant, o.ID)
+		}
 	}
 	return e.st.Get(context.Background(), tenant, o.ID)
 }
@@ -158,28 +178,47 @@ func (e *Executor) kickLocked(k deviceKey) {
 	}
 	var live []Operation
 	for _, o := range pending {
-		if !e.expireLocked(k.tenant, o.ID) {
-			live = append(live, o)
+		if e.expireLocked(k.tenant, o.ID) {
+			continue
 		}
+		if o.WhenOffline == "reject" {
+			r, ok := e.srv.Store().ByEndpoint(o.Device)
+			if !ok || r.ID != e.sessions[[2]string{k.tenant, o.ID}] {
+				if e.st.Update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
+					e.stopTimer(k.tenant, o.ID)
+				}
+				continue
+			}
+		}
+		live = append(live, o)
 	}
 	if e.devices[k] || !e.srv.Awake(k.device) || len(live) == 0 {
 		return
 	}
 	o := live[0]
+	session := e.sessions[[2]string{k.tenant, o.ID}]
 	if e.st.Update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Sent, At: e.now()}) != nil {
 		return
 	}
 	e.stopTimer(k.tenant, o.ID)
 	e.devices[k] = true
 	go func() {
-		r, err := e.deliver(o)
+		r, err := e.deliver(o, session)
 		c := Change{Status: Succeeded, At: e.now()}
 		if err != nil {
 			c.Status = Failed
-			c.Error = &Error{Code: "delivery_failed", Message: err.Error()}
+			c.Error = &Error{Code: "transport", Message: err.Error()}
+			var enc *encodeError
+			if errors.As(err, &enc) || o.Type == "write" && errors.Is(err, server.ErrBadRequest) {
+				c.Error.Code = "encode"
+			}
 			if errors.Is(err, context.DeadlineExceeded) {
 				c.Status = Timeout
 				c.Error.Code = "timeout"
+			}
+			if errors.Is(err, server.ErrQueueDropped) || session != "" && errors.Is(err, server.ErrNotRegistered) {
+				c.Status = Dropped
+				c.Error = &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}
 			}
 		} else {
 			c.Result, _ = json.Marshal(r)
@@ -201,7 +240,11 @@ func (e *Executor) kickLocked(k deviceKey) {
 		e.kick(k)
 	}()
 }
-func (e *Executor) deliver(o Operation) (resultJSON, error) {
+func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, deliveryErr error) {
+	ctx := context.Background()
+	if session != "" {
+		ctx = server.WithRegistration(ctx, session)
+	}
 	var q request
 	if err := json.Unmarshal(o.Request, &q); err != nil {
 		return resultJSON{}, err
@@ -209,6 +252,15 @@ func (e *Executor) deliver(o Operation) (resultJSON, error) {
 	var r *server.Response
 	var err error
 	if o.Type == "write" {
+		preparing := true
+		defer func() {
+			if preparing && deliveryErr != nil {
+				deliveryErr = &encodeError{deliveryErr}
+			}
+		}()
+		if o.Format != "" && format(o.Format) == nil {
+			return resultJSON{}, codec.ErrUnsupportedFormat
+		}
 		path := q.Path
 		if path == "" {
 			path = "/"
@@ -250,20 +302,38 @@ func (e *Executor) deliver(o Operation) (resultJSON, error) {
 			nodes = append(nodes, lwm2m.ValueNode(vp, n))
 		}
 		mode := server.PartialUpdate
+		cf := format(o.Format)
+		if cf == nil && q.Path == "" {
+			f := lwm2m.FormatSenMLCBOR
+			cf = &f
+		}
+		if cf != nil {
+			c, err := codec.For(*cf)
+			if err != nil {
+				return resultJSON{}, err
+			}
+			if reg, ok := e.srv.Store().ByEndpoint(o.Device); ok {
+				c = codec.WithRoot(c, reg.RootPath)
+			}
+			if _, err := c.Encode(p, nodes); err != nil {
+				return resultJSON{}, err
+			}
+		}
+		preparing = false
 		if q.Mode == "replace" {
 			mode = server.Replace
 		}
 		if q.Path == "" {
-			r, err = e.srv.WriteComposite(context.Background(), o.Device, nodes, format(o.Format))
+			r, err = e.srv.WriteComposite(ctx, o.Device, nodes, format(o.Format))
 		} else {
-			r, err = e.srv.Write(context.Background(), o.Device, p, nodes, server.WriteOptions{Mode: mode, Format: format(o.Format)})
+			r, err = e.srv.Write(ctx, o.Device, p, nodes, server.WriteOptions{Mode: mode, Format: format(o.Format)})
 		}
 	} else if o.Type == "execute" {
 		p, pe := lwm2m.ParsePath(q.Path)
 		if pe != nil {
 			return resultJSON{}, pe
 		}
-		r, err = e.srv.Execute(context.Background(), o.Device, p, q.Arguments)
+		r, err = e.srv.Execute(ctx, o.Device, p, q.Arguments)
 	} else {
 		p, pe := lwm2m.ParsePath(q.Paths[0])
 		if pe != nil {
@@ -275,9 +345,9 @@ func (e *Executor) deliver(o Operation) (resultJSON, error) {
 				p, _ := lwm2m.ParsePath(s)
 				paths = append(paths, p)
 			}
-			r, err = e.srv.ReadComposite(context.Background(), o.Device, paths, server.CompositeOptions{Accept: format(o.Accept)})
+			r, err = e.srv.ReadComposite(ctx, o.Device, paths, server.CompositeOptions{Accept: format(o.Accept)})
 		} else {
-			r, err = e.srv.Read(context.Background(), o.Device, p, server.ReadOptions{Accept: format(o.Accept), Prefix: o.Prefix})
+			r, err = e.srv.Read(ctx, o.Device, p, server.ReadOptions{Accept: format(o.Accept), Prefix: o.Prefix})
 		}
 	}
 	if err != nil {
@@ -313,7 +383,10 @@ func (e *Executor) deliver(o Operation) (resultJSON, error) {
 func (e *Executor) HandleEvent(ev server.Event) {
 	switch v := ev.(type) {
 	case server.Registered:
+		e.dropRegistration(v.Replaced)
 		e.HandleQueued(v.Registration)
+	case server.Deregistered:
+		e.dropRegistration(v.Registration)
 	case server.Updated:
 		e.HandleQueued(v.Registration)
 	case server.Awake:
@@ -334,6 +407,31 @@ func (e *Executor) HandleQueued(r *server.Registration) {
 	e.mu.Unlock()
 	for _, k := range keys {
 		e.kick(k)
+	}
+}
+
+func (e *Executor) dropRegistration(r *server.Registration) {
+	if r == nil {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for k := range e.devices {
+		if k.device != r.Endpoint {
+			continue
+		}
+		pending, err := e.st.Pending(context.Background(), k.tenant, k.device)
+		if err != nil {
+			continue
+		}
+		for _, o := range pending {
+			key := [2]string{k.tenant, o.ID}
+			if o.WhenOffline == "reject" && e.sessions[key] == r.ID {
+				if e.st.Update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
+					e.stopTimer(k.tenant, o.ID)
+				}
+			}
+		}
 	}
 }
 
@@ -457,8 +555,11 @@ func (e *Executor) expire(tenant, id string) bool {
 	defer e.mu.Unlock()
 	return e.expireLocked(tenant, id)
 }
+
+// stopTimer releases queued-only bookkeeping on claim or terminal transition.
 func (e *Executor) stopTimer(tenant, id string) {
 	k := [2]string{tenant, id}
+	delete(e.sessions, k)
 	if t := e.timers[k]; t != nil {
 		t.Stop()
 		delete(e.timers, k)
