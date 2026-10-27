@@ -60,43 +60,7 @@ func (o Options) view(tenant string, d store.Device) deviceView {
 	if !awake {
 		v.Status = "sleeping"
 	}
-	objects := make([]map[string]any, 0, len(r.Objects))
-	for _, obj := range r.Objects {
-		objects = append(objects, map[string]any{"id": obj.ID, "version": obj.Version, "instances": obj.Instances})
-	}
-	formats := make([]string, 0, len(r.ContentFormats))
-	for _, f := range r.ContentFormats {
-		name := map[string]string{"text/plain": "text", "application/link-format": "link-format", "application/octet-stream": "opaque", "application/cbor": "cbor", "application/senml+json": "senml-json", "application/senml+cbor": "senml-cbor", "application/senml-etch+json": "senml-etch-json", "application/senml-etch+cbor": "senml-etch-cbor", "application/vnd.oma.lwm2m+tlv": "tlv", "application/vnd.oma.lwm2m+json": "oma-json", "application/vnd.oma.lwm2m+cbor": "lwm2m-cbor"}[f.Canonical().String()]
-		formats = append(formats, name)
-	}
-	mode := r.Identity.Mode.String()
-	if r.Identity.Mode == server.ModeNoSec {
-		mode = "none"
-	}
-	identity := map[string]any{"mode": mode}
-	switch r.Identity.Mode {
-	case server.ModePSK:
-		identity["pskIdentity"] = r.Identity.PSKIdentity
-	case server.ModeRPK:
-		identity["publicKey"] = r.Identity.PublicKey
-	case server.ModeX509:
-		identity["certificateSubject"] = r.Identity.CertCN
-	}
-	address := ""
-	if a := r.RemoteAddr(); a != nil {
-		address = a.String()
-	}
-	transport := strings.TrimSuffix(r.Binding, "Q")
-	if p := r.Peer(); p != nil {
-		transport = p.Binding()
-	}
-	reg := map[string]any{"id": r.ID, "lwm2mVersion": r.Version, "lifetimeSeconds": int64(r.Lifetime / time.Second), "binding": r.Binding, "queueMode": r.QueueMode, "sms": r.SMS, "profileIds": r.ProfileIDs, "rootPath": r.RootPath, "objects": objects, "contentFormats": formats, "identity": identity, "transport": transport, "address": address, "awake": awake, "registeredAt": r.RegisteredAt.UTC(), "lastUpdateAt": at}
-	if r.Lifetime > 0 {
-		reg["expiresAt"] = r.LastUpdate.Add(r.Lifetime).UTC()
-	} else {
-		reg["expiresAt"] = nil
-	}
-	v.Registration = reg
+	v.Registration = registrationView(r, awake)
 	return v
 }
 func deviceJSON(w http.ResponseWriter, status int, v any) {

@@ -64,6 +64,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/registration") && r.URL.EscapedPath() != "/v1/devices/registration" {
+				o.registration(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/events") && r.URL.EscapedPath() != "/v1/devices/events" {
 				o.deviceEvents(w, r)
 				return
