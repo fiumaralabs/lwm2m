@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"github.com/fiumaralabs/lwm2m/operations"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
@@ -11,8 +12,10 @@ import (
 // Options configures the native API and its server information.
 type Options struct {
 	EventOptions
-	Devices store.Devices  `json:"-"`
-	Server  *server.Server `json:"-"`
+	Operations store.Operations     `json:"-"`
+	Executor   *operations.Executor `json:"-"`
+	Devices    store.Devices        `json:"-"`
+	Server     *server.Server       `json:"-"`
 	// ServerTenant identifies the sole tenant served by Server (default: default).
 	ServerTenant  string                       `json:"-"`
 	Keys          Keys                         `json:"-"`
@@ -32,7 +35,18 @@ func New(o Options) http.Handler {
 	}
 
 	events := o.eventHandler()
+	if o.Operations == nil {
+		o.Operations = memory.NewOperations()
+	}
+	if o.Executor == nil && o.Server != nil {
+		o.Executor = operations.NewExecutor(o.Server, o.Operations, operations.ExecutorOptions{})
+	}
+	ops := o.operationHandler()
 	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v1/operations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/operations") && r.URL.EscapedPath() != "/v1/devices/operations" {
+			ops.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/events" {
 			events.ServeHTTP(w, r)
 			return
