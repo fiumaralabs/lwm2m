@@ -20,7 +20,7 @@ type EventOptions struct {
 	EventKeepAlive time.Duration `json:"-"`
 }
 
-func (o EventOptions) eventHandler() http.Handler {
+func (o *EventOptions) eventHandler() http.Handler {
 	if o.Events == nil {
 		o.Events = &memory.Events{}
 	}
