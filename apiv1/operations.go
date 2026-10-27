@@ -3,6 +3,7 @@ package apiv1
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/operations"
+	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
@@ -104,7 +106,11 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, err = o.Devices.Get(tenant, ep); err != nil {
-			WriteProblem(w, 404, "device_not_found", "Device not found")
+			if !errors.Is(err, store.ErrDeviceNotFound) && r.Method == "GET" && r.URL.Query().Get("selector") != "" {
+				operationError(w, err)
+			} else {
+				WriteProblem(w, 404, "device_not_found", "Device not found")
+			}
 			return
 		}
 		if r.Method == "GET" {
@@ -231,7 +237,12 @@ func (o Options) listOperations(w http.ResponseWriter, r *http.Request, device s
 			}
 		}
 	}
-	items, next, err := o.Operations.List(r.Context(), TenantFrom(r.Context()), f, r.URL.Query().Get("cursor"), limit)
+	match, err := selector.Parse(r.URL.Query().Get("selector"))
+	if err != nil {
+		WriteProblem(w, 400, "invalid_selector", "Invalid label selector")
+		return
+	}
+	items, next, err := o.listSelectedOperations(r, TenantFrom(r.Context()), f, match, limit)
 	if err != nil {
 		if errors.Is(err, store.ErrCursor) {
 			WriteProblem(w, 400, "invalid_cursor", "Invalid pagination cursor")
@@ -244,6 +255,62 @@ func (o Options) listOperations(w http.ResponseWriter, r *http.Request, device s
 		Items []operations.Operation `json:"items"`
 		Next  string                 `json:"nextCursor,omitempty"`
 	}{items, next})
+}
+
+// operationSelectorCursor resumes within a batch without interpreting store cursors.
+type operationSelectorCursor struct {
+	Selector, Tenant, Device, Status, Type, Job, Cursor string
+	Offset                                              int
+}
+
+func (o Options) listSelectedOperations(r *http.Request, tenant string, f operations.ListFilter, match selector.Selector, limit int) ([]operations.Operation, string, error) {
+	query, cursor := r.URL.Query().Get("selector"), r.URL.Query().Get("cursor")
+	if query == "" {
+		return o.Operations.List(r.Context(), tenant, f, cursor, limit)
+	}
+	c := operationSelectorCursor{Selector: query, Tenant: tenant, Device: f.Device, Status: r.URL.Query().Get("status"), Type: f.Type, Job: f.Job}
+	if cursor != "" {
+		var decoded operationSelectorCursor
+		b, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(cursor, "opsel."))
+		if !strings.HasPrefix(cursor, "opsel.") || err != nil || json.Unmarshal(b, &decoded) != nil || decoded.Selector != c.Selector || decoded.Tenant != c.Tenant || decoded.Device != c.Device || decoded.Status != c.Status || decoded.Type != c.Type || decoded.Job != c.Job || decoded.Offset < 0 || decoded.Offset >= 500 {
+			return nil, "", store.ErrCursor
+		}
+		c = decoded
+	}
+	items := make([]operations.Operation, 0, limit)
+	// Maximum-sized batches keep sparse and no-match scans batch-scaled.
+	for {
+		if err := r.Context().Err(); err != nil {
+			return nil, "", err
+		}
+		batch, next, err := o.Operations.List(r.Context(), tenant, f, c.Cursor, 500)
+		if err != nil {
+			return nil, "", err
+		}
+		for i := c.Offset; i < len(batch); i++ {
+			op := batch[i]
+			d, err := o.Devices.Get(tenant, op.Device)
+			if errors.Is(err, store.ErrDeviceNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, "", err
+			}
+			if !match.Matches(d.Labels) {
+				continue
+			}
+			if len(items) == limit {
+				c.Offset = i
+				b, _ := json.Marshal(c)
+				return items, "opsel." + base64.RawURLEncoding.EncodeToString(b), nil
+			}
+			items = append(items, op)
+		}
+		if next == "" {
+			return items, "", nil
+		}
+		c.Cursor, c.Offset = next, 0
+	}
 }
 
 func operationError(w http.ResponseWriter, err error) {
