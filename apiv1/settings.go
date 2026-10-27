@@ -9,11 +9,7 @@ import (
 )
 
 func (o Options) settings(w http.ResponseWriter, r *http.Request) {
-	scope := "devices:read"
-	if r.Method == "PATCH" {
-		scope = "admin"
-	}
-	RequireScope(scope)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" && r.Method != "PATCH" {
 			w.Header().Set("Allow", "GET, PATCH")
 			WriteProblem(w, 405, "method_not_allowed", "Expected GET or PATCH")
