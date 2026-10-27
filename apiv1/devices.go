@@ -137,6 +137,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			w.Header().Set("Location", "/v1/devices/"+url.PathEscape(d.Endpoint))
+			o.emitDevice(tenant, "lwm2m.device.created", d)
 			deviceJSON(w, 201, o.view(tenant, d))
 		case "GET":
 			q := r.URL.Query()
@@ -208,5 +209,6 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 500, "internal_error", "Cannot delete device")
 		return
 	}
+	o.emitDevice(tenant, "lwm2m.device.deleted", d)
 	w.WriteHeader(204)
 }
