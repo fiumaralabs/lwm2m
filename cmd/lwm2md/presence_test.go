@@ -30,12 +30,13 @@ func TestDevicePresenceLifecycle(t *testing.T) {
 	api := leshanapi.New(leshanapi.Options{Prefix: "/api"})
 	var mu sync.Mutex
 	counts := map[string]int{}
-	srv, native, executor := newDaemon(server.Config{QueueAwake: 20 * time.Millisecond, OnEvent: func(e server.Event) {
+	srv, native, executor, dispatcher := newDaemon(server.Config{QueueAwake: 20 * time.Millisecond, OnEvent: func(e server.Event) {
 		api.OnEvent(e)
 		mu.Lock()
 		counts[fmt.Sprintf("%T", e)]++
 		mu.Unlock()
 	}}, api, keys)
+	t.Cleanup(func() { _ = dispatcher.Close() })
 	t.Cleanup(func() { _ = srv.Close() })
 	cb := coap.New(srv)
 	t.Cleanup(func() { _ = cb.Close() })

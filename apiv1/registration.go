@@ -61,6 +61,12 @@ func (o Options) serveRegistration(w http.ResponseWriter, r *http.Request) {
 	deviceJSON(w, http.StatusOK, registrationView(reg, o.Server.Awake(ep)))
 }
 
+// RegistrationView projects a session into the native API registration schema.
+// The caller supplies reachability at the time of the snapshot.
+func RegistrationView(r *server.Registration, awake bool) map[string]any {
+	return registrationView(r, awake)
+}
+
 // registrationView is shared by device summaries and the current-session resource.
 func registrationView(r *server.Registration, awake bool) map[string]any {
 	objects := make([]map[string]any, 0, len(r.Objects))
