@@ -34,7 +34,7 @@ func TestSQLiteOperationsAndEventsRestart(t *testing.T) {
 	}
 	keys := filepath.Join(dir, "keys")
 	const token = "lwm_sqlite_synthetic"
-	if err := os.WriteFile(keys, []byte(fmt.Sprintf("key_sqlite sha256:%x devices:read,devices:write,operations:write", sha256.Sum256([]byte(token)))), 0600); err != nil {
+	if err := os.WriteFile(keys, []byte(fmt.Sprintf("key_sqlite sha256:%x admin,devices:read,devices:write,operations:write", sha256.Sum256([]byte(token)))), 0600); err != nil {
 		t.Fatal(err)
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -83,13 +83,14 @@ func TestSQLiteOperationsAndEventsRestart(t *testing.T) {
 		t.Fatalf("daemon did not become ready: %s", b)
 		return nil
 	}
+	authToken := token
 	request := func(method, path, body string, want int) string {
 		t.Helper()
 		req, err := http.NewRequest(method, "http://"+addr+path, strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Authorization", "Bearer "+authToken)
 		req.Header.Set("Content-Type", "application/json")
 		res, err := client.Do(req)
 		if err != nil {
@@ -192,11 +193,57 @@ func TestSQLiteOperationsAndEventsRestart(t *testing.T) {
 		t.Fatalf("not queued: %+v", queued)
 	}
 	operationPath := "/v1/operations/" + queued.ID
+	createKey := func() (key struct{ ID, Token string }) {
+		t.Helper()
+		if err := json.Unmarshal([]byte(request("POST", "/v1/api-keys", `{"scopes":["devices:read"]}`, 201)), &key); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	created, revoked := createKey(), createKey()
+	request("DELETE", "/v1/api-keys/"+revoked.ID, "", 204)
+	authToken = created.Token
+	request("GET", "/v1/devices", "", 200)
+	authToken = token
+	lastUse := func() time.Time {
+		t.Helper()
+		var list struct{ Items []store.KeyMetadata }
+		if err := json.Unmarshal([]byte(request("GET", "/v1/api-keys", "", 200)), &list); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range list.Items {
+			if key.ID == created.ID && key.LastUsedAt != nil {
+				return *key.LastUsedAt
+			}
+		}
+		t.Fatal("missing persisted lastUsedAt")
+		return time.Time{}
+	}
+	used := lastUse()
 	if err := cmd.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
 	_ = cmd.Wait()
 	cmd = start()
+	if !lastUse().Equal(used) {
+		t.Fatal("lastUsedAt changed across restart")
+	}
+	authToken = created.Token
+	request("GET", "/v1/devices", "", 200)
+	authToken = revoked.Token
+	request("GET", "/v1/devices", "", 401)
+	authToken = token
+	for _, suffix := range []string{"", "-wal"} {
+		data, err := os.ReadFile(filepath.Join(dir, "devices.db") + suffix)
+		if err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{created.Token, revoked.Token} {
+			if strings.Contains(string(data), secret) || strings.Contains(string(data), strings.SplitN(secret, "_", 3)[2]) {
+				t.Fatal("raw secret stored in SQLite")
+			}
+		}
+	}
 	if got := stream("", len(global)); !reflect.DeepEqual(got, global) {
 		t.Fatalf("global replay changed after restart: before=%+v after=%+v", global, got)
 	}

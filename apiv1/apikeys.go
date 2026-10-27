@@ -4,38 +4,14 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"github.com/fiumaralabs/lwm2m/store"
 	"net/http"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
-type keyMetadata struct {
-	ID         string     `json:"id"`
-	Name       string     `json:"name"`
-	Scopes     []string   `json:"scopes"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	ExpiresAt  *time.Time `json:"expiresAt"`
-	LastUsedAt *time.Time `json:"lastUsedAt"`
-}
-type keyStore struct {
-	mu       sync.Mutex
-	entries  map[string]credential
-	metadata map[string]keyMetadata
-}
-type keyStoreContext struct{}
-
-func newKeyStore(entries map[string]credential) *keyStore {
-	s := &keyStore{entries: make(map[string]credential), metadata: make(map[string]keyMetadata)}
-	if entries != nil {
-		s.entries = entries
-	}
-	for id, c := range entries {
-		s.metadata[id] = keyMetadata{ID: id, Name: id, Scopes: strings.Split(strings.Trim(c.scopes, ","), ","), CreatedAt: time.Now().UTC()}
-	}
-	return s
-}
 func serveAPIKeys(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(keyStoreContext{}).(*keyStore)
 	tenant := TenantFrom(r.Context())
@@ -56,15 +32,13 @@ func serveAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "DELETE":
-		s.mu.Lock()
-		entry, ok := s.entries[id]
-		if ok && entry.tenant == tenant {
-			delete(s.entries, id)
-			delete(s.metadata, id)
-		}
-		s.mu.Unlock()
-		if !ok || entry.tenant != tenant {
+		err := s.Delete(tenant, id)
+		if errors.Is(err, store.ErrAPIKeyNotFound) {
 			WriteProblem(w, 404, "not_found", "Unknown API key")
+			return
+		}
+		if err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot revoke key")
 			return
 		}
 		w.WriteHeader(204)
@@ -100,24 +74,21 @@ func serveAPIKeys(w http.ResponseWriter, r *http.Request) {
 		id := hex.EncodeToString(random[:8])
 		token := "lwm_" + id + "_" + hex.EncodeToString(random[8:])
 		meta := keyMetadata{ID: id, Name: input.Name, Scopes: input.Scopes, CreatedAt: time.Now().UTC(), ExpiresAt: input.ExpiresAt}
-		s.mu.Lock()
-		s.entries[id] = credential{hash: sha256.Sum256([]byte(token)), scopes: "," + strings.Join(input.Scopes, ",") + ",", tenant: tenant}
-		s.metadata[id] = meta
-		s.mu.Unlock()
+		if err := s.Create(store.APIKey{KeyMetadata: meta, Hash: sha256.Sum256([]byte(token)), Tenant: tenant}); err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot create key")
+			return
+		}
 		w.Header().Set("Location", "/v1/api-keys/"+id)
 		deviceJSON(w, 201, struct {
 			keyMetadata
 			Token string `json:"token"`
 		}{meta, token})
 	case "GET":
-		items := make([]keyMetadata, 0)
-		s.mu.Lock()
-		for id, meta := range s.metadata {
-			if s.entries[id].tenant == tenant {
-				items = append(items, meta)
-			}
+		items, err := s.List(tenant)
+		if err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot list keys")
+			return
 		}
-		s.mu.Unlock()
 		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 		deviceJSON(w, 200, map[string]any{"items": items})
 	}
