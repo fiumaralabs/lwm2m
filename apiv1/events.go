@@ -72,6 +72,9 @@ func (o EventOptions) eventHandler() http.Handler {
 		rc := http.NewResponseController(w)
 		write := func(frame string) bool {
 			_ = rc.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			// Bound the write and flush, not the idle time between frames:
+			// HTTP/2 resets the stream when an armed deadline expires.
+			defer rc.SetWriteDeadline(time.Time{})
 			_, err := fmt.Fprint(w, frame)
 			return err == nil && rc.Flush() == nil
 		}
