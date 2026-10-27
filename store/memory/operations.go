@@ -17,7 +17,7 @@ type Operations struct {
 
 func NewOperations() *Operations { return &Operations{} }
 
-func clone(o operations.Operation) operations.Operation {
+func cloneOperation(o operations.Operation) operations.Operation {
 	o.Request = append([]byte(nil), o.Request...)
 	o.Result = append([]byte(nil), o.Result...)
 	if o.Error != nil {
@@ -55,7 +55,7 @@ func (s *Operations) Create(ctx context.Context, tenant string, o operations.Ope
 	if s.records == nil {
 		s.records = make(map[[2]string]operations.Operation)
 	}
-	s.records[key] = clone(o)
+	s.records[key] = cloneOperation(o)
 	return nil
 }
 
@@ -69,7 +69,7 @@ func (s *Operations) Get(ctx context.Context, tenant, id string) (operations.Ope
 	if !ok {
 		return operations.Operation{}, store.ErrNotFound
 	}
-	return clone(o), nil
+	return cloneOperation(o), nil
 }
 
 func (s *Operations) List(ctx context.Context, tenant, device string) ([]operations.Operation, error) {
@@ -87,7 +87,7 @@ func (s *Operations) list(ctx context.Context, tenant, device string, pending bo
 	out := []operations.Operation{}
 	for _, o := range s.records {
 		if o.Tenant == tenant && (device == "" || device == o.Device) && (!pending || o.Status == operations.Queued) {
-			out = append(out, clone(o))
+			out = append(out, cloneOperation(o))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -119,6 +119,6 @@ func (s *Operations) Update(ctx context.Context, tenant, id string, expected ope
 	if err := o.Apply(change); err != nil {
 		return err
 	}
-	s.records[key] = clone(o)
+	s.records[key] = cloneOperation(o)
 	return nil
 }
