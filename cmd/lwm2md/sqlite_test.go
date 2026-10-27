@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -8,6 +9,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"reflect"
+
+	"github.com/fiumaralabs/lwm2m/store"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,7 +27,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
-func TestSQLiteOperationsRestart(t *testing.T) {
+func TestSQLiteOperationsAndEventsRestart(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "lwm2md")
 	if out, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
@@ -107,7 +112,83 @@ func TestSQLiteOperationsRestart(t *testing.T) {
 		return op
 	}
 	cmd := start()
+	// Two events for one endpoint make its pagination cursor meaningful.
+	request("POST", "/v1/devices", `{"endpoint":"persisted"}`, 201)
+	request("DELETE", "/v1/devices/persisted", "", 204)
 	request("POST", "/v1/devices", `{"endpoint":"persisted","name":"pump","labels":{"site":"lab"}}`, 201)
+	request("POST", "/v1/devices", `{"endpoint":"unrelated"}`, 201)
+	type eventPage struct {
+		Items      []store.Event `json:"items"`
+		NextCursor string        `json:"nextCursor"`
+	}
+	history := func(path string) eventPage {
+		t.Helper()
+		var page eventPage
+		if err := json.Unmarshal([]byte(request("GET", path, "", 200)), &page); err != nil {
+			t.Fatal(err)
+		}
+		return page
+	}
+	stream := func(since string, count int) []store.Event {
+		t.Helper()
+		req, err := http.NewRequest("GET", "http://"+addr+"/v1/events?since="+url.QueryEscape(since), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 || res.Header.Get("Content-Type") != "text/event-stream" {
+			t.Fatalf("event stream: %s, %v", res.Status, res.Header)
+		}
+		var events []store.Event
+		var id, kind string
+		var event store.Event
+		scanner := bufio.NewScanner(res.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch {
+			case strings.HasPrefix(line, "id: "):
+				id = strings.TrimPrefix(line, "id: ")
+			case strings.HasPrefix(line, "event: "):
+				kind = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &event); err != nil {
+					t.Fatal(err)
+				}
+			case line == "":
+				if id != event.Sequence || kind != event.Type || !store.ValidSequence(id) {
+					t.Fatalf("invalid SSE frame: id=%q kind=%q event=%+v", id, kind, event)
+				}
+				events = append(events, event)
+				if len(events) == count {
+					return events
+				}
+			}
+		}
+		t.Fatalf("stream returned %d/%d events: %v", len(events), count, scanner.Err())
+		return nil
+	}
+	global := stream("", 4)
+	paths := []string{"/v1/devices/persisted/events"}
+	full, first, rest := map[string]eventPage{}, map[string]eventPage{}, map[string]eventPage{}
+	for i, path := range paths {
+		full[path] = history(path)
+		if len(full[path].Items) != 3+i {
+			t.Fatalf("%s: unexpected initial history: %+v", path, full[path])
+		}
+		first[path] = history(path + "?limit=1")
+		if len(first[path].Items) != 1 || first[path].NextCursor == "" {
+			t.Fatalf("%s: missing first page/cursor: %+v", path, first[path])
+		}
+		rest[path] = history(path + "?limit=1&cursor=" + url.QueryEscape(first[path].NextCursor))
+		if len(rest[path].Items) != 1 || rest[path].Items[0].ID != full[path].Items[1].ID {
+			t.Fatalf("%s: cursor did not advance: %+v", path, rest[path])
+		}
+	}
 	before := request("GET", "/v1/devices/persisted", "", 200)
 	queued := decode(request("POST", "/v1/devices/persisted/operations", `{"type":"read","paths":["/3/0/0"],"ttlSeconds":120}`, 202))
 	if queued.ID == "" || queued.Status != operations.Queued {
@@ -119,6 +200,32 @@ func TestSQLiteOperationsRestart(t *testing.T) {
 	}
 	_ = cmd.Wait()
 	cmd = start()
+	if got := stream("", len(global)); !reflect.DeepEqual(got, global) {
+		t.Fatalf("global replay changed after restart: before=%+v after=%+v", global, got)
+	}
+	if got := stream(global[1].Sequence, 2); !reflect.DeepEqual(got, global[2:]) {
+		t.Fatalf("global replay cursor changed after restart: %+v", got)
+	}
+	for _, path := range paths {
+		for _, check := range []struct {
+			query string
+			want  eventPage
+		}{
+			{"", full[path]},
+			{"?limit=1", first[path]},
+			{"?limit=1&cursor=" + url.QueryEscape(first[path].NextCursor), rest[path]},
+		} {
+			if got := history(path + check.query); !reflect.DeepEqual(got, check.want) {
+				t.Fatalf("%s%s changed after kill/restart: before=%+v after=%+v", path, check.query, check.want, got)
+			}
+		}
+	}
+	request("POST", "/v1/devices", `{"endpoint":"after-restart"}`, 201)
+	continued := stream(global[len(global)-1].Sequence, 1)[0]
+	if continued.Type != "lwm2m.device.created" || continued.Subject != "after-restart" ||
+		continued.Sequence <= global[len(global)-1].Sequence {
+		t.Fatalf("event sequence did not continue after restart: %+v", continued)
+	}
 	after := request("GET", "/v1/devices/persisted", "", 200)
 	if before != after {
 		t.Fatalf("device changed after kill/restart: before=%s after=%s", before, after)
