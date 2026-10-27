@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 )
@@ -102,6 +104,53 @@ func deviceJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+// selectorCursor binds the opaque store continuation to the label filter.
+type selectorCursor struct{ Selector, Cursor string }
+
+func (o Options) listSelectedDevices(r *http.Request, tenant string, filter store.DeviceFilter, match selector.Selector, limit int) ([]store.Device, string, error) {
+	query, cursor := r.URL.Query().Get("selector"), r.URL.Query().Get("cursor")
+	if query == "" {
+		return o.Devices.List(tenant, filter, cursor, limit)
+	}
+	if cursor != "" {
+		var c selectorCursor
+		b, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(cursor, "sel."))
+		if !strings.HasPrefix(cursor, "sel.") || err != nil || json.Unmarshal(b, &c) != nil || c.Selector != query || c.Cursor == "" {
+			return nil, "", store.ErrDeviceCursor
+		}
+		cursor = c.Cursor
+	}
+	items := make([]store.Device, 0, limit)
+	boundary := ""
+	// ponytail: one-record scans preserve store-owned ordering and cursors;
+	// add a store predicate when durable stores need indexed label filtering.
+	for {
+		if err := r.Context().Err(); err != nil {
+			return nil, "", err
+		}
+		batch, next, err := o.Devices.List(tenant, filter, cursor, 1)
+		if err != nil {
+			return nil, "", err
+		}
+		for _, d := range batch {
+			if !match.Matches(d.Labels) {
+				continue
+			}
+			if len(items) == limit {
+				b, _ := json.Marshal(selectorCursor{Selector: query, Cursor: boundary})
+				return items, "sel." + base64.RawURLEncoding.EncodeToString(b), nil
+			}
+			items = append(items, d)
+			boundary = next
+		}
+		if next == "" {
+			return items, "", nil
+		}
+		cursor = next
+	}
+}
+
 func (o Options) devices(w http.ResponseWriter, r *http.Request) {
 	scope := "devices:read"
 	if r.Method != "GET" {
@@ -141,8 +190,12 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			deviceJSON(w, 201, o.view(tenant, d))
 		case "GET":
 			q := r.URL.Query()
+			match, err := selector.Parse(q.Get("selector"))
+			if err != nil {
+				WriteProblem(w, 400, "invalid_selector", "Invalid label selector")
+				return
+			}
 			limit := 50
-			var err error
 			if q.Has("limit") {
 				limit, err = strconv.Atoi(q.Get("limit"))
 			}
@@ -155,7 +208,8 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				WriteProblem(w, 400, "invalid_status", "Unknown device status")
 				return
 			}
-			items, next, err := o.Devices.List(tenant, store.DeviceFilter{Q: q.Get("q"), Status: status, StatusOf: func(d store.Device) string { return o.view(tenant, d).Status }}, q.Get("cursor"), limit)
+			filter := store.DeviceFilter{Q: q.Get("q"), Status: status, StatusOf: func(d store.Device) string { return o.view(tenant, d).Status }}
+			items, next, err := o.listSelectedDevices(r, tenant, filter, match, limit)
 			if err != nil {
 				if errors.Is(err, store.ErrDeviceCursor) {
 					WriteProblem(w, 400, "invalid_cursor", "Invalid pagination cursor")
