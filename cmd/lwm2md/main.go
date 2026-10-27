@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"log"
@@ -21,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"time"
@@ -38,9 +40,10 @@ import (
 	"github.com/fiumaralabs/lwm2m/store/memory"
 	"github.com/fiumaralabs/lwm2m/store/sqlite"
 	"github.com/fiumaralabs/lwm2m/transport/coap"
+	"github.com/fiumaralabs/lwm2m/webhooks"
 )
 
-func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor) {
+func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
@@ -50,6 +53,7 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 		operationStore = durable.Operations()
 	}
 	var executor *operations.Executor
+	events, hooks := &memory.Events{}, &memory.Webhooks{}
 	onQueued := cfg.OnQueued
 	cfg.OnQueued = func(r *server.Registration) {
 		executor.HandleQueued(r)
@@ -61,6 +65,7 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 	deviceEvents := apiv1.DeviceEvents(devices, "default")
 	cfg.OnEvent = func(e server.Event) {
 		deviceEvents(e)
+		registrationEvent(events, e)
 		executor.HandleEvent(e)
 		if onEvent != nil {
 			onEvent(e)
@@ -69,10 +74,59 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 	srv := server.New(cfg)
 	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{})
 	api.Attach(srv)
-	native := apiv1.New(apiv1.Options{Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
-	return srv, native, executor
+	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
+}
+
+// Expiration is a Deregistered event with ReasonExpired, not a distinct type.
+func registrationEvent(events store.Events, e server.Event) {
+	view := func(r *server.Registration) map[string]any {
+		if r == nil {
+			return nil
+		}
+		objects := make([]map[string]any, 0, len(r.Objects))
+		for _, o := range r.Objects {
+			objects = append(objects, map[string]any{"id": o.ID, "version": o.Version, "instances": o.Instances})
+		}
+		v := map[string]any{"id": r.ID, "lwm2mVersion": r.Version, "lifetimeSeconds": int64(r.Lifetime / time.Second), "binding": r.Binding, "queueMode": r.QueueMode, "rootPath": r.RootPath, "objects": objects, "registeredAt": r.RegisteredAt.UTC(), "lastUpdateAt": r.LastUpdate.UTC()}
+		if r.Lifetime > 0 {
+			v["expiresAt"] = r.LastUpdate.Add(r.Lifetime).UTC()
+		}
+		if a := r.RemoteAddr(); a != nil {
+			v["address"] = a.String()
+		}
+		return v
+	}
+	var r *server.Registration
+	var kind string
+	var data map[string]any
+	switch e := e.(type) {
+	case server.Registered:
+		r, kind = e.Registration, "created"
+		data = map[string]any{"registration": view(r), "replaced": view(e.Replaced)}
+	case server.Updated:
+		r, kind = e.Registration, "updated"
+		current, previous := view(r), view(&e.Previous)
+		changed := []string{}
+		for _, key := range []string{"lwm2mVersion", "lifetimeSeconds", "binding", "queueMode", "rootPath", "objects", "address"} {
+			if !reflect.DeepEqual(current[key], previous[key]) {
+				changed = append(changed, key)
+			}
+		}
+		data = map[string]any{"registration": current, "changed": changed}
+	case server.Deregistered:
+		r, kind = e.Registration, "deleted"
+		data = map[string]any{"registration": view(r), "reason": e.Reason.String()}
+	default:
+		return
+	}
+	if body, err := json.Marshal(data); err == nil {
+		if _, err := events.Append("default", "lwm2m.registration."+kind, r.Endpoint, body); err != nil {
+			log.Printf("append registration event: %v", err)
+		}
+	}
 }
 
 func main() {
@@ -130,7 +184,10 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv, native, executor := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, devices)
+	srv, native, executor, dispatcher := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, devices)
+	if err := dispatcher.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
 	if err := executor.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
@@ -238,6 +295,9 @@ func main() {
 			_ = hs.Close()
 		}
 		cancel()
+	}
+	if err := dispatcher.Close(); err != nil {
+		log.Print(err)
 	}
 	if err := executor.Close(); err != nil {
 		log.Print(err)

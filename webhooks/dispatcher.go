@@ -1,5 +1,5 @@
-// Package webhooks delivers signed CloudEvents. Callers own polling/retry timing;
-// there are no background timers. Queues and cursors are in memory: a fresh
+// Package webhooks delivers signed CloudEvents. Start optionally owns polling.
+// Queues, failure windows and cursors are in memory: a fresh
 // dispatcher replays retained history, without durable receipts or recovery.
 package webhooks
 
@@ -32,17 +32,21 @@ type Options struct {
 	Client *http.Client
 }
 type Dispatcher struct {
-	tenant  string
-	events  store.Events
-	hooks   store.Webhooks
-	devices store.Devices
-	now     func() time.Time
-	client  *http.Client
-	after   string
-	lanes   map[[2]string][]*delivery
-	serial  sync.Mutex
-	life    context.Context
-	cancel  context.CancelFunc
+	tenant    string
+	events    store.Events
+	hooks     store.Webhooks
+	devices   store.Devices
+	now       func() time.Time
+	client    *http.Client
+	after     string
+	lanes     map[[2]string][]*delivery
+	serial    sync.Mutex
+	life      context.Context
+	cancel    context.CancelFunc
+	worker    sync.WaitGroup
+	started   bool
+	failureMu sync.Mutex
+	failures  map[string]time.Time
 }
 type delivery struct {
 	event       store.Event
@@ -62,14 +66,46 @@ func New(tenant string, events store.Events, hooks store.Webhooks, devices store
 	client := *o.Client
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	life, cancel := context.WithCancel(context.Background())
-	return &Dispatcher{tenant: tenant, events: events, hooks: hooks, devices: devices, now: o.Now, client: &client, lanes: make(map[[2]string][]*delivery), life: life, cancel: cancel}
+	return &Dispatcher{tenant: tenant, events: events, hooks: hooks, devices: devices, now: o.Now, client: &client, lanes: make(map[[2]string][]*delivery), life: life, cancel: cancel, failures: make(map[string]time.Time)}
+}
+
+// Start idempotently starts polling until parent cancellation or Close.
+func (d *Dispatcher) Start(parent context.Context) error {
+	d.serial.Lock()
+	defer d.serial.Unlock()
+	if d.life.Err() != nil {
+		return ErrClosed
+	}
+	if d.started {
+		return nil
+	}
+	d.started = true
+	d.worker.Go(func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			if parent.Err() != nil || d.life.Err() != nil {
+				return
+			}
+			_ = d.Dispatch(parent)
+			select {
+			case <-parent.Done():
+				return
+			case <-d.life.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	})
+	return nil
 }
 
 // Close is idempotent, cancels active requests and waits for Dispatch to exit.
 func (d *Dispatcher) Close() error {
 	d.cancel()
 	d.serial.Lock()
-	defer d.serial.Unlock()
+	d.serial.Unlock()
+	d.worker.Wait()
 	return nil
 }
 
@@ -100,6 +136,31 @@ func (d *Dispatcher) Dispatch(parent context.Context) error {
 			break
 		}
 		cursor = next
+	}
+	// No workers are active here. Failure windows span expired deliveries and
+	// independent device lanes; any successful delivery resets the endpoint.
+	for i, h := range hooks {
+		first, failing := d.failures[h.ID]
+		if h.Status != "active" {
+			delete(d.failures, h.ID)
+			continue
+		}
+		if !failing || d.now().Before(first.Add(72*time.Hour)) {
+			continue
+		}
+		status := "disabled"
+		updated, err := d.hooks.Patch(d.tenant, h.ID, store.WebhookPatch{Status: &status}, store.WebhookMatch{Required: true, Tags: []string{h.ETag()}})
+		if errors.Is(err, store.ErrWebhookPrecondition) || errors.Is(err, store.ErrWebhookNotFound) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		hooks[i] = updated
+		delete(d.failures, h.ID)
+		if _, err := d.events.Append(d.tenant, "lwm2m.webhook.disabled", h.ID, json.RawMessage(`{"status":"disabled"}`)); err != nil {
+			return err
+		}
 	}
 	var result error
 	for {
@@ -184,12 +245,27 @@ func (d *Dispatcher) run(ctx context.Context, key [2]string, q []*delivery) {
 			continue
 		}
 		if err != nil || h.Status != "active" {
+			if err == nil {
+				q[i] = nil
+				continue
+			}
 			return
 		}
 		if item.delay == 0 {
 			item.first = now
 		}
-		if d.send(ctx, h, item.event) {
+		success := d.send(ctx, h, item.event)
+		if ctx.Err() != nil {
+			return
+		}
+		d.failureMu.Lock()
+		if success {
+			delete(d.failures, h.ID)
+		} else if _, ok := d.failures[h.ID]; !ok {
+			d.failures[h.ID] = d.now()
+		}
+		d.failureMu.Unlock()
+		if success {
 			q[i] = nil
 			continue
 		}
