@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type credential struct {
@@ -19,24 +20,39 @@ type credential struct {
 }
 
 // Keys contains only credential hashes and scope metadata.
-type Keys struct{ entries map[string]credential }
+type Keys struct {
+	entries map[string]credential
+	state   *keyStore
+}
 
 const scopes = ",devices:read,devices:write,operations:write,operations:raw,credentials:write,bootstrap:write,firmware:write,jobs:write,admin,platform,"
 
 // Authenticate accepts exactly one bearer credential and stores no raw token.
 func Authenticate(keys Keys, next http.Handler) http.Handler {
+	state := keys.state
+	if state == nil {
+		state = newKeyStore(keys.entries)
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		headers := r.Header.Values("Authorization")
 		if len(headers) == 1 && strings.HasPrefix(headers[0], "Bearer lwm_") && !strings.ContainsAny(headers[0][7:], " \t\r\n,") {
 			token := headers[0][7:]
 			parts := strings.SplitN(strings.TrimPrefix(token, "lwm_"), "_", 2)
 			if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
-				entry, ok := keys.entries[parts[0]]
+				state.mu.Lock()
+				entry, ok := state.entries[parts[0]]
 				hash := sha256.Sum256([]byte(token))
-				if subtle.ConstantTimeCompare(hash[:], entry.hash[:]) == 1 && ok {
-					next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), credentialKey{}, entry)))
+				if subtle.ConstantTimeCompare(hash[:], entry.hash[:]) == 1 && ok && (state.metadata[parts[0]].ExpiresAt == nil || time.Now().Before(*state.metadata[parts[0]].ExpiresAt)) {
+					meta := state.metadata[parts[0]]
+					now := time.Now().UTC()
+					meta.LastUsedAt = &now
+					state.metadata[parts[0]] = meta
+					state.mu.Unlock()
+					ctx := context.WithValue(r.Context(), keyStoreContext{}, state)
+					next.ServeHTTP(w, r.WithContext(context.WithValue(ctx, credentialKey{}, entry)))
 					return
 				}
+				state.mu.Unlock()
 			}
 		}
 		WriteProblem(w, http.StatusUnauthorized, "unauthorized", "Invalid or missing credentials")
@@ -74,5 +90,6 @@ func LoadKeys(r io.Reader) (Keys, error) {
 	if err := scanner.Err(); err != nil {
 		return Keys{}, errors.New("cannot read keys")
 	}
+	keys.state = newKeyStore(keys.entries)
 	return keys, nil
 }

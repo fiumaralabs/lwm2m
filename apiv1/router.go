@@ -31,6 +31,10 @@ func New(o Options) http.Handler {
 	}
 
 	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/api-keys" || strings.HasPrefix(r.URL.Path, "/v1/api-keys/") {
+			RequireScope("admin")(http.HandlerFunc(serveAPIKeys)).ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
 			o.devices(w, r)
 			return
