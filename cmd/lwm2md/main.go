@@ -92,6 +92,9 @@ func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.K
 	var series apiv1.TimeSeriesStore
 	if enabled {
 		series = apiv1.NewMemoryTimeSeriesStore()
+		if durable, ok := devices.(*sqlite.Devices); ok {
+			series = durable.TimeSeries()
+		}
 	}
 	native := apiv1.New(apiv1.Options{TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
@@ -144,7 +147,7 @@ func main() {
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
-	timeSeries := flag.Bool("timeseries", true, "keep time series in memory (not persistent)")
+	timeSeries := flag.Bool("timeseries", true, "enable time series (persistent with SQLite)")
 	storeFlag := flag.String("store", "memory", "device metadata and operations store: memory or sqlite:<path>")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
