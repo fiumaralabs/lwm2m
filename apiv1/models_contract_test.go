@@ -140,7 +140,7 @@ func TestModelsScope(t *testing.T) {
 	}
 }
 
-const uploadModel = `<LWM2M><Object><Name>Vendor</Name><ObjectID>50000</ObjectID><ObjectURN>urn:oma:lwm2m:x:50000</ObjectURN><MultipleInstances>Multiple</MultipleInstances><Mandatory>Optional</Mandatory><Resources></Resources></Object></LWM2M>`
+const uploadModel = `<LWM2M><Object ObjectType="MODefinition"><Name>Vendor</Name><Description1></Description1><ObjectID>50000</ObjectID><ObjectURN>urn:oma:lwm2m:x:50000</ObjectURN><MultipleInstances>Multiple</MultipleInstances><Mandatory>Optional</Mandatory><Resources><Item ID="0"><Name>Value</Name><Operations>R</Operations><MultipleInstances>Single</MultipleInstances><Mandatory>Optional</Mandatory><Type>String</Type><RangeEnumeration></RangeEnumeration><Units></Units><Description></Description></Item></Resources><Description2></Description2></Object></LWM2M>`
 
 func modelRequest(h interface {
 	ServeHTTP(http.ResponseWriter, *http.Request)
@@ -228,5 +228,28 @@ func TestModelsUploadVersionsUseLatestSummary(t *testing.T) {
 		if !strings.Contains(w.Body.String(), `"name":"New Vendor"`) || !strings.Contains(w.Body.String(), `"versions":["1.0","1.1"]`) {
 			t.Fatal(w.Body.String())
 		}
+	}
+}
+
+func TestModelsUploadRejectsInvalidSchema(t *testing.T) {
+	h := New(Options{Keys: deviceKeys()})
+	cases := map[string]string{
+		"missing name":                  strings.Replace(uploadModel, "<Name>Vendor</Name>", "", 1),
+		"unknown element":               strings.Replace(uploadModel, "</Object>", "<NotInSchema>bad</NotInSchema></Object>", 1),
+		"missing object attribute":      strings.Replace(uploadModel, ` ObjectType="MODefinition"`, "", 1),
+		"missing resource field":        strings.Replace(uploadModel, "<Units></Units>", "", 1),
+		"unexpected resource attribute": strings.Replace(uploadModel, `ID="0"`, `ID="0" extra="1"`, 1),
+		"incorrect order":               strings.Replace(uploadModel, "<Name>Vendor</Name><Description1></Description1>", "<Description1></Description1><Name>Vendor</Name>", 1),
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			w := modelRequest(h, "POST", "/v1/models", body)
+			if w.Code != 400 || !strings.Contains(w.Header().Get("Content-Type"), "application/problem+json") {
+				t.Fatalf("invalid schema: %d %s", w.Code, w.Body.String())
+			}
+			if w = modelRequest(h, "GET", "/v1/models/50000", ""); w.Code != 404 {
+				t.Fatalf("invalid model persisted: %d", w.Code)
+			}
+		})
 	}
 }
