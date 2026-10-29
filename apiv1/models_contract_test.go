@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -234,10 +235,12 @@ func TestModelsUploadVersionsUseLatestSummary(t *testing.T) {
 func TestModelsUploadRejectsInvalidSchema(t *testing.T) {
 	h := New(Options{Keys: deviceKeys()})
 	cases := map[string]string{
+		"review reproduction":           `<LWM2M><Object><ObjectID>50001</ObjectID><MultipleInstances>Multiple</MultipleInstances><Mandatory>Optional</Mandatory><Resources></Resources><NotInSchema>bad</NotInSchema></Object></LWM2M>`,
 		"missing name":                  strings.Replace(uploadModel, "<Name>Vendor</Name>", "", 1),
 		"unknown element":               strings.Replace(uploadModel, "</Object>", "<NotInSchema>bad</NotInSchema></Object>", 1),
 		"missing object attribute":      strings.Replace(uploadModel, ` ObjectType="MODefinition"`, "", 1),
 		"missing resource field":        strings.Replace(uploadModel, "<Units></Units>", "", 1),
+		"duplicate attribute":           strings.Replace(uploadModel, `ID="0"`, `ID="0" ID="0"`, 1),
 		"unexpected resource attribute": strings.Replace(uploadModel, `ID="0"`, `ID="0" extra="1"`, 1),
 		"incorrect order":               strings.Replace(uploadModel, "<Name>Vendor</Name><Description1></Description1>", "<Description1></Description1><Name>Vendor</Name>", 1),
 	}
@@ -251,5 +254,18 @@ func TestModelsUploadRejectsInvalidSchema(t *testing.T) {
 				t.Fatalf("invalid model persisted: %d", w.Code)
 			}
 		})
+	}
+}
+
+func TestModelsUploadOMARegistryXML(t *testing.T) {
+	data, err := os.ReadFile("../model/registry/3-1_0.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := strings.Replace(string(data), "<ObjectID>3</ObjectID>", "<ObjectID>50000</ObjectID>", 1)
+	body = strings.Replace(body, "<ObjectURN>urn:oma:lwm2m:oma:3</ObjectURN>", "<ObjectURN>urn:oma:lwm2m:x:50000</ObjectURN>", 1)
+	h := New(Options{Keys: deviceKeys()})
+	if w := modelRequest(h, "POST", "/v1/models", body); w.Code != 201 {
+		t.Fatalf("OMA registry upload: %d %s", w.Code, w.Body.String())
 	}
 }

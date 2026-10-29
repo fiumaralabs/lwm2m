@@ -1,10 +1,8 @@
 package apiv1
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/xml"
 	"io"
 	"io/fs"
 	"mime"
@@ -212,35 +210,9 @@ func mutateModel(store ModelStore, w http.ResponseWriter, r *http.Request) {
 			WriteProblem(w, 400, "invalid_model", "Cannot read model or model exceeds 1 MiB")
 			return
 		}
-		decoder := xml.NewDecoder(bytes.NewReader(data))
-		var root struct {
-			XMLName xml.Name
-			Inner   string `xml:",innerxml"`
-		}
-		if err := decoder.Decode(&root); err != nil {
+		if err := validateModelXML(data); err != nil {
 			WriteProblem(w, 400, "invalid_model", err.Error())
 			return
-		}
-		for {
-			token, err := decoder.Token()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				WriteProblem(w, 400, "invalid_model", err.Error())
-				return
-			}
-			switch t := token.(type) {
-			case xml.CharData:
-				if strings.TrimSpace(string(t)) != "" {
-					WriteProblem(w, 400, "invalid_model", "Unexpected content after XML document")
-					return
-				}
-			case xml.Comment, xml.ProcInst:
-			default:
-				WriteProblem(w, 400, "invalid_model", "Unexpected content after XML document")
-				return
-			}
 		}
 		objects, err := model.ParseXML(data)
 		if err != nil {
