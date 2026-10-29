@@ -2,14 +2,17 @@ package fota_test
 
 import (
 	"context"
+	"crypto/x509"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/fota"
 	"github.com/pion/dtls/v4"
 	"github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
+	"github.com/pion/dtls/v4/pkg/crypto/selfsign"
 	"github.com/pion/dtls/v4/pkg/protocol"
 )
 
@@ -67,5 +70,44 @@ func TestFileServerPSKDoesNotCacheSessions(t *testing.T) {
 	serverSessions.mu.Unlock()
 	if sets != 0 {
 		t.Fatalf("PSK listener wrote %d sessions to caller store", sets)
+	}
+}
+
+func TestFileServerCertificateOnlyOptInResumes(t *testing.T) {
+	cert, err := selfsign.GenerateSelfSigned()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &sessionStore{sessions: make(map[string]dtls.Session)}
+	server := fota.NewFileServer()
+	server.CertificateOnlySessionResumption = true
+	defer server.Close()
+	addr, err := server.ListenDTLS("127.0.0.1:0", dtls.WithCertificates(cert), dtls.WithMaxVersion(protocol.Version1_2), dtls.WithSessionStore(store))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := &sessionStore{sessions: make(map[string]dtls.Session)}
+	var verified atomic.Int32
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for i := 0; i < 2; i++ {
+		c, err := dtls.Dial("udp", addr.(*net.UDPAddr), dtls.WithInsecureSkipVerify(true), dtls.WithMaxVersion(protocol.Version1_2), dtls.WithSessionStore(clients), dtls.WithVerifyPeerCertificate(func(_ [][]byte, _ [][]*x509.Certificate) error { verified.Add(1); return nil }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.HandshakeContext(ctx); err != nil {
+			c.Close()
+			t.Fatal(err)
+		}
+		c.Close()
+	}
+	store.mu.Lock()
+	sets := store.sets
+	store.mu.Unlock()
+	if sets == 0 {
+		t.Fatal("caller-supplied certificate store was not used")
+	}
+	if got := verified.Load(); got != 1 {
+		t.Fatalf("certificate verified %d times, want one full handshake followed by resumption", got)
 	}
 }
