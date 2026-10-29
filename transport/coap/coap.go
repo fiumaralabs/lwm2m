@@ -226,7 +226,10 @@ func (b *Binding) ListenUDP(addr string) (net.Addr, error) {
 type DTLSConfig struct {
 	// Options go to pion/dtls after the listener's defaults (PSK lookup,
 	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins.
-	Options []piondtls.ServerOption
+	// Supplying opaque options disables session resumption because they may
+	// replace the PSK callback with a source that cannot be validated.
+	Options        []piondtls.ServerOption
+	trustedOptions []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
 	// (RFC 9146, CID-01). 0 disables CID; default 8.
 	CIDLength int
@@ -257,7 +260,15 @@ func (dc DTLSConfig) CIDLen() int {
 
 // ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr.
 func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
-	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup))
+	ttl := dc.SessionTTL
+	if len(dc.Options) != 0 {
+		ttl = 0
+	}
+	opts := append(append([]piondtls.ServerOption{}, dc.trustedOptions...), dc.Options...)
+	if len(dc.Options) != 0 {
+		opts = append(opts, piondtls.WithSessionStore(nil))
+	}
+	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(opts, dc.CIDLen(), ttl, b.pskLookup))
 	if err != nil {
 		return nil, err
 	}

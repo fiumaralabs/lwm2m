@@ -69,7 +69,7 @@ func (b *Binding) DTLSConfig(m CertificateModes) (DTLSConfig, error) {
 		}
 	}
 	opts := []piondtls.ServerOption{
-		piondtls.WithPSK(b.pskLookup),
+
 		piondtls.WithClientAuth(piondtls.RequireAndVerifyClientCert),
 		piondtls.WithClientCAs(cas),
 		piondtls.WithVerifyPeerCertificate(func(raw [][]byte, chains [][]*x509.Certificate) error {
@@ -79,7 +79,7 @@ func (b *Binding) DTLSConfig(m CertificateModes) (DTLSConfig, error) {
 	if len(m.Certificates) > 0 {
 		opts = append(opts, piondtls.WithCertificates(m.Certificates...))
 	}
-	return DTLSConfig{Options: opts, SessionTTL: ttl}, nil
+	return DTLSConfig{trustedOptions: opts, SessionTTL: ttl}, nil
 }
 
 var errPeerCredential = errors.New("coap: client credential not accepted")

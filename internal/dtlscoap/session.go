@@ -2,6 +2,7 @@ package dtlscoap
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"sync"
 	"time"
 
@@ -15,17 +16,20 @@ import (
 // has no identity (no ClientKeyExchange) and Conn restores it from here.
 // pion does not cache sessions authenticated with a client certificate.
 type SessionStore struct {
-	mu  sync.Mutex
-	m   map[string]sessionEntry
-	ttl time.Duration
-	max int
-	now func() time.Time
+	mu     sync.Mutex
+	m      map[string]sessionEntry
+	ttl    time.Duration
+	max    int
+	now    func() time.Time
+	lookup dtls.PSKCallback
 }
 
 type sessionEntry struct {
-	s        dtls.Session
-	identity []byte
-	expires  time.Time
+	s           dtls.Session
+	identity    []byte
+	fingerprint [sha256.Size]byte
+	bound       bool
+	expires     time.Time
 }
 
 // NewSessionStore keeps up to max sessions for ttl each.
@@ -59,6 +63,13 @@ func (st *SessionStore) Get(key []byte) (dtls.Session, error) {
 		delete(st.m, string(key))
 		return dtls.Session{}, nil // pion: zero Session = no resumption
 	}
+	if st.lookup != nil {
+		psk, err := st.lookup(e.identity)
+		if !e.bound || err != nil || sha256.Sum256(psk) != e.fingerprint {
+			delete(st.m, string(key))
+			return dtls.Session{}, nil
+		}
+	}
 	return e.s, nil
 }
 
@@ -70,11 +81,13 @@ func (st *SessionStore) Del(key []byte) error {
 }
 
 // setIdentity records the PSK identity of a full handshake's session.
-func (st *SessionStore) setIdentity(id, identity []byte) {
+func (st *SessionStore) setIdentity(id, identity []byte, fingerprint [sha256.Size]byte, bound bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if e, ok := st.m[string(id)]; ok {
 		e.identity = bytes.Clone(identity)
+		e.fingerprint = fingerprint
+		e.bound = bound
 		st.m[string(id)] = e
 	}
 }

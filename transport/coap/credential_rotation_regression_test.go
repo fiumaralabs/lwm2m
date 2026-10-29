@@ -9,6 +9,15 @@ import (
 )
 
 func TestRotatedPSKDoesNotResumeOldSession(t *testing.T) {
+	testInvalidatedPSKDoesNotResume(t, false)
+}
+
+func TestRemovedPSKDoesNotResumeOldSession(t *testing.T) {
+	testInvalidatedPSKDoesNotResume(t, true)
+}
+
+func testInvalidatedPSKDoesNotResume(t *testing.T, remove bool) {
+	t.Helper()
 	h := newHarness(t)
 	old := []byte("0123456789abcdef")
 	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "rotate", PSKIdentity: "rotate", PSKKey: old}); err != nil {
@@ -22,8 +31,12 @@ func TestRotatedPSKDoesNotResumeOldSession(t *testing.T) {
 	c := h.mustRegisterSecure(testclient.Config{Endpoint: "rotate"}, addr, cfg)
 	_ = c.Close()
 	h.srv.RemoveRegistration("rotate")
-	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "rotate", PSKIdentity: "rotate", PSKKey: []byte("fedcba9876543210")}); err != nil {
-		t.Fatal(err)
+	if remove {
+		h.srv.Security().Remove("rotate")
+	} else {
+		if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "rotate", PSKIdentity: "rotate", PSKKey: []byte("fedcba9876543210")}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	c2, err := h.secureDevice(testclient.Config{Endpoint: "rotate"}, addr, cfg)
 	if err != nil {

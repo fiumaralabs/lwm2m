@@ -11,6 +11,7 @@ package dtlscoap
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"sync"
@@ -37,6 +38,7 @@ import (
 // Config configures a Listener.
 type Config struct {
 	Options []dtls.ServerOption
+	PSK     dtls.PSKCallback
 	// CIDLength is the length of the Connection IDs the server assigns
 	// (RFC 9146, RFC 9147 §9); 0 disables CID. The listener owns CID
 	// generation, so a dtls.WithConnectionID in Options is overridden.
@@ -80,6 +82,18 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 			return nil, coapnet.ErrListenerIsClosed
 		case pc := <-l.d.accept:
 			opts := l.cfg.Options[:len(l.cfg.Options):len(l.cfg.Options)]
+			var fingerprint [sha256.Size]byte
+			var bound bool
+			if l.cfg.Sessions != nil && l.cfg.PSK != nil {
+				opts = append(opts, dtls.WithPSK(func(identity []byte) ([]byte, error) {
+					key, err := l.cfg.PSK(identity)
+					if err == nil {
+						fingerprint = sha256.Sum256(key)
+						bound = true
+					}
+					return key, err
+				}))
+			}
 			if l.cfg.CIDLength > 0 {
 				opts = append(opts, dtls.WithConnectionID(func() []byte { return l.d.newCID(pc) }, dtls.CIDPathMigrationUnsafe))
 			}
@@ -91,7 +105,7 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 				_ = pc.Close()
 				continue
 			}
-			return &Conn{Conn: dc, pc: pc, sessions: l.cfg.Sessions}, nil
+			return &Conn{Conn: dc, pc: pc, sessions: l.cfg.Sessions, fingerprint: &fingerprint, bound: &bound}, nil
 		}
 	}
 }
@@ -110,8 +124,10 @@ func (l *Listener) Addr() net.Addr { return l.d.pc.LocalAddr() }
 // Conn is a server-side DTLS connection of a Listener.
 type Conn struct {
 	*dtls.Conn
-	pc       *packetConn
-	sessions *SessionStore
+	pc          *packetConn
+	sessions    *SessionStore
+	fingerprint *[sha256.Size]byte
+	bound       *bool
 
 	mu       sync.Mutex
 	identity []byte // PSK identity restored on resumption
@@ -127,7 +143,7 @@ func (c *Conn) HandshakeContext(ctx context.Context) error {
 	c.pc.d.handshakeComplete(c.pc)
 	if st, ok := c.Conn.ConnectionState(); ok && c.sessions != nil && len(st.SessionID) > 0 {
 		if len(st.IdentityHint) > 0 {
-			c.sessions.setIdentity(st.SessionID, st.IdentityHint)
+			c.sessions.setIdentity(st.SessionID, st.IdentityHint, *c.fingerprint, *c.bound)
 		} else {
 			c.mu.Lock()
 			c.identity = c.sessions.identity(st.SessionID)
@@ -240,9 +256,10 @@ func ServerConfig(opts []dtls.ServerOption, cidLength int, sessionTTL time.Durat
 	if psk != nil {
 		defaults = append(defaults, dtls.WithPSK(psk))
 	}
-	cfg := Config{CIDLength: cidLength, Options: append(defaults, opts...)}
+	cfg := Config{CIDLength: cidLength, Options: append(defaults, opts...), PSK: psk}
 	if sessionTTL > 0 {
 		cfg.Sessions = NewSessionStore(sessionTTL, 100_000, time.Now)
+		cfg.Sessions.lookup = psk
 	}
 	return cfg
 }
