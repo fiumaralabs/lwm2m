@@ -952,7 +952,7 @@ A message bus sink (MQTT, NATS, Kafka) for the same events is deployment configu
  "status": 202, "ip": "198.51.100.4", "summary": {"type": "execute", "path": "/3/0/4"}}
 ```
 
-Secrets never appear in `summary`. Filters: `actor`, `action`, `resource`, `from`, `to`.
+Secrets never appear in `summary`. Successful recognized mutation paths are recorded as resource paths; failed or unrecognized paths are recorded as `/[redacted]` because path segments may contain credentials. Do not use secrets as resource identifiers. Filters: `actor`, `action`, `resource`, `from`, `to`.
 
 ## 18. Server
 

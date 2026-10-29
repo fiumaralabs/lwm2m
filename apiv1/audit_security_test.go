@@ -41,7 +41,7 @@ func TestAuditWebhookRotationActionFilter(t *testing.T) {
 	var p struct {
 		Items []AuditEntry `json:"items"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil || len(p.Items) != 1 || p.Items[0].Action != "webhook.rotate_secret" {
+	if err := json.Unmarshal(w.Body.Bytes(), &p); err != nil || len(p.Items) != 1 || p.Items[0].Action != "webhook.rotate_secret" || p.Items[0].Resource != path {
 		t.Fatalf("rotation filter: %s", w.Body)
 	}
 	w = keyRequest(h, "GET", "/v1/audit-log?action=webhook.create", "lwm_root_synthetic", "")
