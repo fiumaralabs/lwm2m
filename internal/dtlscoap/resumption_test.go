@@ -43,7 +43,7 @@ func TestCertificateOnlyListenerResumes(t *testing.T) {
 		t.Fatal(err)
 	}
 	serverSessions := &testSessions{m: make(map[string]dtls.Session)}
-	cfg := ServerConfig([]dtls.ServerOption{dtls.WithCertificates(cert), dtls.WithMaxVersion(protocol.Version1_2), dtls.WithSessionStore(serverSessions)}, 0, 0, nil)
+	cfg := ServerConfig([]dtls.ServerOption{dtls.WithCertificates(cert), dtls.WithMaxVersion(protocol.Version1_2), dtls.WithSessionStore(serverSessions)}, 0, time.Hour, nil)
 	l, err := Listen("udp", "127.0.0.1:0", cfg)
 	if err != nil {
 		t.Fatal(err)

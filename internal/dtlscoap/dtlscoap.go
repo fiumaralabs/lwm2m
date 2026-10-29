@@ -83,9 +83,6 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 			if l.cfg.CIDLength > 0 {
 				opts = append(opts, dtls.WithConnectionID(func() []byte { return l.d.newCID(pc) }, dtls.CIDPathMigrationUnsafe))
 			}
-			if l.cfg.Sessions != nil {
-				opts = append(opts, dtls.WithSessionStore(l.cfg.Sessions))
-			}
 			dc, err := dtls.Server(pc, pc.raddr, opts...)
 			if err != nil {
 				_ = pc.Close()
@@ -242,11 +239,14 @@ func ServerConfig(opts []dtls.ServerOption, cidLength int, sessionTTL time.Durat
 	if psk != nil {
 		defaults = append(defaults, dtls.WithPSK(psk))
 	}
-	cfg := Config{CIDLength: cidLength, Options: append(defaults, opts...)}
+	cfg := Config{CIDLength: cidLength}
+	if psk == nil && sessionTTL > 0 {
+		cfg.Sessions = NewSessionStore(sessionTTL, 100_000, time.Now)
+		defaults = append(defaults, dtls.WithSessionStore(cfg.Sessions))
+	}
+	cfg.Options = append(defaults, opts...)
 	if psk != nil {
 		cfg.Options = append(cfg.Options, dtls.WithSessionStore(nil))
-	} else if sessionTTL > 0 {
-		cfg.Sessions = NewSessionStore(sessionTTL, 100_000, time.Now)
 	}
 	return cfg
 }
