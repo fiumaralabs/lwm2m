@@ -9,6 +9,23 @@ import (
 	"github.com/pion/dtls/v4"
 )
 
+// Returning to an earlier key must not revive a session issued before rotation.
+func TestRotatingBackDoesNotReviveCachedSession(t *testing.T) {
+	key := []byte("old")
+	st := NewSessionStore(time.Hour, 10, time.Now)
+	st.lookup = func([]byte) ([]byte, error) { return key, nil }
+	id := []byte("session")
+	_ = st.Set(id, dtls.Session{ID: id})
+	st.setIdentity(id, []byte("device"), sha256.Sum256(key), true)
+	key = []byte("new")
+	// No resume is attempted during this period, so Get cannot evict the entry.
+	key = []byte("old")
+	got, err := st.Get(id)
+	if err != nil || len(got.ID) != 0 {
+		t.Fatalf("old session revived after rotating back: %v, %v", got.ID, err)
+	}
+}
+
 // An old handshake may finish and publish its session after rotation.
 func TestSessionStoredAfterRotationIsRejected(t *testing.T) {
 	var mu sync.RWMutex
