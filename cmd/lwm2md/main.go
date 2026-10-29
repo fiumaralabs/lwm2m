@@ -50,10 +50,12 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 	}
 	var operationStore operations.Operations = memory.NewOperations()
 	var events store.Events = &memory.Events{}
+	var observationStore apiv1.ObservationDeliveryStore = &memory.Observations{}
 	if durable, ok := devices.(*sqlite.Devices); ok {
 		keys = keys.WithStore(durable.APIKeys())
 		operationStore = durable.Operations()
 		events = durable.Events()
+		observationStore = durable.Observations()
 	}
 	var executor *operations.Executor
 	var observations *apiv1.ObservationDelivery
@@ -78,7 +80,7 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 		}
 	}
 	srv := server.New(cfg)
-	observations = apiv1.NewObservationDelivery(srv, &memory.Observations{}, state, events, "default")
+	observations = apiv1.NewObservationDelivery(srv, observationStore, state, events, "default")
 	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{State: state})
 	api.Attach(srv)
 	native := apiv1.New(apiv1.Options{Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
