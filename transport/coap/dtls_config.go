@@ -27,7 +27,8 @@ type CertificateModes struct {
 	// accepts no X.509 client.
 	ClientCAs *x509.CertPool
 	// SessionTTL bounds how long a session can be resumed (SEC-11);
-	// default 24 h.
+	// default 24 h. PSK-capable listeners do not cache sessions, so
+	// this has no effect on listeners created by Binding.ListenDTLS.
 	SessionTTL time.Duration
 }
 
@@ -38,8 +39,9 @@ type CertificateModes struct {
 const DTLSExtensions uint32 = 1<<0 | 1<<12
 
 // DTLSConfig returns the ListenDTLS configuration that serves PSK and
-// X.509 clients with the suites LwM2M mandates (SEC-04, SEC-10), session
-// resumption (SEC-11) and server-assigned Connection IDs (CID-01).
+// X.509 clients with the suites LwM2M mandates (SEC-04, SEC-10) and
+// server-assigned Connection IDs (CID-01). Session resumption is disabled
+// for this PSK-capable listener, including certificate clients; CID is unaffected.
 //
 // Certificate clients must authenticate (ClientAuth RequireAndVerify): an
 // X.509 client needs a chain to ClientCAs and a stored SecurityInfo with

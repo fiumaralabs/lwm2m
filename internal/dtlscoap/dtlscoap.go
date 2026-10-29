@@ -83,9 +83,6 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 			if l.cfg.CIDLength > 0 {
 				opts = append(opts, dtls.WithConnectionID(func() []byte { return l.d.newCID(pc) }, dtls.CIDPathMigrationUnsafe))
 			}
-			if l.cfg.Sessions != nil {
-				opts = append(opts, dtls.WithSessionStore(l.cfg.Sessions))
-			}
 			dc, err := dtls.Server(pc, pc.raddr, opts...)
 			if err != nil {
 				_ = pc.Close()
@@ -229,8 +226,10 @@ func CipherSuites() []ciphersuite.ID {
 
 // ServerConfig is a listener Config with the defaults: psk (if not nil)
 // as the PSK lookup, CipherSuites, DTLS 1.2 and 1.3 (pion negotiates),
-// then opts, which win over the defaults. sessionTTL > 0 enables
-// resumption.
+// then opts, which win over the defaults except for the session store.
+// PSK-capable listeners never cache sessions, including for certificate clients:
+// reconnects perform a full handshake against current credentials. Certificate-only
+// listeners cache sessions when sessionTTL > 0. CID is unaffected.
 func ServerConfig(opts []dtls.ServerOption, cidLength int, sessionTTL time.Duration, psk dtls.PSKCallback) Config {
 	defaults := []dtls.ServerOption{
 		dtls.WithCipherSuites(CipherSuites()...),
@@ -240,9 +239,14 @@ func ServerConfig(opts []dtls.ServerOption, cidLength int, sessionTTL time.Durat
 	if psk != nil {
 		defaults = append(defaults, dtls.WithPSK(psk))
 	}
-	cfg := Config{CIDLength: cidLength, Options: append(defaults, opts...)}
-	if sessionTTL > 0 {
+	cfg := Config{CIDLength: cidLength}
+	if psk == nil && sessionTTL > 0 {
 		cfg.Sessions = NewSessionStore(sessionTTL, 100_000, time.Now)
+		defaults = append(defaults, dtls.WithSessionStore(cfg.Sessions))
+	}
+	cfg.Options = append(defaults, opts...)
+	if psk != nil {
+		cfg.Options = append(cfg.Options, dtls.WithSessionStore(nil))
 	}
 	return cfg
 }

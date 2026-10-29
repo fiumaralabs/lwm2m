@@ -225,15 +225,17 @@ func (b *Binding) ListenUDP(addr string) (net.Addr, error) {
 // the security store by identity.
 type DTLSConfig struct {
 	// Options go to pion/dtls after the listener's defaults (PSK lookup,
-	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins.
+	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins except
+	// WithSessionStore, which is ignored because this listener enables PSK.
+	// Resumption is disabled for both PSK and certificate clients.
 	Options []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
 	// (RFC 9146, CID-01). 0 disables CID; default 8.
 	CIDLength int
 	// DisableCID turns Connection ID support off.
 	DisableCID bool
-	// SessionTTL enables DTLS 1.2 session resumption (SEC-11) for
-	// sessions up to that age; 0 disables it.
+	// SessionTTL is ignored by ListenDTLS: its PSK-enabled listener disables
+	// DTLS session resumption, including for certificate clients.
 	SessionTTL time.Duration
 }
 

@@ -36,6 +36,11 @@ type FileServer struct {
 	// for smaller blocks gets them (RFC 7959 §2.4).
 	MaxSZX blockwise.SZX
 
+	// CertificateOnlySessionResumption permits a supplied session store. Set it
+	// only when ListenDTLS options contain no PSK; PSK sessions can outlive keys.
+	// The zero value disables session resumption for all authentication modes.
+	CertificateOnlySessionResumption bool
+
 	mu      sync.Mutex
 	files   map[string]file
 	stops   []func()
@@ -92,6 +97,9 @@ func (f *FileServer) ListenUDP(addr string) (net.Addr, error) {
 // (PSK or certificates, e.g. coap.Binding.DTLSConfig's), over the default
 // suites and DTLS 1.2 and 1.3.
 func (f *FileServer) ListenDTLS(addr string, opts ...piondtls.ServerOption) (net.Addr, error) {
+	if !f.CertificateOnlySessionResumption {
+		opts = append(append([]piondtls.ServerOption(nil), opts...), piondtls.WithSessionStore(nil))
+	}
 	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(opts, 0, 0, nil))
 	if err != nil {
 		return nil, err
