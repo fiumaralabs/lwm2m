@@ -18,6 +18,7 @@ type Options struct {
 	AuditOptions
 	Webhooks     store.Webhooks       `json:"-"`
 	Observations store.Observations   `json:"-"`
+	TimeSeries   TimeSeriesStore      `json:"-"`
 	Operations   store.Operations     `json:"-"`
 	Executor     *operations.Executor `json:"-"`
 	Devices      store.Devices        `json:"-"`
@@ -87,6 +88,10 @@ func New(o Options) http.Handler {
 		}
 		if r.URL.Path == "/v1/events" {
 			events.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/timeseries") && r.URL.EscapedPath() != "/v1/devices/timeseries" {
+			RequireScope("devices:read")(http.HandlerFunc(o.timeSeries)).ServeHTTP(w, r)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/v1/observations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/observations") && r.URL.EscapedPath() != "/v1/devices/observations" {

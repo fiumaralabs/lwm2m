@@ -38,6 +38,10 @@ func TestRouter(t *testing.T) {
 				t.Fatal(err)
 			}
 			got.Keys = keys
+			if enabled, ok := got.Capabilities["timeseries"]; !ok || enabled {
+				t.Fatalf("unexpected timeseries capability: %+v", got.Capabilities)
+			}
+			delete(got.Capabilities, "timeseries")
 			if !reflect.DeepEqual(got, opts) {
 				t.Fatalf("info=%+v", got)
 			}
