@@ -445,7 +445,14 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			}
 		}
 	}
-	for _, n := range r.Nodes {
+	out.Values = ObservationValues(r.Nodes)
+	return out, nil
+}
+
+// ObservationValues uses the operation value projection for notification payloads.
+func ObservationValues(nodes []lwm2m.Node) []valueJSON {
+	values := make([]valueJSON, 0, len(nodes))
+	for _, n := range nodes {
 		v := valueJSON{Path: n.Path.String(), Type: n.Value.Type.String(), Value: encodeValue(n.Value)}
 		v.Prefix = n.Prefix
 		if n.HasTime {
@@ -456,9 +463,9 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			v.Type = ""
 			v.Value = nil
 		}
-		out.Values = append(out.Values, v)
+		values = append(values, v)
 	}
-	return out, nil
+	return values
 }
 func (e *Executor) HandleEvent(ev server.Event) {
 	switch v := ev.(type) {

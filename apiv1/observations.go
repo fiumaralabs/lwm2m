@@ -120,7 +120,15 @@ func (o Options) serveObservations(w http.ResponseWriter, r *http.Request) {
 			WriteProblem(w, 400, "invalid_mode", "Expected active or passive mode")
 			return
 		}
-		if err := o.Observations.End(tenant, id); err != nil {
+		var endErr error
+		if delivery, ok := o.Observations.(interface {
+			EndMode(string, string, bool) error
+		}); ok {
+			endErr = delivery.EndMode(tenant, id, mode != "passive")
+		} else {
+			endErr = o.Observations.End(tenant, id)
+		}
+		if err := endErr; err != nil {
 			observationError(w, err)
 			return
 		}

@@ -29,7 +29,7 @@ func (s *State) Record(o operations.Operation) error {
 	var result struct {
 		Values []store.StateValue `json:"values"`
 	}
-	if o.Type != "read" && o.Type != "write" && o.Type != "delete" {
+	if o.Type != "read" && o.Type != "write" && o.Type != "delete" && o.Type != "notification" {
 		return nil
 	}
 	if o.Type != "delete" {
