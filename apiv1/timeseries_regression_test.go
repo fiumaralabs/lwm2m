@@ -33,6 +33,38 @@ func TestTimeSeriesLargeAggregates(t *testing.T) {
 	}
 }
 
+func TestTimeSeriesSumCancellation(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		values []float64
+		want   float64
+	}{
+		{"intermediate overflow", []float64{1e308, 1e308, -1e308}, 1e308},
+		{"small residual", []float64{1e308, 1, -1e308}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewMemoryTimeSeriesStore()
+			at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			for _, v := range tc.values {
+				if err := s.Append("default", "pump", "/3/0/1", at, v); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := New(Options{Keys: deviceKeys(), TimeSeries: s})
+			if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"pump"}`); w.Code != 201 {
+				t.Fatal(w.Body.String())
+			}
+			w := deviceRequest(h, "GET", "/v1/devices/pump/timeseries?path=/3/0/1&from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z&interval=300&aggregate=sum", "")
+			var body struct {
+				Series []struct{ Points []TimeSeriesPoint }
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || w.Code != 200 || len(body.Series) != 1 || len(body.Series[0].Points) != 1 || body.Series[0].Points[0].V != tc.want {
+				t.Fatalf("sum: %d %s: %v; want %g", w.Code, w.Body.String(), err, tc.want)
+			}
+		})
+	}
+}
+
 func TestTimeSeriesCanonicalPaths(t *testing.T) {
 	s := NewMemoryTimeSeriesStore()
 	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
