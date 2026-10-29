@@ -75,6 +75,21 @@ func (s *Observations) List(tenant, device string) ([]store.Observation, error) 
 	return out, nil
 }
 
+// UpdateDelivery atomically changes delivery metadata without reviving ended intent.
+func (s *Observations) UpdateDelivery(tenant, id string, update func(*store.Observation)) (store.Observation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.records[tenant][id]
+	if !ok {
+		return v, store.ErrNotFound
+	}
+	if v.Status != "ended" {
+		update(&v)
+		s.records[tenant][id] = cloneObservation(v)
+	}
+	return cloneObservation(v), nil
+}
+
 var _ store.Observations = (*Observations)(nil)
 
 func (s *Observations) UpdateAttributes(tenant, id string, a map[string]json.RawMessage) (store.Observation, error) {
