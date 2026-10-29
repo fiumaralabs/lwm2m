@@ -42,10 +42,8 @@ func TestCertificateOnlyListenerResumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := ServerConfig([]dtls.ServerOption{dtls.WithCertificates(cert), dtls.WithMaxVersion(protocol.Version1_2)}, 0, time.Hour, nil)
-	if cfg.Sessions == nil {
-		t.Fatal("certificate cache disabled")
-	}
+	serverSessions := &testSessions{m: make(map[string]dtls.Session)}
+	cfg := ServerConfig([]dtls.ServerOption{dtls.WithCertificates(cert), dtls.WithMaxVersion(protocol.Version1_2), dtls.WithSessionStore(serverSessions)}, 0, 0, nil)
 	l, err := Listen("udp", "127.0.0.1:0", cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -85,6 +83,12 @@ func TestCertificateOnlyListenerResumes(t *testing.T) {
 			t.Fatal(err)
 		}
 		_ = c.Close()
+	}
+	serverSessions.mu.Lock()
+	stored := len(serverSessions.m)
+	serverSessions.mu.Unlock()
+	if stored == 0 {
+		t.Fatal("caller-supplied server session store was not used")
 	}
 	if got := verified.Load(); got != 1 {
 		t.Fatalf("certificate verified %d times; want one full handshake then resumption", got)

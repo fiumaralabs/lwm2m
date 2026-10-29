@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/internal/dtlscoap"
 	"github.com/fiumaralabs/lwm2m/server"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -312,7 +313,8 @@ func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 	}
 	p := newDTLSPKI(t)
 	sc := p.issue(t, "lwm2m.test", "lwm2m.test")
-	addr := h.listenSecure(CertificateModes{Certificates: []tls.Certificate{sc}, ClientCAs: p.pool})
+	serverSessions := dtlscoap.NewSessionStore(time.Hour, 100, time.Now)
+	addr := h.listenSecure(CertificateModes{Certificates: []tls.Certificate{sc}, ClientCAs: p.pool}, piondtls.WithSessionStore(serverSessions))
 	px := newProxy(t, addr)
 	sessions := &clientSessions{m: map[string]piondtls.Session{}}
 	cfg := with(pskConfig("sleepy", []byte("0123456789abcdef")), piondtls.WithSessionStore(sessions))
