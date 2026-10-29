@@ -61,6 +61,10 @@ func New(o Options) http.Handler {
 	ops := o.operationHandler()
 	models := o.modelHandler()
 	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" || strings.HasPrefix(r.URL.Path, "/v1/models/") {
+			serveModels(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/settings" {
 			o.settings(w, r)
 			return
