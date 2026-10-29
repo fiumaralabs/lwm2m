@@ -109,6 +109,7 @@ func TestSQLiteObservationsRestartAndNotification(t *testing.T) {
 	path := "/v1/observations/" + created.ID
 	first := testclient.New(testclient.Config{Endpoint: "restart-observer"})
 	first.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String("before-restart"))
+	first.Set(lwm2m.MustParsePath("/3/0/1"), lwm2m.String("transient"))
 	if err := first.Dial(coapAddr); err != nil {
 		t.Fatal(err)
 	}
@@ -131,12 +132,36 @@ func TestSQLiteObservationsRestartAndNotification(t *testing.T) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
+	var transient store.Observation
+	if err := json.Unmarshal(request("POST", "/v1/devices/restart-observer/observations", `{"paths":["/3/0/1"],"persistent":false}`, 201), &transient); err != nil {
+		t.Fatal(err)
+	}
+	transientPath := "/v1/observations/" + transient.ID
+	for {
+		if err := json.Unmarshal(request("GET", transientPath, "", 200), &transient); err != nil {
+			t.Fatal(err)
+		}
+		if transient.Status == "active" {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("transient observation not attempted: %+v", transient)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 	if err := cmd.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
 	_ = cmd.Wait()
 	first.Close()
 	cmd = start()
+	if err := json.Unmarshal(request("GET", transientPath, "", 200), &transient); err != nil {
+		t.Fatal(err)
+	}
+	if transient.Status != "ended" {
+		t.Fatalf("session-bound observation after restart: %+v", transient)
+	}
 	if err := json.Unmarshal(request("GET", path, "", 200), &recovered); err != nil {
 		t.Fatal(err)
 	}
