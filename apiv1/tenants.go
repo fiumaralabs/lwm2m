@@ -153,16 +153,26 @@ func serveTenants(s TenantStore, w http.ResponseWriter, r *http.Request) {
 		deviceJSON(w, 200, t)
 	case http.MethodPatch:
 		var p struct {
-			Name   *string       `json:"name"`
-			Status *string       `json:"status"`
-			Limits *TenantLimits `json:"limits"`
+			Name   *string `json:"name"`
+			Status *string `json:"status"`
+			Limits *struct {
+				Devices                 *int64 `json:"devices"`
+				OperationsPerMinute     *int64 `json:"operationsPerMinute"`
+				EventsPerSecond         *int64 `json:"eventsPerSecond"`
+				FirmwareStorageBytes    *int64 `json:"firmwareStorageBytes"`
+				TimeseriesRetentionDays *int64 `json:"timeseriesRetentionDays"`
+			} `json:"limits"`
 		}
 		if !DecodeJSON(w, r, &p) {
 			return
 		}
-		if p.Limits != nil && !validTenantLimits(*p.Limits) {
-			WriteProblem(w, 422, "invalid_limits", "Limits must be non-negative")
-			return
+		if p.Limits != nil {
+			for _, v := range []*int64{p.Limits.Devices, p.Limits.OperationsPerMinute, p.Limits.EventsPerSecond, p.Limits.FirmwareStorageBytes, p.Limits.TimeseriesRetentionDays} {
+				if v != nil && *v < 0 {
+					WriteProblem(w, 422, "invalid_limits", "Limits must be non-negative")
+					return
+				}
+			}
 		}
 		t, ok, valid := s.Update(id, func(t *Tenant) bool {
 			if p.Name != nil {
@@ -178,7 +188,21 @@ func serveTenants(s TenantStore, w http.ResponseWriter, r *http.Request) {
 				t.Status = *p.Status
 			}
 			if p.Limits != nil {
-				t.Limits = *p.Limits
+				if p.Limits.Devices != nil {
+					t.Limits.Devices = *p.Limits.Devices
+				}
+				if p.Limits.OperationsPerMinute != nil {
+					t.Limits.OperationsPerMinute = *p.Limits.OperationsPerMinute
+				}
+				if p.Limits.EventsPerSecond != nil {
+					t.Limits.EventsPerSecond = *p.Limits.EventsPerSecond
+				}
+				if p.Limits.FirmwareStorageBytes != nil {
+					t.Limits.FirmwareStorageBytes = *p.Limits.FirmwareStorageBytes
+				}
+				if p.Limits.TimeseriesRetentionDays != nil {
+					t.Limits.TimeseriesRetentionDays = *p.Limits.TimeseriesRetentionDays
+				}
 			}
 			return true
 		})
