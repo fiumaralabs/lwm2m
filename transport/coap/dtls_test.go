@@ -301,10 +301,8 @@ func (c *clientSessions) Get(k []byte) (piondtls.Session, error) { return c.m[st
 func (c *clientSessions) Del(k []byte) error                     { delete(c.m, string(k)); return nil }
 
 // Proves: SEC-11, QM-05
-// The server keeps DTLS state: a client waking up on a new socket resumes
-// its session (abbreviated handshake, no ClientKeyExchange) and the
-// resumed session keeps the PSK identity, so its Update is accepted
-// (pion does not restore the identity; internal/dtlscoap does). Server
+// A client waking up on a new socket completes a full PSK handshake and
+// its Update is accepted with the current identity. Server
 // and client key pairs differ: a client presenting the server's own
 // certificate (a trusted chain whose CN has credentials) is refused.
 func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
@@ -330,12 +328,12 @@ func TestSessionResumptionAndKeyUniqueness(t *testing.T) {
 	r, err := c2.Raw(h.ctx, 2, "/rd/"+loc, nil, nil, nil)
 	mustCode(t, r, err, "2.04")
 	up := handshakeMsgs(px.since(m), true)
-	if len(up) == 0 || up[0] != byte(handshake.TypeClientHello) || bytes.IndexByte(up, byte(handshake.TypeClientKeyExchange)) >= 0 {
-		t.Fatalf("handshake messages %v: want a resumption (ClientHello, no ClientKeyExchange)", up)
+	if len(up) == 0 || up[0] != byte(handshake.TypeClientHello) || bytes.IndexByte(up, byte(handshake.TypeClientKeyExchange)) < 0 {
+		t.Fatalf("handshake messages %v: want a full handshake with ClientKeyExchange", up)
 	}
 	reg, _ := h.srv.Store().ByEndpoint("sleepy")
 	if reg.Identity.Mode != server.ModePSK || reg.Identity.PSKIdentity != "sleepy" {
-		t.Fatalf("identity after resumption %+v", reg.Identity)
+		t.Fatalf("identity after reconnect %+v", reg.Identity)
 	}
 
 	// Key uniqueness: the server's own certificate is not a client key pair.

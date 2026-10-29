@@ -229,8 +229,10 @@ func CipherSuites() []ciphersuite.ID {
 
 // ServerConfig is a listener Config with the defaults: psk (if not nil)
 // as the PSK lookup, CipherSuites, DTLS 1.2 and 1.3 (pion negotiates),
-// then opts, which win over the defaults. sessionTTL > 0 enables
-// resumption.
+// then opts, which win over the defaults except for the session store.
+// PSK-capable listeners never cache sessions, including for certificate clients:
+// reconnects perform a full handshake against current credentials. Certificate-only
+// listeners cache sessions when sessionTTL > 0. CID is unaffected.
 func ServerConfig(opts []dtls.ServerOption, cidLength int, sessionTTL time.Duration, psk dtls.PSKCallback) Config {
 	defaults := []dtls.ServerOption{
 		dtls.WithCipherSuites(CipherSuites()...),
@@ -241,7 +243,9 @@ func ServerConfig(opts []dtls.ServerOption, cidLength int, sessionTTL time.Durat
 		defaults = append(defaults, dtls.WithPSK(psk))
 	}
 	cfg := Config{CIDLength: cidLength, Options: append(defaults, opts...)}
-	if sessionTTL > 0 {
+	if psk != nil {
+		cfg.Options = append(cfg.Options, dtls.WithSessionStore(nil))
+	} else if sessionTTL > 0 {
 		cfg.Sessions = NewSessionStore(sessionTTL, 100_000, time.Now)
 	}
 	return cfg
