@@ -15,6 +15,7 @@ type Options struct {
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
 	EventOptions
+	AuditOptions
 	Webhooks     store.Webhooks       `json:"-"`
 	Observations store.Observations   `json:"-"`
 	Operations   store.Operations     `json:"-"`
@@ -60,7 +61,14 @@ func New(o Options) http.Handler {
 	}
 	ops := o.operationHandler()
 	models := o.modelHandler()
-	return Authenticate(o.Keys, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	if o.Audit == nil {
+		o.Audit = &MemoryAuditStore{}
+	}
+	return Authenticate(o.Keys, recordAudit(o.Audit, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/audit-log" {
+			RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveAudit(o.Audit, w, r) })).ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/models" || strings.HasPrefix(r.URL.Path, "/v1/models/") {
 			serveModels(w, r)
 			return
@@ -119,5 +127,5 @@ func New(o Options) http.Handler {
 			return
 		}
 		WriteProblem(w, 404, "not_found", "Unknown API path")
-	}))
+	})))
 }
