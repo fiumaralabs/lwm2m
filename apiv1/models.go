@@ -1,10 +1,15 @@
 package apiv1
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,14 +59,52 @@ var builtinModels = sync.OnceValues(func() (*model.Registry, []builtinSummary) {
 	return registry, entries
 })
 
-func serveModels(w http.ResponseWriter, r *http.Request) {
+func serveModels(store ModelStore, w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost && r.URL.Path == "/v1/models" || r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/versions/") {
+		RequireScope("devices:write")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { mutateModel(store, w, r) })).ServeHTTP(w, r)
+		return
+	}
 	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", "GET")
-		WriteProblem(w, 405, "method_not_allowed", "Expected GET")
+		allow := "GET"
+		if r.URL.Path == "/v1/models" {
+			allow = "GET, POST"
+		}
+		w.Header().Set("Allow", allow)
+		WriteProblem(w, 405, "method_not_allowed", "Method not allowed")
 		return
 	}
 	RequireScope("devices:read")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		registry, entries := builtinModels()
+		registry, base := builtinModels()
+		entries := append([]builtinSummary(nil), base...)
+		uploads := store.List(TenantFrom(r.Context()))
+		sort.Slice(uploads, func(i, j int) bool { return uploads[j].Version.Less(uploads[i].Version) })
+		for _, object := range uploads {
+			found := false
+			for i := range entries {
+				if entries[i].ID == object.ID {
+					latest, _ := model.ParseVersion(entries[i].Versions[len(entries[i].Versions)-1])
+					if latest.Less(object.Version) {
+						entries[i].Name = object.Name
+						entries[i].URN = strings.TrimSuffix(object.URN, ":"+object.Version.String())
+						entries[i].Source = "tenant"
+					}
+					entries[i].Versions = append(append([]string(nil), entries[i].Versions...), object.Version.String())
+					found = true
+					break
+				}
+			}
+			if !found {
+				entries = append(entries, builtinSummary{object.ID, object.Name, strings.TrimSuffix(object.URN, ":"+object.Version.String()), []string{object.Version.String()}, model.ObjectClass(object.ID).String(), "tenant"})
+			}
+		}
+		for i := range entries {
+			sort.Slice(entries[i].Versions, func(a, b int) bool {
+				x, _ := model.ParseVersion(entries[i].Versions[a])
+				y, _ := model.ParseVersion(entries[i].Versions[b])
+				return x.Less(y)
+			})
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
 		if r.URL.Path == "/v1/models" {
 			query := r.URL.Query()
 			limit := 50
@@ -114,6 +157,12 @@ func serveModels(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		versions := registry.Versions(uint16(id))
+		for _, object := range uploads {
+			if object.ID == uint16(id) {
+				versions = append(versions, object.Version)
+			}
+		}
+		sort.Slice(versions, func(i, j int) bool { return versions[i].Less(versions[j]) })
 		if len(versions) == 0 {
 			WriteProblem(w, 404, "not_found", "Unknown model")
 			return
@@ -138,7 +187,104 @@ func serveModels(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		for _, object := range uploads {
+			if object.ID == uint16(id) && object.Version == version {
+				deviceJSON(w, 200, definitionView(object))
+				return
+			}
+		}
 		def, _ := registry.Get(uint16(id), version)
 		deviceJSON(w, 200, definitionView(def))
 	})).ServeHTTP(w, r)
+}
+
+func mutateModel(store ModelStore, w http.ResponseWriter, r *http.Request) {
+	registry, _ := builtinModels()
+	tenant := TenantFrom(r.Context())
+	if r.Method == http.MethodPost {
+		media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || media != "application/xml" {
+			WriteProblem(w, 415, "unsupported_media_type", "Expected application/xml")
+			return
+		}
+		data, err := io.ReadAll(io.LimitReader(r.Body, 1<<20+1))
+		if err != nil || len(data) > 1<<20 {
+			WriteProblem(w, 400, "invalid_model", "Cannot read model or model exceeds 1 MiB")
+			return
+		}
+		decoder := xml.NewDecoder(bytes.NewReader(data))
+		var root struct {
+			XMLName xml.Name
+			Inner   string `xml:",innerxml"`
+		}
+		if err := decoder.Decode(&root); err != nil {
+			WriteProblem(w, 400, "invalid_model", err.Error())
+			return
+		}
+		for {
+			token, err := decoder.Token()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				WriteProblem(w, 400, "invalid_model", err.Error())
+				return
+			}
+			switch t := token.(type) {
+			case xml.CharData:
+				if strings.TrimSpace(string(t)) != "" {
+					WriteProblem(w, 400, "invalid_model", "Unexpected content after XML document")
+					return
+				}
+			case xml.Comment, xml.ProcInst:
+			default:
+				WriteProblem(w, 400, "invalid_model", "Unexpected content after XML document")
+				return
+			}
+		}
+		objects, err := model.ParseXML(data)
+		if err != nil {
+			WriteProblem(w, 400, "invalid_model", err.Error())
+			return
+		}
+		if len(objects) != 1 {
+			WriteProblem(w, 400, "invalid_model", "Expected one object")
+			return
+		}
+		object := objects[0]
+		for _, v := range registry.Versions(object.ID) {
+			if v == object.Version {
+				WriteProblem(w, 409, "conflict", "Built-in model cannot be replaced")
+				return
+			}
+		}
+		store.Put(tenant, object)
+		deviceJSON(w, 201, struct {
+			*modelDefinition
+			Source string `json:"source"`
+		}{definitionView(object), "tenant"})
+		return
+	}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/models/"), "/")
+	if len(parts) != 3 || parts[1] != "versions" {
+		WriteProblem(w, 404, "not_found", "Unknown model")
+		return
+	}
+	id, err := strconv.ParseUint(parts[0], 10, 16)
+	version, e := model.ParseVersion(parts[2])
+	if err != nil || e != nil {
+		WriteProblem(w, 404, "not_found", "Unknown model")
+		return
+	}
+	for _, v := range registry.Versions(uint16(id)) {
+		if v == version {
+			WriteProblem(w, 409, "conflict", "Built-in model cannot be removed")
+			return
+		}
+	}
+	if !store.Delete(tenant, uint16(id), version) {
+		WriteProblem(w, 404, "not_found", "Unknown model")
+		return
+	}
+	w.WriteHeader(204)
 }
