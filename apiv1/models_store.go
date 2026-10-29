@@ -13,6 +13,9 @@ type ModelStore interface {
 	Delete(tenant string, id uint16, version model.Version) bool
 }
 
+// NewMemoryModelStore returns a tenant-scoped in-memory model store.
+func NewMemoryModelStore() ModelStore { return &memoryModelStore{} }
+
 type memoryModelStore struct {
 	mu      sync.RWMutex
 	objects map[string]map[uint16]map[model.Version]*model.Object
