@@ -206,6 +206,12 @@ func TestSQLiteObservationsRestartAndNotification(t *testing.T) {
 	if _, err := c.Notify(ctx, req.Token); err != nil {
 		t.Fatal(err)
 	}
+	if err := json.Unmarshal(request("GET", transientPath, "", 200), &transient); err != nil {
+		t.Fatal(err)
+	}
+	if transient.Status != "ended" {
+		t.Fatalf("session-bound observation after re-registration: %+v", transient)
+	}
 	for {
 		var page struct {
 			Items []store.Event `json:"items"`

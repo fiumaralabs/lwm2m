@@ -153,6 +153,9 @@ func main() {
 			log.Fatal(err)
 		}
 		defer durable.Close()
+		if err := recoverObservations(strings.TrimPrefix(*storeFlag, "sqlite:")); err != nil {
+			log.Fatal(err)
+		}
 		devices = durable
 	} else if *storeFlag != "memory" {
 		log.Fatal("invalid -store: expected memory or sqlite:<path>")
