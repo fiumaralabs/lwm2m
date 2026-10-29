@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"math/big"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -233,11 +234,22 @@ func aggregatePoints(points []TimeSeriesPoint, interval time.Duration, aggregate
 		for j < len(points) && points[j].T.Truncate(interval).Equal(start) {
 			j++
 		}
-		sum, avg, min, max := 0.0, 0.0, numeric(points[i].V), numeric(points[i].V)
+		min, max := numeric(points[i].V), numeric(points[i].V)
+		// Exact binary rational addition avoids intermediate overflow and loss of
+		// small residuals when large positive and negative values cancel.
+		var sum big.Rat
+		nonFinite := false
 		for _, p := range points[i:j] {
 			n := numeric(p.V)
-			sum += n
-			avg += n / float64(j-i)
+			if aggregate == "sum" || aggregate == "avg" {
+				if math.IsInf(n, 0) || math.IsNaN(n) {
+					nonFinite = true
+				} else {
+					var term big.Rat
+					term.SetFloat64(n)
+					sum.Add(&sum, &term)
+				}
+			}
 			if n < min {
 				min = n
 			}
@@ -247,14 +259,19 @@ func aggregatePoints(points []TimeSeriesPoint, interval time.Duration, aggregate
 		}
 		var v any
 		switch aggregate {
-		case "avg":
-			v = avg
+		case "avg", "sum":
+			if nonFinite {
+				v = math.NaN()
+			} else {
+				if aggregate == "avg" {
+					sum.Quo(&sum, new(big.Rat).SetInt64(int64(j-i)))
+				}
+				v, _ = sum.Float64()
+			}
 		case "min":
 			v = min
 		case "max":
 			v = max
-		case "sum":
-			v = sum
 		case "count":
 			v = j - i
 		case "first":
