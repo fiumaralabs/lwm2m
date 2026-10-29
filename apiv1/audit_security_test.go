@@ -17,12 +17,16 @@ func TestAuditRedactsCredentialPaths(t *testing.T) {
 		t.Fatal("key creation failed")
 	}
 	secret := key.Token
-	for _, path := range []string{"/v1/devices/" + secret, "/v1/webhooks/" + secret + "/rotate-secret", "/v1/unknown/" + secret, "/v1/devices/" + url.PathEscape(secret) + "/operations"} {
+	hook := webhookCreate(t, h)
+	webhookSecret := hook["secret"].(string)
+	for _, path := range []string{"/v1/devices/" + secret, "/v1/webhooks/" + secret + "/rotate-secret", "/v1/unknown/" + secret, "/v1/devices/" + url.PathEscape(secret) + "/operations", "/v1/devices/" + url.PathEscape(webhookSecret), "/v1/devices/psk-sensitive"} {
 		keyRequest(h, "DELETE", path, "lwm_root_synthetic", "")
 	}
 	log := keyRequest(h, "GET", "/v1/audit-log", "lwm_root_synthetic", "").Body.String()
-	if strings.Contains(log, secret) || strings.Contains(log, "lwm_root_synthetic") {
-		t.Fatal("credential leaked through audit path")
+	for _, value := range []string{secret, "lwm_root_synthetic", webhookSecret, "psk-sensitive"} {
+		if strings.Contains(log, value) {
+			t.Fatal("credential leaked through audit path")
+		}
 	}
 }
 

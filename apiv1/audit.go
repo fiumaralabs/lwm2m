@@ -2,6 +2,7 @@ package apiv1
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -87,6 +88,23 @@ func (w *auditWriter) Write(p []byte) (int, error) {
 }
 func (w *auditWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
+// auditResource preserves route literals but hashes every user-controlled segment.
+// Resource filters accept either the original path or the recorded hashed path.
+// Hashes protect high-entropy credentials, not low-entropy identifiers from guessing.
+func auditResource(path string) string {
+	parts := strings.Split(path, "/")
+	collections := map[string]bool{"devices": true, "api-keys": true, "webhooks": true, "operations": true, "observations": true, "settings": true, "models": true, "events": true, "info": true, "audit-log": true}
+	children := map[string]bool{"operations": true, "observations": true, "rotate-secret": true, "state": true, "model": true, "registration": true, "events": true}
+	for i, part := range parts {
+		if part == "" || i == 1 && part == "v1" || i == 2 && len(parts) > 1 && parts[1] == "v1" && collections[part] || i == 4 && len(parts) > 2 && collections[parts[2]] && children[part] {
+			continue
+		}
+		sum := sha256.Sum256([]byte(part))
+		parts[i] = "sha256-" + hex.EncodeToString(sum[:])
+	}
+	return strings.Join(parts, "/")
+}
+
 func auditAction(r *http.Request) string {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	resource := "request"
@@ -103,6 +121,9 @@ func auditAction(r *http.Request) string {
 		case "observations":
 			resource = "observation"
 		}
+	}
+	if r.Method == http.MethodPost && len(parts) == 4 && parts[1] == "webhooks" && parts[3] == "rotate-secret" {
+		return "webhook.rotate_secret"
 	}
 	verb := map[string]string{"POST": "create", "PUT": "update", "PATCH": "update", "DELETE": "delete"}[r.Method]
 	return resource + "." + verb
@@ -136,7 +157,7 @@ func recordAudit(s AuditStore, next http.Handler) http.Handler {
 			ip = r.RemoteAddr
 		}
 		// Never copy request or response data into summaries: even innocent-looking fields may contain secrets.
-		e := AuditEntry{ID: "aud_" + hex.EncodeToString(random[:]), Time: time.Now().UTC(), Actor: actor, Action: auditAction(r), Resource: r.URL.EscapedPath(), Status: aw.status, IP: ip, Summary: map[string]string{}}
+		e := AuditEntry{ID: "aud_" + hex.EncodeToString(random[:]), Time: time.Now().UTC(), Actor: actor, Action: auditAction(r), Resource: auditResource(r.URL.EscapedPath()), Status: aw.status, IP: ip, Summary: map[string]string{}}
 		if err := s.Append(tenant, e); err != nil {
 			slog.Error("Cannot append audit entry", "error", err)
 		}
@@ -220,7 +241,7 @@ func serveAudit(s AuditStore, w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		if c.Actor != "" && e.Actor.ID != c.Actor || c.Action != "" && e.Action != c.Action || c.Resource != "" && e.Resource != c.Resource || !from.IsZero() && e.Time.Before(from) || !to.IsZero() && e.Time.After(to) {
+		if c.Actor != "" && e.Actor.ID != c.Actor || c.Action != "" && e.Action != c.Action || c.Resource != "" && e.Resource != c.Resource && e.Resource != auditResource(c.Resource) || !from.IsZero() && e.Time.Before(from) || !to.IsZero() && e.Time.After(to) {
 			continue
 		}
 		items = append(items, e)
