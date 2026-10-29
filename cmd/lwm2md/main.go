@@ -44,6 +44,10 @@ import (
 )
 
 func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	return newDaemonWithTimeSeries(cfg, api, keys, true, stores...)
+}
+
+func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
@@ -85,7 +89,11 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 	observations = apiv1.NewObservationDelivery(srv, observationStore, state, events, "default")
 	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{State: state})
 	api.Attach(srv)
-	native := apiv1.New(apiv1.Options{AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	var series apiv1.TimeSeriesStore
+	if enabled {
+		series = apiv1.NewMemoryTimeSeriesStore()
+	}
+	native := apiv1.New(apiv1.Options{TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
@@ -136,6 +144,7 @@ func main() {
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
+	timeSeries := flag.Bool("timeseries", true, "keep time series in memory (not persistent)")
 	storeFlag := flag.String("store", "memory", "device metadata and operations store: memory or sqlite:<path>")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
@@ -188,7 +197,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv, native, executor, dispatcher := newDaemon(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, devices)
+	srv, native, executor, dispatcher := newDaemonWithTimeSeries(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, *timeSeries, devices)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)
 	}

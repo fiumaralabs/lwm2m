@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"math"
 	"sync"
 	"time"
 
@@ -27,6 +29,7 @@ type ObservationDelivery struct {
 	srv        *server.Server
 	state      store.State
 	events     store.Events
+	series     TimeSeriesStore
 	tenant     string
 	active     map[string]*server.Observation
 	generation map[string]uint64
@@ -227,6 +230,35 @@ func (d *ObservationDelivery) notification(e server.Notification) {
 		var prefix any
 		if v.Prefix != "" {
 			prefix = v.Prefix
+		}
+		if d.series != nil {
+			received := time.Now().UTC()
+			for _, n := range e.Response.Nodes {
+				if n.Kind != lwm2m.KindValue || (!n.Path.IsResource() && !n.Path.IsResourceInstance()) || n.Prefix != "" {
+					continue
+				}
+				var value any
+				switch n.Value.Type {
+				case lwm2m.TypeInteger:
+					value = n.Value.Int
+				case lwm2m.TypeUnsigned:
+					value = n.Value.Uint
+				case lwm2m.TypeFloat:
+					value = n.Value.Float
+				case lwm2m.TypeBoolean:
+					value = n.Value.Bool
+				default:
+					continue
+				}
+				at := received
+				if n.HasTime {
+					seconds, fraction := math.Modf(n.Time)
+					at = time.Unix(int64(seconds), int64(fraction*1e9)).UTC()
+				}
+				if err := d.series.Append(d.tenant, v.Device, n.Path.String(), at, value); err != nil {
+					log.Printf("time series append failed: %v", err)
+				}
+			}
 		}
 		data := map[string]any{"observation": id, "prefix": prefix, "values": operations.ObservationValues(e.Response.Nodes)}
 		if d.state != nil {

@@ -40,6 +40,11 @@ func New(o Options) http.Handler {
 	if o.Observations == nil {
 		o.Observations = &memory.Observations{}
 	}
+	if delivery, ok := o.Observations.(*ObservationDelivery); ok {
+		delivery.mu.Lock()
+		delivery.series = o.TimeSeries
+		delivery.mu.Unlock()
+	}
 	if o.Settings == nil {
 		o.Settings = &memory.Settings{}
 	}
