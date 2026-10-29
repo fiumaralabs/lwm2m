@@ -18,7 +18,9 @@ import (
 type seriesCursor struct {
 	Tenant, Endpoint, Filter string
 	From, To                 time.Time
-	Offset                   int
+	PathIndex                int
+	Timestamp                time.Time
+	EqualCount               int
 }
 type responseSeries struct {
 	Path   string            `json:"path"`
@@ -131,7 +133,7 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 	if q.Has("cursor") {
 		var c seriesCursor
 		b, e := base64.RawURLEncoding.DecodeString(q.Get("cursor"))
-		if e != nil || json.Unmarshal(b, &c) != nil || c.Tenant != tenant || c.Endpoint != ep || c.Filter != cur.Filter || c.Offset < 1 || c.From.IsZero() || c.To.IsZero() {
+		if e != nil || json.Unmarshal(b, &c) != nil || c.Tenant != tenant || c.Endpoint != ep || c.Filter != cur.Filter || c.PathIndex < 0 || c.PathIndex >= len(paths) || c.EqualCount < 1 || c.From.IsZero() || c.To.IsZero() || c.Timestamp.Before(c.From) || c.Timestamp.After(c.To) {
 			bad()
 			return
 		}
@@ -143,8 +145,10 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result := make([]responseSeries, 0, len(paths))
-	total := 0
-	for _, path := range paths {
+	selectedCount := 0
+	hasMore := false
+	last := cur
+	for pathIndex, path := range paths {
 		points, err := o.TimeSeries.Query(tenant, ep, path, from, to)
 		if err != nil {
 			WriteProblem(w, 500, "internal_error", "Cannot query time series")
@@ -154,11 +158,26 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 			points = aggregatePoints(points, time.Duration(interval)*time.Second, agg)
 		} else {
 			selected := []TimeSeriesPoint{}
+			// Resume by path and timestamp, counting equal-timestamp points in
+			// append order. Backdated inserts before the cursor are not replayed.
+			equalCount := 0
+			var previous time.Time
 			for _, p := range points {
-				if total >= cur.Offset && total < cur.Offset+limit {
-					selected = append(selected, p)
+				if p.T.Equal(previous) {
+					equalCount++
+				} else {
+					previous, equalCount = p.T, 1
 				}
-				total++
+				if q.Has("cursor") && (pathIndex < cur.PathIndex || pathIndex == cur.PathIndex && (p.T.Before(cur.Timestamp) || p.T.Equal(cur.Timestamp) && equalCount <= cur.EqualCount)) {
+					continue
+				}
+				if selectedCount == limit {
+					hasMore = true
+					continue
+				}
+				selected = append(selected, p)
+				selectedCount++
+				last.PathIndex, last.Timestamp, last.EqualCount = pathIndex, p.T, equalCount
 			}
 			points = selected
 		}
@@ -168,9 +187,8 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 		result = append(result, responseSeries{path, points})
 	}
 	next := ""
-	if agg == "" && total > cur.Offset+limit {
-		cur.Offset += limit
-		b, _ := json.Marshal(cur)
+	if agg == "" && hasMore {
+		b, _ := json.Marshal(last)
 		next = base64.RawURLEncoding.EncodeToString(b)
 	}
 	deviceJSON(w, 200, struct {

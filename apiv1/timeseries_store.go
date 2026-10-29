@@ -14,7 +14,9 @@ type TimeSeriesPoint struct {
 	V any       `json:"v"`
 }
 
-// TimeSeriesStore provides tenant-scoped resource history.
+// TimeSeriesStore provides tenant-scoped resource history. Query returns points
+// in timestamp order; points with equal timestamps retain append order across
+// queries so raw pagination can resume without repeating existing points.
 type TimeSeriesStore interface {
 	Append(tenant, endpoint, path string, t time.Time, value any) error
 	Query(tenant, endpoint, path string, from, to time.Time) ([]TimeSeriesPoint, error)
