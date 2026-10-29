@@ -30,6 +30,9 @@ var webhooksSettingsMigration string
 //go:embed 005_api_keys.sql
 var apiKeysMigration string
 
+//go:embed 006_security.sql
+var securityMigration string
+
 type Devices struct{ db *sql.DB }
 type deviceCursor struct {
 	Tenant, Q, Status *string
@@ -94,7 +97,7 @@ func (s *Devices) migrate() error {
 	if err = tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version < 0 || version > 5 {
+	if version < 0 || version > 6 {
 		return fmt.Errorf("unsupported SQLite schema version %d", version)
 	}
 	if version == 0 {
@@ -119,6 +122,11 @@ func (s *Devices) migrate() error {
 	}
 	if version < 5 {
 		if _, err = tx.Exec(apiKeysMigration); err != nil {
+			return err
+		}
+	}
+	if version < 6 {
+		if _, err = tx.Exec(securityMigration); err != nil {
 			return err
 		}
 	}
