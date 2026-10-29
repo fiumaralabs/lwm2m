@@ -12,6 +12,50 @@ import (
 // Observations is the shared persistence contract, including owned snapshots.
 func Observations(t *testing.T, fresh func() store.Observations) {
 	t.Helper()
+	t.Run("RawJSONPreservation", func(t *testing.T) {
+		s := fresh()
+		v := store.Observation{Tenant: "a", ID: "raw", Device: "pump", Attributes: map[string]json.RawMessage{"value": json.RawMessage(` { "x" : 1 } `), "nil": nil}, Error: json.RawMessage(` { "message" : "oops" } `)}
+		if err := s.Create("a", v); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.Get("a", "raw")
+		if err != nil || string(got.Attributes["value"]) != string(v.Attributes["value"]) || got.Attributes["nil"] != nil || string(got.Error) != string(v.Error) {
+			t.Fatalf("raw JSON changed: %+v %v", got, err)
+		}
+	})
+	t.Run("DeliveryState", func(t *testing.T) {
+		s := fresh()
+		d, ok := s.(interface {
+			UpdateDelivery(string, string, func(*store.Observation)) (store.Observation, error)
+		})
+		if !ok {
+			t.Fatal("delivery updates not supported")
+		}
+		v := store.Observation{Tenant: "a", ID: "id", Device: "pump", Status: "pending", Source: "api"}
+		if err := s.Create("a", v); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Unix(123, 0).UTC()
+		got, err := d.UpdateDelivery("a", "id", func(v *store.Observation) {
+			v.Status = "active"
+			v.EstablishedAt = &at
+			v.NotificationCount = 2
+		})
+		if err != nil || got.Status != "active" || got.NotificationCount != 2 || !got.EstablishedAt.Equal(at) {
+			t.Fatalf("delivery: %+v %v", got, err)
+		}
+		if err := s.End("a", "id"); err != nil {
+			t.Fatal(err)
+		}
+		called := false
+		got, err = d.UpdateDelivery("a", "id", func(v *store.Observation) { called = true; v.Status = "active" })
+		if err != nil || called || got.Status != "ended" {
+			t.Fatalf("ended delivery: %+v %v called=%v", got, err, called)
+		}
+		if _, err := d.UpdateDelivery("b", "id", func(*store.Observation) {}); !errors.Is(err, store.ErrNotFound) {
+			t.Fatalf("isolated delivery: %v", err)
+		}
+	})
 	t.Run("ConcurrentEndAndAttributes", func(t *testing.T) {
 		s := fresh()
 		for range 50 {
