@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/model"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
@@ -16,7 +17,7 @@ import (
 
 func TestObservationDelivery(t *testing.T) {
 	var delivery *ObservationDelivery
-	srv := server.New(server.Config{OnEvent: func(e server.Event) { delivery.HandleEvent(e) }})
+	srv := server.New(server.Config{Schema: server.NewModels(model.Default()).Schema, OnEvent: func(e server.Event) { delivery.HandleEvent(e) }})
 	defer srv.Close()
 	state, events := &memory.State{}, &memory.Events{}
 	delivery = NewObservationDelivery(srv, &memory.Observations{}, state, events, "default")
@@ -24,7 +25,8 @@ func TestObservationDelivery(t *testing.T) {
 	k := keys.entries["test"]
 	k.scopes += "operations:write,"
 	keys.entries["test"] = k
-	h := New(Options{Keys: keys, Observations: delivery, State: state})
+	series := NewMemoryTimeSeriesStore()
+	h := New(Options{Keys: keys, Observations: delivery, State: state, TimeSeries: series})
 	deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"pump"}`)
 	create := func(paths string, persistent bool) string {
 		t.Helper()
@@ -111,6 +113,42 @@ func TestObservationDelivery(t *testing.T) {
 	}
 	if json.Unmarshal(ev[0].Data, &payload) != nil || payload.Observation != id || payload.Prefix != nil || len(payload.Values) != 1 || string(payload.Values[0].Value) != `"Acme"` {
 		t.Fatal(string(ev[0].Data))
+	}
+	str := deviceRequest(h, "GET", "/v1/devices/pump/timeseries?path=/3/0/0", "")
+	var empty struct {
+		Series []struct{ Points []TimeSeriesPoint }
+	}
+	if str.Code != 200 || json.Unmarshal(str.Body.Bytes(), &empty) != nil || len(empty.Series) != 1 || len(empty.Series[0].Points) != 0 {
+		t.Fatalf("string series: %d %s", str.Code, str.Body.String())
+	}
+	numeric := create(`["/1/0/1"]`, false)
+	await(numeric, "active")
+	for i, value := range []int64{51, 52} {
+		c.Set(lwm2m.MustParsePath("/1/0/1"), lwm2m.Integer(value))
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			delivery.mu.Lock()
+			v, _ := delivery.Get("default", numeric)
+			delivery.mu.Unlock()
+			if v.NotificationCount >= uint64(i+1) {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("notification timeout")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	wSeries := deviceRequest(h, "GET", "/v1/devices/pump/timeseries?path=/1/0/1", "")
+	var result struct {
+		Series []struct{ Points []TimeSeriesPoint }
+	}
+	if wSeries.Code != 200 || json.Unmarshal(wSeries.Body.Bytes(), &result) != nil || len(result.Series) != 1 || len(result.Series[0].Points) != 2 || result.Series[0].Points[0].V != float64(51) || result.Series[0].Points[1].V != float64(52) {
+		t.Fatalf("numeric series: %d %s", wSeries.Code, wSeries.Body.String())
+	}
+	foreign, err := series.Query("other", "pump", "/1/0/1", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	if err != nil || len(foreign) != 0 {
+		t.Fatalf("tenant isolation: %v %v", foreign, err)
 	}
 	bad := create(`["/3/0/99"]`, true)
 	if v := await(bad, "failed"); len(v.Error) == 0 {
