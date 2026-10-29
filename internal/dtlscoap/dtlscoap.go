@@ -12,6 +12,7 @@ package dtlscoap
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,10 @@ type Config struct {
 	CIDLength int
 	// Sessions enables session resumption; nil disables it.
 	Sessions *SessionStore
+	// PSKForConn overrides the PSK callback for each accepted connection.
+	PSKForConn func(io.Closer) dtls.PSKCallback
+	// OnConnClose releases any state associated with that connection.
+	OnConnClose func(io.Closer)
 }
 
 // Listener is a DTLS listener for go-coap's dtls Server.Serve, the
@@ -80,6 +85,9 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 			return nil, coapnet.ErrListenerIsClosed
 		case pc := <-l.d.accept:
 			opts := l.cfg.Options[:len(l.cfg.Options):len(l.cfg.Options)]
+			if l.cfg.PSKForConn != nil {
+				opts = append(opts, dtls.WithPSK(l.cfg.PSKForConn(pc)))
+			}
 			if l.cfg.CIDLength > 0 {
 				opts = append(opts, dtls.WithConnectionID(func() []byte { return l.d.newCID(pc) }, dtls.CIDPathMigrationUnsafe))
 			}
@@ -88,7 +96,7 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 				_ = pc.Close()
 				continue
 			}
-			return &Conn{Conn: dc, pc: pc, sessions: l.cfg.Sessions}, nil
+			return &Conn{Conn: dc, pc: pc, sessions: l.cfg.Sessions, onClose: l.cfg.OnConnClose}, nil
 		}
 	}
 }
@@ -107,8 +115,10 @@ func (l *Listener) Addr() net.Addr { return l.d.pc.LocalAddr() }
 // Conn is a server-side DTLS connection of a Listener.
 type Conn struct {
 	*dtls.Conn
-	pc       *packetConn
-	sessions *SessionStore
+	pc        *packetConn
+	sessions  *SessionStore
+	onClose   func(io.Closer)
+	closeOnce sync.Once
 
 	mu       sync.Mutex
 	identity []byte // PSK identity restored on resumption
@@ -121,6 +131,11 @@ func (c *Conn) HandshakeContext(ctx context.Context) error {
 	if err := c.Conn.HandshakeContext(ctx); err != nil {
 		return err
 	}
+	select {
+	case <-c.pc.closed:
+		return net.ErrClosed
+	default:
+	}
 	c.pc.d.handshakeComplete(c.pc)
 	if st, ok := c.Conn.ConnectionState(); ok && c.sessions != nil && len(st.SessionID) > 0 {
 		if len(st.IdentityHint) > 0 {
@@ -132,6 +147,17 @@ func (c *Conn) HandshakeContext(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Close releases the DTLS association and its tracking state.
+func (c *Conn) Close() error {
+	err := c.Conn.Close()
+	c.closeOnce.Do(func() {
+		if c.onClose != nil {
+			c.onClose(c.pc)
+		}
+	})
+	return err
 }
 
 // ConnectionState is pion's, with the PSK identity of a resumed session.

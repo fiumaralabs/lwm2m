@@ -181,12 +181,14 @@ type Binding struct {
 	closers []func() error
 	closed  bool
 
-	peers  sync.Map // mux.Conn -> *coapPeer
-	amu    sync.Mutex
-	afters map[mux.Conn][]func()
-	oscore atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
-	held   heldConns              // keeps sessions of registered clients open (keepconn.go)
-	block1 block1Assembler        // client Block1 reassembly (block1.go)
+	peers    sync.Map // mux.Conn -> *coapPeer
+	pskMu    sync.Mutex
+	pskConns map[io.Closer]string // includes in-progress handshakes
+	amu      sync.Mutex
+	afters   map[mux.Conn][]func()
+	oscore   atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
+	held     heldConns              // keeps sessions of registered clients open (keepconn.go)
+	block1   block1Assembler        // client Block1 reassembly (block1.go)
 }
 
 // New returns a Binding for srv. Call Listen* to start serving.
@@ -226,7 +228,8 @@ func (b *Binding) ListenUDP(addr string) (net.Addr, error) {
 type DTLSConfig struct {
 	// Options go to pion/dtls after the listener's defaults (PSK lookup,
 	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins except
-	// WithSessionStore, which is ignored because this listener enables PSK.
+	// WithSessionStore and WithPSK, which are ignored because this listener
+	// resolves and tracks PSKs through the server security store.
 	// Resumption is disabled for both PSK and certificate clients.
 	Options []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
@@ -259,7 +262,27 @@ func (dc DTLSConfig) CIDLen() int {
 
 // ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr.
 func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
-	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup))
+	cfg := dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup)
+	cfg.PSKForConn = func(conn io.Closer) piondtls.PSKCallback {
+		return func(id []byte) ([]byte, error) {
+			b.pskMu.Lock()
+			defer b.pskMu.Unlock()
+			key, err := b.pskLookup(id)
+			if err == nil {
+				if b.pskConns == nil {
+					b.pskConns = make(map[io.Closer]string)
+				}
+				b.pskConns[conn] = string(id)
+			}
+			return key, err
+		}
+	}
+	cfg.OnConnClose = func(conn io.Closer) {
+		b.pskMu.Lock()
+		delete(b.pskConns, conn)
+		b.pskMu.Unlock()
+	}
+	l, err := dtlscoap.Listen("udp", addr, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +307,21 @@ func (b *Binding) pskLookup(identity []byte) ([]byte, error) {
 		return nil, fmt.Errorf("coap: unknown PSK identity")
 	}
 	return si.PSKKey, nil
+}
+
+// RevokePSKIdentity closes all connections that used identity, including
+// handshakes in progress. Update or remove the security-store credential before
+// calling it; otherwise a subsequent handshake can authenticate with the old key.
+// Serialize concurrent credential changes for the same identity with this call.
+func (b *Binding) RevokePSKIdentity(identity string) {
+	b.pskMu.Lock()
+	defer b.pskMu.Unlock()
+	for conn, id := range b.pskConns {
+		if id == identity {
+			delete(b.pskConns, conn)
+			_ = conn.Close()
+		}
+	}
 }
 
 // Close stops all listeners. It does not close the Server.
