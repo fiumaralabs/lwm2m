@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -70,13 +71,14 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seen := map[string]bool{}
-	for _, path := range paths {
+	for i, path := range paths {
 		p, err := lwm2m.ParsePath(path)
 		if err != nil || !strings.HasPrefix(path, "/") || (!p.IsResource() && !p.IsResourceInstance()) || seen[p.String()] {
 			bad()
 			return
 		}
 		seen[p.String()] = true
+		paths[i] = p.String()
 	}
 	now := time.Now().UTC()
 	from, to := now.Add(-24*time.Hour), now
@@ -156,6 +158,12 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 		}
 		if agg != "" {
 			points = aggregatePoints(points, time.Duration(interval)*time.Second, agg)
+			for _, p := range points {
+				if v, ok := p.V.(float64); ok && (math.IsInf(v, 0) || math.IsNaN(v)) {
+					WriteProblem(w, 500, "internal_error", "Time series aggregate is not representable")
+					return
+				}
+			}
 		} else {
 			selected := []TimeSeriesPoint{}
 			// Resume by path and timestamp, counting equal-timestamp points in
@@ -225,10 +233,11 @@ func aggregatePoints(points []TimeSeriesPoint, interval time.Duration, aggregate
 		for j < len(points) && points[j].T.Truncate(interval).Equal(start) {
 			j++
 		}
-		sum, min, max := 0.0, numeric(points[i].V), numeric(points[i].V)
+		sum, avg, min, max := 0.0, 0.0, numeric(points[i].V), numeric(points[i].V)
 		for _, p := range points[i:j] {
 			n := numeric(p.V)
 			sum += n
+			avg += n / float64(j-i)
 			if n < min {
 				min = n
 			}
@@ -239,7 +248,7 @@ func aggregatePoints(points []TimeSeriesPoint, interval time.Duration, aggregate
 		var v any
 		switch aggregate {
 		case "avg":
-			v = sum / float64(j-i)
+			v = avg
 		case "min":
 			v = min
 		case "max":

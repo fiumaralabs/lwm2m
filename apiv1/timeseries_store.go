@@ -6,6 +6,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m"
 )
 
 // TimeSeriesPoint is a recorded numeric or boolean resource value.
@@ -33,6 +35,11 @@ type MemoryTimeSeriesStore struct {
 func NewMemoryTimeSeriesStore() *MemoryTimeSeriesStore { return &MemoryTimeSeriesStore{} }
 
 func (s *MemoryTimeSeriesStore) Append(tenant, endpoint, path string, t time.Time, value any) error {
+	p, err := lwm2m.ParsePath(path)
+	if err != nil || (!p.IsResource() && !p.IsResourceInstance()) {
+		return fmt.Errorf("invalid resource path")
+	}
+	path = p.String()
 	switch v := value.(type) {
 	case bool:
 	case float64:
@@ -58,6 +65,11 @@ func (s *MemoryTimeSeriesStore) Append(tenant, endpoint, path string, t time.Tim
 }
 
 func (s *MemoryTimeSeriesStore) Query(tenant, endpoint, path string, from, to time.Time) ([]TimeSeriesPoint, error) {
+	p, err := lwm2m.ParsePath(path)
+	if err != nil || (!p.IsResource() && !p.IsResourceInstance()) {
+		return nil, fmt.Errorf("invalid resource path")
+	}
+	path = p.String()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	points := []TimeSeriesPoint{}
