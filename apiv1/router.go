@@ -11,6 +11,7 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
+	Models ModelStore `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
@@ -58,6 +59,10 @@ func New(o Options) http.Handler {
 		o.ServerTenant = "default"
 	}
 
+	if o.Models == nil {
+		o.Models = &memoryModelStore{}
+	}
+
 	events := o.eventHandler()
 	if o.Operations == nil {
 		o.Operations = memory.NewOperations()
@@ -76,7 +81,7 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/models" || strings.HasPrefix(r.URL.Path, "/v1/models/") {
-			serveModels(w, r)
+			serveModels(o.Models, w, r)
 			return
 		}
 		if r.URL.Path == "/v1/settings" {

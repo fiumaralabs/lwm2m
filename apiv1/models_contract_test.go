@@ -2,7 +2,10 @@ package apiv1
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -74,7 +77,7 @@ func TestModelsNotFoundAndMethods(t *testing.T) {
 	for _, path := range []string{"/v1/models/65000", "/v1/models/3?version=1.99", "/v1/models/3?version=bogus", "/v1/models/nope", "/v1/models/3/versions/1.0"} {
 		registrationProblem(t, h, "GET", path, "not_found", 404)
 	}
-	for _, path := range []string{"/v1/models", "/v1/models/3"} {
+	for _, path := range []string{"/v1/models/3"} {
 		w := deviceRequest(h, "POST", path, "")
 		if w.Code != 405 || w.Header().Get("Allow") != "GET" {
 			t.Fatalf("%s: %d %s", path, w.Code, w.Body.String())
@@ -135,5 +138,134 @@ func TestModelsScope(t *testing.T) {
 	h := New(Options{Keys: keys})
 	for _, path := range []string{"/v1/models", "/v1/models/3"} {
 		registrationProblem(t, h, "GET", path, "forbidden", 403)
+	}
+}
+
+const uploadModel = `<LWM2M><Object ObjectType="MODefinition"><Name>Vendor</Name><Description1></Description1><ObjectID>50000</ObjectID><ObjectURN>urn:oma:lwm2m:x:50000</ObjectURN><MultipleInstances>Multiple</MultipleInstances><Mandatory>Optional</Mandatory><Resources><Item ID="0"><Name>Value</Name><Operations>R</Operations><MultipleInstances>Single</MultipleInstances><Mandatory>Optional</Mandatory><Type>String</Type><RangeEnumeration></RangeEnumeration><Units></Units><Description></Description></Item></Resources><Description2></Description2></Object></LWM2M>`
+
+func modelRequest(h interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}, method, path, body string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	r.Header.Set("Authorization", "Bearer lwm_test_secret")
+	r.Header.Set("Content-Type", "application/xml")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	return w
+}
+
+func TestModelsUploadContract(t *testing.T) {
+	keys := deviceKeys()
+	h := New(Options{Keys: keys})
+	w := modelRequest(h, "POST", "/v1/models", uploadModel)
+	if w.Code != 201 || !strings.Contains(w.Body.String(), `"source":"tenant"`) {
+		t.Fatalf("upload: %d %s", w.Code, w.Body.String())
+	}
+	for _, path := range []string{"/v1/models/50000", "/v1/models?q=Vendor"} {
+		w = modelRequest(h, "GET", path, "")
+		if w.Code != 200 || !strings.Contains(w.Body.String(), `"id":50000`) {
+			t.Fatalf("get: %d %s", w.Code, w.Body.String())
+		}
+	}
+	entry := keys.entries["test"]
+	entry.tenant = "other"
+	keys.entries["test"] = entry
+	if w = modelRequest(h, "GET", "/v1/models/50000", ""); w.Code != 404 {
+		t.Fatalf("foreign get: %d", w.Code)
+	}
+	if w = modelRequest(h, "GET", "/v1/models?q=Vendor", ""); strings.Contains(w.Body.String(), `"id":50000`) {
+		t.Fatal(w.Body.String())
+	}
+	if w = modelRequest(h, "DELETE", "/v1/models/50000/versions/1.0", ""); w.Code != 404 {
+		t.Fatalf("foreign delete: %d", w.Code)
+	}
+	entry.tenant = "default"
+	keys.entries["test"] = entry
+	if w = modelRequest(h, "DELETE", "/v1/models/3/versions/1.0", ""); w.Code != 409 {
+		t.Fatalf("builtin delete: %d", w.Code)
+	}
+	if w = modelRequest(h, "DELETE", "/v1/models/50000/versions/1.0", ""); w.Code != 204 {
+		t.Fatalf("delete: %d %s", w.Code, w.Body.String())
+	}
+	if w = modelRequest(h, "GET", "/v1/models/50000", ""); w.Code != 404 {
+		t.Fatalf("after deletion: %d", w.Code)
+	}
+	entry.scopes = ",devices:read,"
+	keys.entries["test"] = entry
+	if w = modelRequest(h, "POST", "/v1/models", uploadModel); w.Code != 403 {
+		t.Fatalf("write scope: %d", w.Code)
+	}
+	if w = modelRequest(h, "DELETE", "/v1/models/3/versions/1.0", ""); w.Code != 403 {
+		t.Fatalf("delete scope: %d", w.Code)
+	}
+	entry.scopes = ",devices:read,devices:write,"
+	keys.entries["test"] = entry
+	if w = modelRequest(h, "POST", "/v1/models", "<invalid>"); w.Code != 400 {
+		t.Fatalf("invalid: %d", w.Code)
+	}
+}
+
+func TestModelsUploadRejectsTrailingXML(t *testing.T) {
+	h := New(Options{Keys: deviceKeys()})
+	for _, body := range []string{uploadModel + "<broken>", uploadModel + uploadModel, "<LWM2M><Object/></LWM2M>"} {
+		w := modelRequest(h, "POST", "/v1/models", body)
+		if w.Code != 400 {
+			t.Fatalf("invalid input: %d %s", w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestModelsUploadVersionsUseLatestSummary(t *testing.T) {
+	h := New(Options{Keys: deviceKeys()})
+	newer := strings.Replace(uploadModel, "<Name>Vendor</Name>", "<Name>New Vendor</Name>", 1)
+	newer = strings.Replace(newer, "<ObjectURN>urn:oma:lwm2m:x:50000</ObjectURN>", "<ObjectURN>urn:oma:lwm2m:x:50000:1.1</ObjectURN><ObjectVersion>1.1</ObjectVersion>", 1)
+	for _, body := range []string{newer, uploadModel} {
+		if w := modelRequest(h, "POST", "/v1/models", body); w.Code != 201 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	for i := 0; i < 50; i++ {
+		w := modelRequest(h, "GET", "/v1/models?q=New%20Vendor", "")
+		if !strings.Contains(w.Body.String(), `"name":"New Vendor"`) || !strings.Contains(w.Body.String(), `"versions":["1.0","1.1"]`) {
+			t.Fatal(w.Body.String())
+		}
+	}
+}
+
+func TestModelsUploadRejectsInvalidSchema(t *testing.T) {
+	h := New(Options{Keys: deviceKeys()})
+	cases := map[string]string{
+		"review reproduction":           `<LWM2M><Object><ObjectID>50001</ObjectID><MultipleInstances>Multiple</MultipleInstances><Mandatory>Optional</Mandatory><Resources></Resources><NotInSchema>bad</NotInSchema></Object></LWM2M>`,
+		"missing name":                  strings.Replace(uploadModel, "<Name>Vendor</Name>", "", 1),
+		"unknown element":               strings.Replace(uploadModel, "</Object>", "<NotInSchema>bad</NotInSchema></Object>", 1),
+		"missing object attribute":      strings.Replace(uploadModel, ` ObjectType="MODefinition"`, "", 1),
+		"missing resource field":        strings.Replace(uploadModel, "<Units></Units>", "", 1),
+		"duplicate attribute":           strings.Replace(uploadModel, `ID="0"`, `ID="0" ID="0"`, 1),
+		"unexpected resource attribute": strings.Replace(uploadModel, `ID="0"`, `ID="0" extra="1"`, 1),
+		"incorrect order":               strings.Replace(uploadModel, "<Name>Vendor</Name><Description1></Description1>", "<Description1></Description1><Name>Vendor</Name>", 1),
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			w := modelRequest(h, "POST", "/v1/models", body)
+			if w.Code != 400 || !strings.Contains(w.Header().Get("Content-Type"), "application/problem+json") {
+				t.Fatalf("invalid schema: %d %s", w.Code, w.Body.String())
+			}
+			if w = modelRequest(h, "GET", "/v1/models/50000", ""); w.Code != 404 {
+				t.Fatalf("invalid model persisted: %d", w.Code)
+			}
+		})
+	}
+}
+
+func TestModelsUploadOMARegistryXML(t *testing.T) {
+	data, err := os.ReadFile("../model/registry/3-1_0.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := strings.Replace(string(data), "<ObjectID>3</ObjectID>", "<ObjectID>50000</ObjectID>", 1)
+	body = strings.Replace(body, "<ObjectURN>urn:oma:lwm2m:oma:3</ObjectURN>", "<ObjectURN>urn:oma:lwm2m:x:50000</ObjectURN>", 1)
+	h := New(Options{Keys: deviceKeys()})
+	if w := modelRequest(h, "POST", "/v1/models", body); w.Code != 201 {
+		t.Fatalf("OMA registry upload: %d %s", w.Code, w.Body.String())
 	}
 }
