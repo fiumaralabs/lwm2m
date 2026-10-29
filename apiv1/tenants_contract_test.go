@@ -2,6 +2,7 @@ package apiv1
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,6 +28,42 @@ func TestTenantsCreateAndRetrieve(t *testing.T) {
 	w = keyRequest(h, "GET", "/v1/tenants/acme", "lwm_platform_test", "")
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"name":"Acme"`) {
 		t.Fatalf("get: %d %s", w.Code, w.Body)
+	}
+}
+
+func TestTenantPatchLimitsPreservesOmittedAndAcceptsZero(t *testing.T) {
+	h := tenantTestHandler(t)
+	const token = "lwm_platform_test"
+	w := keyRequest(h, "POST", "/v1/tenants", token, `{"id":"acme","name":"Acme","limits":{"devices":12,"operationsPerMinute":50,"eventsPerSecond":7,"firmwareStorageBytes":90,"timeseriesRetentionDays":30}}`)
+	if w.Code != 201 {
+		t.Fatalf("create: %d %s", w.Code, w.Body)
+	}
+	w = keyRequest(h, "PATCH", "/v1/tenants/acme", token, `{"limits":{"devices":13,"eventsPerSecond":0}}`)
+	if w.Code != 200 {
+		t.Fatalf("patch: %d %s", w.Code, w.Body)
+	}
+	w = keyRequest(h, "GET", "/v1/tenants/acme", token, "")
+	var got Tenant
+	if w.Code != 200 {
+		t.Fatalf("get: %d %s", w.Code, w.Body)
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	want := (TenantLimits{Devices: 13, OperationsPerMinute: 50, EventsPerSecond: 0, FirmwareStorageBytes: 90, TimeseriesRetentionDays: 30})
+	if got.Limits != want {
+		t.Fatalf("limits: got %+v, want %+v", got.Limits, want)
+	}
+	w = keyRequest(h, "PATCH", "/v1/tenants/acme", token, `{"name":"changed","limits":{"devices":-1}}`)
+	if w.Code != 422 {
+		t.Fatalf("invalid patch: %d %s", w.Code, w.Body)
+	}
+	w = keyRequest(h, "GET", "/v1/tenants/acme", token, "")
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Acme" || got.Limits != want {
+		t.Fatalf("invalid patch mutated tenant: %+v", got)
 	}
 }
 
