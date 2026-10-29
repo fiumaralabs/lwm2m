@@ -150,8 +150,12 @@ func TestClientDetail(t *testing.T) {
 	var d2 struct {
 		LastSend *sendJSON `json:"last_send"`
 	}
-	getJSON(t, g.http.URL+"/api/clients/t1", &d2)
-	if d2.LastSend == nil || len(d2.LastSend.Nodes) != 1 || d2.LastSend.Nodes[0].V != 19.5 {
+	// The Send response can arrive before its event is reflected in the web API.
+	waitFor(t, "last Send event", func() bool {
+		getJSON(t, g.http.URL+"/api/clients/t1", &d2)
+		return d2.LastSend != nil
+	})
+	if len(d2.LastSend.Nodes) != 1 || d2.LastSend.Nodes[0].V != 19.5 {
 		t.Errorf("last_send = %+v", d2.LastSend)
 	}
 }
