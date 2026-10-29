@@ -94,10 +94,9 @@ func TestObservationEstablishmentInterleavings(t *testing.T) {
 			if mode == "notification" {
 				for {
 					got, _ := d.Get("default", v.ID)
-					if got.Status == "active" {
-						if got.NotificationCount != 1 || got.LastNotificationAt == nil {
-							t.Fatalf("lost early notification: %+v", got)
-						}
+					values, _ := state.List("default", "pump", "", nil)
+					ev, _, _ := events.List("default", store.EventFilter{Type: "lwm2m.notification", Limit: 10})
+					if got.Status == "active" && got.NotificationCount == 1 && got.LastNotificationAt != nil && len(values) == 1 && len(ev) == 1 {
 						break
 					}
 					if time.Now().After(deadline) {

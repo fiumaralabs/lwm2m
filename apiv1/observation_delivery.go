@@ -31,10 +31,12 @@ type ObservationDelivery struct {
 	active     map[string]*server.Observation
 	generation map[string]uint64
 	busy       map[string]uint64
+	early      map[string][]server.Notification
+	cancelMode map[string]bool
 }
 
 func NewObservationDelivery(srv *server.Server, records ObservationDeliveryStore, state store.State, events store.Events, tenant string) *ObservationDelivery {
-	return &ObservationDelivery{ObservationDeliveryStore: records, srv: srv, state: state, events: events, tenant: tenant, active: map[string]*server.Observation{}, generation: map[string]uint64{}, busy: map[string]uint64{}}
+	return &ObservationDelivery{ObservationDeliveryStore: records, srv: srv, state: state, events: events, tenant: tenant, active: map[string]*server.Observation{}, generation: map[string]uint64{}, busy: map[string]uint64{}, early: map[string][]server.Notification{}, cancelMode: map[string]bool{}}
 }
 func (d *ObservationDelivery) Create(tenant string, v store.Observation) error {
 	d.mu.Lock()
@@ -106,9 +108,17 @@ func (d *ObservationDelivery) deliver(v store.Observation, r *server.Registratio
 	d.mu.Lock()
 	current, _ := d.Get(d.tenant, v.ID)
 	if d.generation[v.Device] != generation || current.Status == "ended" {
+		active := current.Status == "ended" && d.generation[v.Device] == generation && d.cancelMode[v.ID]
+		delete(d.cancelMode, v.ID)
+		if ob != nil {
+			delete(d.early, ob.ID)
+		}
+		d.clearEarly(v.Device)
 		d.mu.Unlock()
 		if ob != nil {
-			d.srv.CancelObservation(ctx, ob, false)
+			cancelCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
+			d.srv.CancelObservation(cancelCtx, ob, active)
 		}
 		return
 	}
@@ -132,6 +142,13 @@ func (d *ObservationDelivery) deliver(v store.Observation, r *server.Registratio
 		v.Error = nil
 		d.active[v.ID] = ob
 	})
+	if ob != nil {
+		for _, e := range d.early[ob.ID] {
+			d.notification(e)
+		}
+		delete(d.early, ob.ID)
+	}
+	d.clearEarly(v.Device)
 }
 func observationFormat(name string) *lwm2m.ContentFormat {
 	formats := map[string]lwm2m.ContentFormat{"text": 0, "link-format": 40, "opaque": 42, "cbor": 60, "senml-json": 110, "senml-cbor": 112, "senml-etch-json": 320, "senml-etch-cbor": 322, "tlv": 11542, "oma-json": 11543, "lwm2m-cbor": 11544}
@@ -153,6 +170,9 @@ func (d *ObservationDelivery) EndMode(tenant, id string, active bool) error {
 	}
 	ob := d.active[id]
 	delete(d.active, id)
+	if _, ok := d.busy[id]; ok {
+		d.cancelMode[id] = active
+	}
 	delete(d.busy, id)
 	if v.Status != "ended" {
 		v.Status = "ended"
@@ -185,30 +205,57 @@ func (d *ObservationDelivery) HandleEvent(event server.Event) {
 		}
 		d.drop(e.Registration.Endpoint)
 	case server.Notification:
-		for id, ob := range d.active {
-			if ob.ID != e.Observation.ID || ob.RegistrationID != e.Registration.ID {
-				continue
-			}
-			v := d.update(id, func(v *store.Observation) {
-				now := time.Now().UTC()
-				v.LastNotificationAt = &now
-				v.NotificationCount++
-			})
-			if v.Status != "active" {
-				return
-			}
-			var prefix any
-			if v.Prefix != "" {
-				prefix = v.Prefix
-			}
-			data := map[string]any{"observation": id, "prefix": prefix, "values": operations.ObservationValues(e.Response.Nodes)}
-			if d.state != nil {
-				body, _ := json.Marshal(data)
-				now := time.Now().UTC()
-				d.state.Record(operations.Operation{Tenant: d.tenant, Device: v.Device, Prefix: v.Prefix, Type: "notification", Status: operations.Succeeded, CompletedAt: &now, Result: body})
-			}
-			d.emit("lwm2m.notification", v.Device, data)
+		d.notification(e)
+	}
+}
+
+// notification and clearEarly require mu. Pending tokens are correlated after
+// the exchange returns; token identity, not paths, distinguishes overlaps.
+func (d *ObservationDelivery) notification(e server.Notification) {
+	for id, ob := range d.active {
+		if ob.ID != e.Observation.ID || ob.RegistrationID != e.Registration.ID {
+			continue
+		}
+		v := d.update(id, func(v *store.Observation) {
+			now := time.Now().UTC()
+			v.LastNotificationAt = &now
+			v.NotificationCount++
+		})
+		if v.Status != "active" {
 			return
+		}
+		var prefix any
+		if v.Prefix != "" {
+			prefix = v.Prefix
+		}
+		data := map[string]any{"observation": id, "prefix": prefix, "values": operations.ObservationValues(e.Response.Nodes)}
+		if d.state != nil {
+			body, _ := json.Marshal(data)
+			now := time.Now().UTC()
+			d.state.Record(operations.Operation{Tenant: d.tenant, Device: v.Device, Prefix: v.Prefix, Type: "notification", Status: operations.Succeeded, CompletedAt: &now, Result: body})
+		}
+		d.emit("lwm2m.notification", v.Device, data)
+		return
+	}
+	records, _ := d.List(d.tenant, e.Registration.Endpoint)
+	for _, v := range records {
+		if _, ok := d.busy[v.ID]; ok {
+			d.early[e.Observation.ID] = append(d.early[e.Observation.ID], e)
+			return
+		}
+	}
+}
+
+func (d *ObservationDelivery) clearEarly(ep string) {
+	records, _ := d.List(d.tenant, ep)
+	for _, v := range records {
+		if _, ok := d.busy[v.ID]; ok {
+			return
+		}
+	}
+	for token, events := range d.early {
+		if len(events) > 0 && events[0].Registration.Endpoint == ep {
+			delete(d.early, token)
 		}
 	}
 }
