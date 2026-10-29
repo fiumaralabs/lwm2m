@@ -65,6 +65,41 @@ func TestTimeSeriesSumCancellation(t *testing.T) {
 	}
 }
 
+func TestTimeSeriesIntegerAggregatePrecision(t *testing.T) {
+	cases := []struct {
+		name   string
+		values []any
+		want   map[string]string
+	}{
+		{"signed cancellation", []any{int64(9007199254740993), int64(-9007199254740992)}, map[string]string{"sum": "1", "avg": "0.5", "min": "-9007199254740992", "max": "9007199254740993"}},
+		{"unsigned ordering", []any{uint64(9007199254740993), uint64(9007199254740992)}, map[string]string{"sum": "18014398509481985", "min": "9007199254740992", "max": "9007199254740993"}},
+		{"exact large average", []any{int64(9007199254740993), int64(9007199254740993)}, map[string]string{"avg": "9007199254740993"}},
+		{"mixed integral result", []any{uint64(9007199254740993), 0.0}, map[string]string{"sum": "9007199254740993"}},
+		{"mixed types", []any{uint64(9007199254740993), int64(-9007199254740992), 0.5}, map[string]string{"sum": "1.5", "avg": "0.5", "min": "-9007199254740992", "max": "9007199254740993"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewMemoryTimeSeriesStore()
+			at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			for _, v := range tc.values {
+				if err := s.Append("default", "pump", "/3/0/1", at, v); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h := New(Options{Keys: deviceKeys(), TimeSeries: s})
+			if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"pump"}`); w.Code != 201 {
+				t.Fatal(w.Body.String())
+			}
+			for agg, want := range tc.want {
+				w := deviceRequest(h, "GET", "/v1/devices/pump/timeseries?path=/3/0/1&from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z&interval=300&aggregate="+agg, "")
+				if w.Code != 200 || !strings.Contains(w.Body.String(), `"v":`+want+`}`) {
+					t.Errorf("%s want %s: %d %s", agg, want, w.Code, w.Body.String())
+				}
+			}
+		})
+	}
+}
+
 func TestTimeSeriesCanonicalPaths(t *testing.T) {
 	s := NewMemoryTimeSeriesStore()
 	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

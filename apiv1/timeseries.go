@@ -206,24 +206,23 @@ func (o Options) timeSeries(w http.ResponseWriter, r *http.Request) {
 	}{result, next})
 }
 
-func numeric(v any) float64 {
-	switch x := v.(type) {
-	case bool:
+func numericRat(v any) (*big.Rat, any, bool) {
+	if x, ok := v.(bool); ok {
 		if x {
-			return 1
+			return new(big.Rat).SetInt64(1), 1, true
 		}
-		return 0
+		return new(big.Rat), 0, true
 	}
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return float64(rv.Int())
+		return new(big.Rat).SetInt64(rv.Int()), v, true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return float64(rv.Uint())
+		return new(big.Rat).SetInt(new(big.Int).SetUint64(rv.Uint())), v, true
 	case reflect.Float32, reflect.Float64:
-		return rv.Float()
+		return new(big.Rat).SetFloat64(rv.Float()), v, false
 	}
-	return 0
+	return nil, v, false
 }
 
 func aggregatePoints(points []TimeSeriesPoint, interval time.Duration, aggregate string) []TimeSeriesPoint {
@@ -234,44 +233,51 @@ func aggregatePoints(points []TimeSeriesPoint, interval time.Duration, aggregate
 		for j < len(points) && points[j].T.Truncate(interval).Equal(start) {
 			j++
 		}
-		min, max := numeric(points[i].V), numeric(points[i].V)
-		// Exact binary rational addition avoids intermediate overflow and loss of
-		// small residuals when large positive and negative values cancel.
+		// Keep integers exact through summation and comparisons; converting to
+		// float64 before cancellation or ordering loses values above 2^53.
 		var sum big.Rat
-		nonFinite := false
+		var min, max *big.Rat
+		var minValue, maxValue any
+		allInteger, invalid := true, false
 		for _, p := range points[i:j] {
-			n := numeric(p.V)
-			if aggregate == "sum" || aggregate == "avg" {
-				if math.IsInf(n, 0) || math.IsNaN(n) {
-					nonFinite = true
-				} else {
-					var term big.Rat
-					term.SetFloat64(n)
-					sum.Add(&sum, &term)
-				}
+			n, value, integer := numericRat(p.V)
+			if n == nil {
+				invalid = true
+				continue
 			}
-			if n < min {
-				min = n
+			allInteger = allInteger && integer
+			sum.Add(&sum, n)
+			if min == nil || n.Cmp(min) < 0 {
+				min, minValue = n, value
 			}
-			if n > max {
-				max = n
+			if max == nil || n.Cmp(max) > 0 {
+				max, maxValue = n, value
 			}
 		}
 		var v any
 		switch aggregate {
 		case "avg", "sum":
-			if nonFinite {
+			if invalid {
 				v = math.NaN()
 			} else {
 				if aggregate == "avg" {
 					sum.Quo(&sum, new(big.Rat).SetInt64(int64(j-i)))
 				}
-				v, _ = sum.Float64()
+				if sum.IsInt() && (allInteger || sum.Num().BitLen() <= 64) {
+					v = new(big.Int).Set(sum.Num())
+				} else {
+					v, _ = sum.Float64()
+				}
 			}
 		case "min":
-			v = min
+			v = minValue
 		case "max":
-			v = max
+			v = maxValue
+		}
+		if invalid && (aggregate == "min" || aggregate == "max") {
+			v = math.NaN()
+		}
+		switch aggregate {
 		case "count":
 			v = j - i
 		case "first":
