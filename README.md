@@ -56,6 +56,8 @@ The endpoint name is random (`demo-xxxxxx`) unless you pass `-ep`; it is listed 
 
 ## Quick start
 
+For `lwm2md` JSON configuration and flag precedence, see [doc/config.md](doc/config.md).
+
 ```go
 models := server.NewModels(model.Default())
 srv := server.New(server.Config{Schema: models.Schema, Validator: models})
