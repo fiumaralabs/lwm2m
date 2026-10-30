@@ -185,7 +185,11 @@ func (p *parser) quoted() (string, error) {
 			p.i++
 			return b.String(), nil
 		case c == '\\' && p.i+1 < len(p.s):
-			if p.s[p.i+1] != '"' {
+			next := p.s[p.i+1]
+			if next < 0x20 && next != '	' || next == 0x7f {
+				return "", p.fail("control character in quoted-string")
+			}
+			if next != '"' {
 				b.WriteByte('\\')
 			}
 			b.WriteByte(p.s[p.i+1])
