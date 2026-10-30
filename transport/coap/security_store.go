@@ -9,7 +9,7 @@ import (
 // RevokingSecurityStore decorates a store so successful credential mutations
 // close established sessions using the previous PSK identity. All mutations
 // must use this wrapper; retaining and mutating the underlying store bypasses it.
-// In-flight handshakes and already-dispatched requests are not covered (#97).
+// Already-dispatched requests are not covered (#97).
 type RevokingSecurityStore struct {
 	server.SecurityStore
 	mu     sync.Mutex
