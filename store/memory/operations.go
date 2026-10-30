@@ -99,7 +99,7 @@ func (s *Operations) List(ctx context.Context, tenant string, f operations.ListF
 	if limit < 1 || limit > 500 {
 		return nil, "", store.ErrCursor
 	}
-	items, err := s.list(ctx, tenant, f.Device, false)
+	items, err := s.list(ctx, tenant, f.Device, false, f.CreatedAfter, f.CreatedBefore)
 	if err != nil {
 		return nil, "", err
 	}
@@ -122,9 +122,9 @@ func (s *Operations) List(ctx context.Context, tenant string, f operations.ListF
 	return out, "", nil
 }
 func (s *Operations) Pending(ctx context.Context, tenant, device string) ([]operations.Operation, error) {
-	return s.list(ctx, tenant, device, true)
+	return s.list(ctx, tenant, device, true, nil, nil)
 }
-func (s *Operations) list(ctx context.Context, tenant, device string, pending bool) ([]operations.Operation, error) {
+func (s *Operations) list(ctx context.Context, tenant, device string, pending bool, after, before *time.Time) ([]operations.Operation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -132,7 +132,7 @@ func (s *Operations) list(ctx context.Context, tenant, device string, pending bo
 	}
 	out := []operations.Operation{}
 	for _, o := range s.records {
-		if o.Tenant == tenant && (device == "" || device == o.Device) && (!pending || o.Status == operations.Queued) {
+		if o.Tenant == tenant && (device == "" || device == o.Device) && (!pending || o.Status == operations.Queued) && (after == nil || o.CreatedAt.After(*after)) && (before == nil || !o.CreatedAt.After(*before)) {
 			out = append(out, cloneOperation(o))
 		}
 	}

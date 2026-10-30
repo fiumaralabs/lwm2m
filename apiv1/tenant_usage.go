@@ -13,7 +13,37 @@ import (
 
 type tenantLimiter struct {
 	mu      sync.Mutex
+	locks   map[string]*tenantLock
 	tenants TenantStore
+}
+
+type tenantLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+func (l *tenantLimiter) lock(tenant string) func() {
+	l.mu.Lock()
+	if l.locks == nil {
+		l.locks = make(map[string]*tenantLock)
+	}
+	entry := l.locks[tenant]
+	if entry == nil {
+		entry = &tenantLock{}
+		l.locks[tenant] = entry
+	}
+	entry.refs++
+	l.mu.Unlock()
+	entry.mu.Lock()
+	return func() {
+		entry.mu.Unlock()
+		l.mu.Lock()
+		entry.refs--
+		if entry.refs == 0 {
+			delete(l.locks, tenant)
+		}
+		l.mu.Unlock()
+	}
 }
 
 func (o Options) deviceLimitReached(tenant string, limit int64) (bool, error) {
@@ -36,12 +66,16 @@ func (o Options) deviceLimitReached(tenant string, limit int64) (bool, error) {
 
 func (o Options) operationLimitReached(ctx context.Context, tenant string, limit int64, now time.Time) (bool, error) {
 	var count int64
+	after := now.Add(-time.Minute)
 	for cursor := ""; ; {
-		items, next, err := o.Operations.List(ctx, tenant, operations.ListFilter{}, cursor, 500)
+		items, next, err := o.Operations.List(ctx, tenant, operations.ListFilter{CreatedAfter: &after, CreatedBefore: &now}, cursor, 500)
 		if err != nil {
 			return false, err
 		}
 		for _, op := range items {
+			if !op.CreatedAt.After(after) {
+				return count >= limit, nil
+			}
 			if op.CreatedAt.After(now.Add(-time.Minute)) && !op.CreatedAt.After(now) {
 				count++
 			}

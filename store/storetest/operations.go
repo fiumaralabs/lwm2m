@@ -170,6 +170,33 @@ func operationsBasic(t *testing.T, factory func(*testing.T) store.Operations) {
 
 // Operations runs the behavioral contract against an empty store per subtest.
 func Operations(t *testing.T, factory func(*testing.T) store.Operations) {
+	t.Run("created_window", func(t *testing.T) {
+		ctx := context.Background()
+		s := factory(t)
+		now := time.Unix(1700000000, 123).UTC()
+		after := now.Add(-time.Minute)
+		for id, at := range map[string]time.Time{"old": after.Add(-time.Nanosecond), "boundary": after, "inside": after.Add(time.Nanosecond), "now": now, "future": now.Add(time.Nanosecond)} {
+			op := operations.New("t", "dev", "read", nil, nil, at)
+			op.ID = id
+			if err := s.Create(ctx, "t", op); err != nil {
+				t.Fatal(err)
+			}
+		}
+		f := operations.ListFilter{CreatedAfter: &after, CreatedBefore: &now}
+		items, cursor, err := s.List(ctx, "t", f, "", 1)
+		if err != nil || len(items) != 1 || items[0].ID != "now" || cursor == "" {
+			t.Fatalf("first: %+v %q %v", items, cursor, err)
+		}
+		items, next, err := s.List(ctx, "t", f, cursor, 1)
+		if err != nil || len(items) != 1 || items[0].ID != "inside" || next != "" {
+			t.Fatalf("second: %+v %q %v", items, next, err)
+		}
+		later := after.Add(time.Nanosecond)
+		f.CreatedAfter = &later
+		if _, _, err := s.List(ctx, "t", f, cursor, 1); !errors.Is(err, store.ErrCursor) {
+			t.Fatalf("cursor not bound to window: %v", err)
+		}
+	})
 	t.Run("unfinished", func(t *testing.T) { operationsUnfinished(t, factory) })
 	t.Run("concurrent", func(t *testing.T) { operationsConcurrent(t, factory) })
 	t.Run("pagination_fifo", func(t *testing.T) {

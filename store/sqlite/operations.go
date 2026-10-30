@@ -152,7 +152,17 @@ func (s *Operations) List(ctx context.Context, tenant string, f operations.ListF
 	if limit < 1 || limit > 500 {
 		return nil, "", store.ErrCursor
 	}
-	items, err := s.read(ctx, "tenant=? AND (?='' OR device=?)", false, tenant, f.Device, f.Device)
+	where := "tenant=? AND (?='' OR device=?)"
+	args := []any{tenant, f.Device, f.Device}
+	if f.CreatedAfter != nil {
+		where += " AND seq>?"
+		args = append(args, f.CreatedAfter.UnixNano())
+	}
+	if f.CreatedBefore != nil {
+		where += " AND seq<=?"
+		args = append(args, f.CreatedBefore.UnixNano())
+	}
+	items, err := s.read(ctx, where, false, args...)
 	if err != nil {
 		return nil, "", err
 	}

@@ -144,8 +144,8 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				WriteProblem(w, 400, "invalid_endpoint", "endpoint is required")
 				return
 			}
-			o.limits.mu.Lock()
-			defer o.limits.mu.Unlock()
+			unlock := o.limits.lock(tenant)
+			defer unlock()
 			if t, ok := o.limits.tenants.Get(tenant); ok && t.Limits.Devices > 0 {
 				reached, err := o.deviceLimitReached(tenant, t.Limits.Devices)
 				if err != nil {

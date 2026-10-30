@@ -161,16 +161,16 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 		}
 		op.Prefix, op.Format, op.Accept = input.Prefix, input.Format, input.Accept
 		// Serialize the quota check and submission for requests on this handler.
-		o.limits.mu.Lock()
+		unlock := o.limits.lock(tenant)
 		if t, ok := o.limits.tenants.Get(tenant); ok && t.Limits.OperationsPerMinute > 0 {
 			reached, listErr := o.operationLimitReached(r.Context(), tenant, t.Limits.OperationsPerMinute, time.Now())
 			if listErr != nil {
-				o.limits.mu.Unlock()
+				unlock()
 				WriteProblem(w, 500, "internal_error", "Cannot list operations")
 				return
 			}
 			if reached {
-				o.limits.mu.Unlock()
+				unlock()
 				// A full rolling minute lets existing operations age out.
 				w.Header().Set("Retry-After", "60")
 				WriteProblem(w, 429, "limit_exceeded", "Operation limit exceeded")
@@ -178,7 +178,7 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		op, err = o.Executor.Submit(r.Context(), tenant, op)
-		o.limits.mu.Unlock()
+		unlock()
 		if err != nil {
 			operationError(w, err)
 			return

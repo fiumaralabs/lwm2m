@@ -11,10 +11,13 @@ import (
 
 // ListFilter combines fields with AND and statuses with OR.
 type ListFilter struct {
-	Device string
-	Status []Status
-	Type   string
-	Job    string
+	// CreatedAfter is exclusive; CreatedBefore is inclusive.
+	CreatedAfter  *time.Time `json:",omitempty"`
+	CreatedBefore *time.Time `json:",omitempty"`
+	Device        string
+	Status        []Status
+	Type          string
+	Job           string
 }
 
 type Status string
