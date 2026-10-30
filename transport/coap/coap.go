@@ -183,7 +183,7 @@ type Binding struct {
 
 	peers    sync.Map // mux.Conn -> *coapPeer
 	pskMu    sync.Mutex
-	pskConns map[io.Closer]string // established sessions
+	pskConns map[io.Closer]string // empty identity means handshake in progress
 	amu      sync.Mutex
 	afters   map[mux.Conn][]func()
 	oscore   atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
@@ -230,8 +230,8 @@ type DTLSConfig struct {
 	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins except
 	// WithSessionStore, which is ignored. WithPSK overrides the default
 	// security-store lookup; custom PSK sources must call RevokePSKIdentity
-	// when their credentials change to close established sessions. In-flight
-	// handshakes are not covered; see issue #97.
+	// when their credentials change to close sessions. Credential changes also
+	// cancel all in-flight handshakes, regardless of identity or security mode.
 	// Resumption is disabled for both PSK and certificate clients.
 	Options []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
@@ -265,13 +265,26 @@ func (dc DTLSConfig) CIDLen() int {
 // ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr.
 func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 	cfg := dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup)
-	cfg.OnHandshake = func(conn io.Closer, identity string) {
+	cfg.OnAccept = func(conn io.Closer) {
 		b.pskMu.Lock()
 		defer b.pskMu.Unlock()
 		if b.pskConns == nil {
 			b.pskConns = make(map[io.Closer]string)
 		}
-		b.pskConns[conn] = identity
+		// The identity is not available until the handshake completes. Cancel
+		// all in-flight handshakes on revocation, including custom PSK sources.
+		b.pskConns[conn] = ""
+	}
+	cfg.OnHandshake = func(conn io.Closer, identity string) {
+		b.pskMu.Lock()
+		defer b.pskMu.Unlock()
+		if _, tracked := b.pskConns[conn]; tracked {
+			if identity == "" {
+				delete(b.pskConns, conn)
+			} else {
+				b.pskConns[conn] = identity
+			}
+		}
 	}
 	cfg.OnConnClose = func(conn io.Closer) {
 		b.pskMu.Lock()
@@ -305,14 +318,14 @@ func (b *Binding) pskLookup(identity []byte) ([]byte, error) {
 	return si.PSKKey, nil
 }
 
-// RevokePSKIdentity closes established sessions for identity. Custom PSK
-// sources must call this after changing their credentials. Handshakes already
-// in progress are not covered; see issue #97.
+// RevokePSKIdentity closes established sessions for identity and cancels all
+// in-flight handshakes. Custom PSK sources must call this after changes.
+// Already-dispatched requests are not covered; see issue #97.
 func (b *Binding) RevokePSKIdentity(identity string) {
 	b.pskMu.Lock()
 	defer b.pskMu.Unlock()
 	for conn, id := range b.pskConns {
-		if id == identity {
+		if id == identity || id == "" {
 			delete(b.pskConns, conn)
 			_ = conn.Close()
 		}

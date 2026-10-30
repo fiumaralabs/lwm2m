@@ -44,7 +44,9 @@ type Config struct {
 	CIDLength int
 	// Sessions enables session resumption; nil disables it.
 	Sessions *SessionStore
-	// OnHandshake tracks an established PSK connection.
+	// OnAccept tracks a connection before its handshake can begin.
+	OnAccept func(io.Closer)
+	// OnHandshake reports the established identity (empty for non-PSK).
 	OnHandshake func(io.Closer, string)
 	// OnConnClose releases any state associated with that connection.
 	OnConnClose func(io.Closer)
@@ -84,6 +86,9 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 		case <-l.d.done:
 			return nil, coapnet.ErrListenerIsClosed
 		case pc := <-l.d.accept:
+			if l.cfg.OnAccept != nil {
+				l.cfg.OnAccept(pc)
+			}
 			opts := l.cfg.Options[:len(l.cfg.Options):len(l.cfg.Options)]
 			if l.cfg.CIDLength > 0 {
 				opts = append(opts, dtls.WithConnectionID(func() []byte { return l.d.newCID(pc) }, dtls.CIDPathMigrationUnsafe))
@@ -91,6 +96,9 @@ func (l *Listener) AcceptWithContext(ctx context.Context) (net.Conn, error) {
 			dc, err := dtls.Server(pc, pc.raddr, opts...)
 			if err != nil {
 				_ = pc.Close()
+				if l.cfg.OnConnClose != nil {
+					l.cfg.OnConnClose(pc)
+				}
 				continue
 			}
 			return &Conn{Conn: dc, pc: pc, sessions: l.cfg.Sessions, onClose: l.cfg.OnConnClose, onHandshake: l.cfg.OnHandshake}, nil
@@ -134,7 +142,7 @@ func (c *Conn) HandshakeContext(ctx context.Context) error {
 		return net.ErrClosed
 	default:
 	}
-	if st, ok := c.Conn.ConnectionState(); ok && len(st.IdentityHint) > 0 && c.onHandshake != nil {
+	if st, ok := c.Conn.ConnectionState(); ok && c.onHandshake != nil {
 		c.onHandshake(c.pc, string(st.IdentityHint))
 	}
 	c.pc.d.handshakeComplete(c.pc)
