@@ -144,6 +144,19 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				WriteProblem(w, 400, "invalid_endpoint", "endpoint is required")
 				return
 			}
+			o.limits.mu.Lock()
+			defer o.limits.mu.Unlock()
+			if t, ok := o.limits.tenants.Get(tenant); ok && t.Limits.Devices > 0 {
+				reached, err := o.deviceLimitReached(tenant, t.Limits.Devices)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot list devices")
+					return
+				}
+				if reached {
+					WriteProblem(w, 429, "limit_exceeded", "Device limit exceeded")
+					return
+				}
+			}
 			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels})
 			if err != nil {
 				if errors.Is(err, store.ErrDeviceExists) {

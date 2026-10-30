@@ -11,6 +11,7 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
+	limits *tenantLimiter
 	Models ModelStore `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
@@ -35,6 +36,7 @@ type Options struct {
 
 // New returns the authenticated native API handler.
 func New(o Options) http.Handler {
+	o.limits = &tenantLimiter{tenants: newTenantStore()}
 	if o.State == nil {
 		o.State = &memory.State{}
 	}
@@ -75,7 +77,7 @@ func New(o Options) http.Handler {
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
-	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/audit-log" {
 			RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveAudit(o.Audit, w, r) })).ServeHTTP(w, r)
 			return

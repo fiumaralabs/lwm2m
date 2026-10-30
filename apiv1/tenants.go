@@ -94,15 +94,21 @@ func validTenantLimits(l TenantLimits) bool {
 	return l.Devices >= 0 && l.OperationsPerMinute >= 0 && l.EventsPerSecond >= 0 && l.FirmwareStorageBytes >= 0 && l.TimeseriesRetentionDays >= 0
 }
 
-func tenantMiddleware(next http.Handler) http.Handler {
-	var s TenantStore = newTenantStore()
+func tenantMiddleware(o Options, next http.Handler) http.Handler {
+	s := o.limits.tenants
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if tenant, ok := s.Get(TenantFrom(r.Context())); ok && tenant.Status == "suspended" {
 			WriteProblem(w, 403, "tenant_suspended", "Tenant is suspended")
 			return
 		}
 		if r.URL.Path == "/v1/tenants" || strings.HasPrefix(r.URL.Path, "/v1/tenants/") {
-			RequireScope("platform")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveTenants(s, w, r) })).ServeHTTP(w, r)
+			RequireScope("platform")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if path := strings.TrimPrefix(r.URL.Path, "/v1/tenants/"); strings.Contains(path, "/") && strings.HasSuffix(path, "/usage") {
+					o.tenantUsage(s, w, r)
+					return
+				}
+				serveTenants(s, w, r)
+			})).ServeHTTP(w, r)
 			return
 		}
 		next.ServeHTTP(w, r)
