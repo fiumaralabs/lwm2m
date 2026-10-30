@@ -12,6 +12,57 @@ permissions:
   contents: read
 
 jobs:
+  container-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test persistent container
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=lwm2md-smoke:local
+          volume="lwm2md-smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
+          container="lwm2md-smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
+          keys=$(mktemp "$PWD/.container-smoke-keys.XXXXXX")
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+            docker volume rm "$volume" >/dev/null 2>&1 || true
+            rm -f "$keys"
+          }
+          trap cleanup EXIT
+          test_token=lwm_smoke_synthetic
+          digest=$(printf %s "$test_token" | sha256sum | cut -d ' ' -f 1)
+          printf 'key_smoke sha256:%s devices:read,devices:write\n' "$digest" > "$keys"
+          chmod 644 "$keys"
+          docker build -t "$image" .
+          test "$(docker image inspect --format '{{.Config.User}}' "$image")" != 0
+          test -n "$(docker image inspect --format '{{.Config.User}}' "$image")"
+          docker volume create "$volume" >/dev/null
+          start() {
+            docker run -d --name "$container" -p 127.0.0.1::8080 \
+              -v "$volume:/data" -v "$keys:/run/keys:ro" "$image" \
+              -store sqlite:/data/devices.db -api-keys /run/keys >/dev/null
+            port=$(docker port "$container" 8080/tcp | sed 's/.*://')
+            url="http://127.0.0.1:$port"
+            for _ in $(seq 1 60); do
+              if curl -fsS "$url/readyz" >/dev/null 2>&1; then return; fi
+              sleep 1
+            done
+            docker logs "$container"
+            return 1
+          }
+          start
+          test "$(docker exec "$container" id -u)" = 10001
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$url/v1/devices" \
+            -H "Authorization: Bearer $test_token" -H 'Content-Type: application/json' \
+            -d '{"endpoint":"container-smoke"}')
+          test "$status" = 201
+          docker stop "$container" >/dev/null
+          docker rm "$container" >/dev/null
+          start
+          curl -fsS -H "Authorization: Bearer $test_token" "$url/v1/devices/container-smoke" |
+            python3 -c 'import json,sys; assert json.load(sys.stdin)["endpoint"] == "container-smoke"'
+
   test:
     runs-on: ubuntu-latest
     steps:
