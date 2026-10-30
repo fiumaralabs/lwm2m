@@ -282,8 +282,8 @@ func (d *demoSecurity) ByEndpoint(ep string) (server.SecurityInfo, bool) {
 func (d *demoSecurity) Put(server.SecurityInfo) error {
 	return errors.New("demo: read-only security store")
 }
-func (d *demoSecurity) Remove(string) (server.SecurityInfo, bool) {
-	return server.SecurityInfo{}, false
+func (d *demoSecurity) Remove(string) (server.SecurityInfo, bool, error) {
+	return server.SecurityInfo{}, false, nil
 }
 func (d *demoSecurity) All() []server.SecurityInfo { return nil }
 

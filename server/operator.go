@@ -77,8 +77,11 @@ func (s *Server) RemoveRegistration(ep string) bool {
 // RevokeSecurity removes an endpoint's credentials, and with them its
 // registration and session: a compromised credential must not keep an
 // authenticated session alive (leshan-tests "non-obvious" rules, T §5.2).
-func (s *Server) RevokeSecurity(ep string) (SecurityInfo, bool) {
-	si, ok := s.security.Remove(ep)
+func (s *Server) RevokeSecurity(ep string) (SecurityInfo, bool, error) {
+	si, ok, err := s.security.Remove(ep)
+	if err != nil {
+		return si, false, err
+	}
 	s.RemoveRegistration(ep)
-	return si, ok
+	return si, ok, nil
 }
