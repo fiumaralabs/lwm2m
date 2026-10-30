@@ -44,6 +44,17 @@ type FirmwareUpdateOutcome struct {
 	Removed       []string `json:"removed"`
 }
 
+// FirmwareUpdateObservation is a complete snapshot of executor-observed fields.
+// Empty or nil values clear the corresponding previous observation.
+type FirmwareUpdateObservation struct {
+	Method       string
+	URI          string
+	DeviceState  string
+	UpdateResult *FirmwareUpdateResult
+	Progress     *FirmwareUpdateProgress
+	Outcome      *FirmwareUpdateOutcome
+}
+
 // ErrUpdateInProgress indicates that a device already has an active update.
 var ErrUpdateInProgress = errors.New("firmware update in progress")
 
@@ -53,6 +64,9 @@ type FirmwareUpdateStore interface {
 	Get(string, string) (FirmwareUpdate, bool)
 	ListForDevice(string, string) []FirmwareUpdate
 	UpdateStatus(string, string, string) bool
+	// UpdateObserved atomically replaces observations and transitions status. An
+	// unchanged status is allowed while active, but terminal updates are final.
+	UpdateObserved(string, string, string, FirmwareUpdateObservation) bool
 }
 type memoryFirmwareUpdateStore struct {
 	mu      sync.RWMutex
@@ -192,6 +206,31 @@ func validFirmwareUpdateTransition(from, to string) bool {
 	}
 	return false
 }
+func (s *memoryFirmwareUpdateStore) UpdateObserved(tenant, id, status string, observed FirmwareUpdateObservation) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.updates[tenant][id]
+	if !ok || terminalFirmwareUpdate(u.Status) || (status != u.Status && !validFirmwareUpdateTransition(u.Status, status)) {
+		return false
+	}
+	if observed.Method != "auto" && observed.Method != "push" && observed.Method != "pull" {
+		return false
+	}
+	u.Status = status
+	u.Method = observed.Method
+	u.URI = observed.URI
+	u.DeviceState = observed.DeviceState
+	u.UpdateResult = observed.UpdateResult
+	u.Progress = observed.Progress
+	u.Outcome = observed.Outcome
+	if terminalFirmwareUpdate(status) {
+		now := time.Now().UTC()
+		u.CompletedAt = &now
+	}
+	s.updates[tenant][id] = cloneFirmwareUpdate(u)
+	return true
+}
+
 func (s *memoryFirmwareUpdateStore) UpdateStatus(tenant, id, status string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
