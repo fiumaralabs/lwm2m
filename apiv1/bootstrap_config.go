@@ -16,6 +16,11 @@ import (
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
+// bootstrapLifecycle coordinates all handlers in this process, including handlers
+// sharing stores. Store implementations shared across processes need their own
+// transactional lifecycle coordination.
+var bootstrapLifecycle tenantLimiter
+
 // BootstrapConfigStore owns copies of complete JSON configurations per tenant and endpoint.
 type BootstrapConfigStore interface {
 	Put(tenant, endpoint string, config json.RawMessage)
@@ -176,8 +181,8 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 		body, readErr = io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	}
 	tenant := TenantFrom(r.Context())
-	// Serialize config access with device creation and deletion for this tenant.
-	unlock := o.limits.lock(tenant)
+	// Serialize config access with device creation and deletion across handlers.
+	unlock := bootstrapLifecycle.lock(tenant)
 	defer unlock()
 	if _, err = o.Devices.Get(tenant, ep); err != nil {
 		if errors.Is(err, store.ErrDeviceNotFound) {

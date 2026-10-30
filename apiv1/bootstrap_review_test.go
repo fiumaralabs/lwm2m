@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/store/memory"
 )
 
 func TestBootstrapGETRedactsSupportedSecuritySecrets(t *testing.T) {
@@ -56,7 +58,9 @@ func TestBootstrapPutConcurrentDeviceDeletion(t *testing.T) {
 	c.scopes += "bootstrap:write,"
 	keys.entries["test"] = c
 	configs := &blockedBootstrapPut{BootstrapConfigStore: NewMemoryBootstrapConfigStore(), entered: make(chan struct{}), release: make(chan struct{})}
-	h := New(Options{Keys: keys, BootstrapConfigs: configs})
+	devices := &memory.Devices{}
+	h := New(Options{Keys: keys, Devices: devices, BootstrapConfigs: configs})
+	other := New(Options{Keys: keys, Devices: devices, BootstrapConfigs: configs})
 	if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"a"}`); w.Code != 201 {
 		t.Fatal(w.Code)
 	}
@@ -64,7 +68,7 @@ func TestBootstrapPutConcurrentDeviceDeletion(t *testing.T) {
 	go func() { putDone <- deviceRequest(h, "PUT", "/v1/devices/a/bootstrap", `{}`).Code }()
 	<-configs.entered
 	deleted := make(chan int, 1)
-	go func() { deleted <- deviceRequest(h, "DELETE", "/v1/devices/a", "").Code }()
+	go func() { deleted <- deviceRequest(other, "DELETE", "/v1/devices/a", "").Code }()
 	select {
 	case code := <-deleted:
 		close(configs.release)
@@ -81,6 +85,12 @@ func TestBootstrapPutConcurrentDeviceDeletion(t *testing.T) {
 	}
 	if _, ok := configs.Get("default", "a"); ok {
 		t.Fatal("in-flight PUT restored deleted config")
+	}
+	if w := deviceRequest(other, "POST", "/v1/devices", `{"endpoint":"a"}`); w.Code != 201 {
+		t.Fatalf("recreate: %d", w.Code)
+	}
+	if w := deviceRequest(h, "GET", "/v1/devices/a/bootstrap", ""); w.Code != 404 {
+		t.Fatalf("recreated device retained config: %d", w.Code)
 	}
 }
 

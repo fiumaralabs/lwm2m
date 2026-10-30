@@ -159,6 +159,8 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+			unlockLifecycle := bootstrapLifecycle.lock(tenant)
+			defer unlockLifecycle()
 			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels})
 			if err != nil {
 				if errors.Is(err, store.ErrDeviceExists) {
@@ -229,6 +231,8 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "DELETE" {
 		unlock := o.limits.lock(tenant)
 		defer unlock()
+		unlockLifecycle := bootstrapLifecycle.lock(tenant)
+		defer unlockLifecycle()
 	}
 	d, err := o.Devices.Get(tenant, ep)
 	if err != nil {
