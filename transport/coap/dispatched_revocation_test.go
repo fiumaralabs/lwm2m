@@ -20,6 +20,7 @@ func TestDispatchedRegistrationRevoked(t *testing.T) {
 						if armed.CompareAndSwap(true, false) {
 							close(entered)
 							<-resume
+							return time.Unix(1700000060, 0)
 						}
 						return time.Unix(1700000000, 0)
 					}
@@ -34,6 +35,7 @@ func TestDispatchedRegistrationRevoked(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				var before *server.Registration
 				if operation == "update" {
 					if _, err := c.Register(h.ctx); err != nil {
 						t.Fatal(err)
@@ -43,6 +45,11 @@ func TestDispatchedRegistrationRevoked(t *testing.T) {
 					case <-completed:
 					case <-time.After(5 * time.Second):
 						t.Fatal("initial request did not complete")
+					}
+					var ok bool
+					before, ok = h.srv.Store().ByEndpoint("device")
+					if !ok {
+						t.Fatal("initial registration missing")
 					}
 				}
 				armed.Store(true)
@@ -62,8 +69,7 @@ func TestDispatchedRegistrationRevoked(t *testing.T) {
 					if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "device", PSKIdentity: "identity", PSKKey: []byte("fedcba9876543210")}); err != nil {
 						t.Fatal(err)
 					}
-				}
-				if _, ok := h.srv.RevokeSecurity("device"); !ok {
+				} else if _, ok := h.srv.RevokeSecurity("device"); !ok {
 					t.Fatal("missing credential")
 				}
 				close(resume)
@@ -72,7 +78,12 @@ func TestDispatchedRegistrationRevoked(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("dispatched request did not complete")
 				}
-				if _, ok := h.srv.Store().ByEndpoint("device"); ok {
+				reg, ok := h.srv.Store().ByEndpoint("device")
+				if mutation == "put" && operation == "update" {
+					if !ok || reg.ID != before.ID || !reg.LastUpdate.Equal(before.LastUpdate) {
+						t.Fatal("stale update changed or removed the pre-existing registration after rotation")
+					}
+				} else if ok {
 					t.Fatal("stale registration committed after revocation")
 				}
 				for {
