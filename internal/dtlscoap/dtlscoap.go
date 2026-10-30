@@ -130,6 +130,9 @@ type Conn struct {
 	identity []byte // PSK identity restored on resumption
 }
 
+// ConnectionKey identifies the underlying connection used by handshake callbacks.
+func (c *Conn) ConnectionKey() io.Closer { return c.pc }
+
 // HandshakeContext runs the handshake, then lets the connection take over
 // its address if it replaces an association (demux) and records or
 // restores the session's PSK identity.

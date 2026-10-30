@@ -28,7 +28,9 @@ type Config struct {
 	Store    Store         // registrations; default in-memory
 	Security SecurityStore // credentials; default in-memory
 	// OnEvent receives registration, notification and send events. It is
-	// called synchronously from protocol goroutines; it must not block.
+	// called synchronously from protocol goroutines; it must not block. Do not
+	// call RevokeSecurity or Security().Put/Remove synchronously; revoke from
+	// a separate goroutine.
 	OnEvent func(Event)
 	// ExpiryCheck is the lifetime-expiry sweep interval (REG-13).
 	ExpiryCheck time.Duration

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strings"
 
@@ -39,6 +40,21 @@ type Peer interface {
 	// Binding is the transport binding letter: U, T, S, N, M or H
 	// (C Tbl 6.2.1.2-1).
 	Binding() string
+}
+
+// ErrPeerRevoked indicates the authenticated session was revoked.
+var ErrPeerRevoked = errors.New("server: peer revoked")
+
+// GuardedPeer synchronizes a commit against session revocation.
+type GuardedPeer interface {
+	Guard(commit func() error) error
+}
+
+func guardPeer(p Peer, commit func() error) error {
+	if g, ok := p.(GuardedPeer); ok {
+		return g.Guard(commit)
+	}
+	return commit()
 }
 
 // isRequest reports a method code (0.01-0.31).

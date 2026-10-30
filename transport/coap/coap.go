@@ -75,6 +75,32 @@ var errEmptyResponse = errors.New("coap: client answered with an empty message")
 type coapPeer struct {
 	cc      mux.Conn
 	binding string
+	guard   *pskSession
+}
+
+type pskEpoch struct {
+	mu    sync.RWMutex
+	value uint64
+}
+type pskSession struct {
+	epoch   *pskEpoch
+	value   uint64
+	missing bool
+}
+
+func (p *coapPeer) Guard(commit func() error) error {
+	if p.guard == nil {
+		return commit()
+	}
+	if p.guard.missing {
+		return server.ErrPeerRevoked
+	}
+	p.guard.epoch.mu.RLock()
+	defer p.guard.epoch.mu.RUnlock()
+	if p.guard.value != p.guard.epoch.value {
+		return server.ErrPeerRevoked
+	}
+	return commit()
 }
 
 func (p *coapPeer) Identity() server.Identity { return IdentityOf(p.cc.NetConn(), p.cc.RemoteAddr()) }
@@ -181,14 +207,17 @@ type Binding struct {
 	closers []func() error
 	closed  bool
 
-	peers    sync.Map // mux.Conn -> *coapPeer
-	pskMu    sync.Mutex
-	pskConns map[io.Closer]string // empty identity means handshake in progress
-	amu      sync.Mutex
-	afters   map[mux.Conn][]func()
-	oscore   atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
-	held     heldConns              // keeps sessions of registered clients open (keepconn.go)
-	block1   block1Assembler        // client Block1 reassembly (block1.go)
+	peers     sync.Map // mux.Conn -> *coapPeer
+	pskMu     sync.Mutex
+	pskConns  map[io.Closer]string      // empty identity means handshake in progress
+	epochs    map[string]*pskEpoch      // protected by pskMu
+	sessions  map[io.Closer]*pskSession // protected by pskMu
+	afterHook func()                    // test completion seam
+	amu       sync.Mutex
+	afters    map[mux.Conn][]func()
+	oscore    atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
+	held      heldConns              // keeps sessions of registered clients open (keepconn.go)
+	block1    block1Assembler        // client Block1 reassembly (block1.go)
 }
 
 // New returns a Binding for srv. Call Listen* to start serving.
@@ -283,12 +312,28 @@ func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 				delete(b.pskConns, conn)
 			} else {
 				b.pskConns[conn] = identity
+				if b.epochs == nil {
+					b.epochs = map[string]*pskEpoch{}
+				}
+				e := b.epochs[identity]
+				if e == nil {
+					e = &pskEpoch{}
+					b.epochs[identity] = e
+				}
+				e.mu.RLock()
+				v := e.value
+				e.mu.RUnlock()
+				if b.sessions == nil {
+					b.sessions = map[io.Closer]*pskSession{}
+				}
+				b.sessions[conn] = &pskSession{epoch: e, value: v}
 			}
 		}
 	}
 	cfg.OnConnClose = func(conn io.Closer) {
 		b.pskMu.Lock()
 		delete(b.pskConns, conn)
+		delete(b.sessions, conn)
 		b.pskMu.Unlock()
 	}
 	l, err := dtlscoap.Listen("udp", addr, cfg)
@@ -320,10 +365,20 @@ func (b *Binding) pskLookup(identity []byte) ([]byte, error) {
 
 // RevokePSKIdentity closes established sessions for identity and cancels all
 // in-flight handshakes. Custom PSK sources must call this after changes.
-// Already-dispatched requests are not covered; see issue #97.
 func (b *Binding) RevokePSKIdentity(identity string) {
 	b.pskMu.Lock()
 	defer b.pskMu.Unlock()
+	if b.epochs == nil {
+		b.epochs = map[string]*pskEpoch{}
+	}
+	e := b.epochs[identity]
+	if e == nil {
+		e = &pskEpoch{}
+		b.epochs[identity] = e
+	}
+	e.mu.Lock()
+	e.value++
+	e.mu.Unlock()
 	for conn, id := range b.pskConns {
 		if id == identity || id == "" {
 			delete(b.pskConns, conn)
@@ -392,7 +447,16 @@ func (b *Binding) peer(cc mux.Conn, binding string) *coapPeer {
 	if p, ok := b.peers.Load(cc); ok {
 		return p.(*coapPeer)
 	}
-	p, _ := b.peers.LoadOrStore(cc, &coapPeer{cc: cc, binding: binding})
+	candidate := &coapPeer{cc: cc, binding: binding}
+	if dc, ok := cc.NetConn().(*dtlscoap.Conn); ok && len(candidate.Identity().PSKIdentity) > 0 {
+		b.pskMu.Lock()
+		candidate.guard = b.sessions[dc.ConnectionKey()]
+		if candidate.guard == nil {
+			candidate.guard = &pskSession{missing: true}
+		}
+		b.pskMu.Unlock()
+	}
+	p, _ := b.peers.LoadOrStore(cc, candidate)
 	go func() {
 		<-cc.Context().Done()
 		b.peers.Delete(cc)
@@ -478,4 +542,7 @@ func (b *Binding) processUDP(req *pool.Message, cc *client.Conn, handler config.
 	}
 	cc.ProcessReceivedMessageWithHandler(req, handler)
 	b.runAfters(cc)
+	if b.afterHook != nil {
+		b.afterHook()
+	}
 }
