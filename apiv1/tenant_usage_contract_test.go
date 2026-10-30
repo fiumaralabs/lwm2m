@@ -97,7 +97,7 @@ func TestTenantOperationLimit(t *testing.T) {
 		t.Fatalf("first: %d %s", w.Code, w.Body)
 	}
 	w := deviceRequest(h, "POST", "/v1/devices/pump/operations", `{"type":"read","paths":["/3/0/0"]}`)
-	if w.Code != 429 || !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") || !strings.Contains(w.Body.String(), `"code":"limit_exceeded"`) {
+	if w.Code != 429 || w.Header().Get("Retry-After") != "60" || !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") || !strings.Contains(w.Body.String(), `"code":"limit_exceeded"`) {
 		t.Fatalf("limit: %d %s", w.Code, w.Body)
 	}
 	request := func() *httptest.ResponseRecorder {
@@ -155,7 +155,7 @@ func TestTenantDeviceLimit(t *testing.T) {
 		t.Fatalf("first: %d %s", w.Code, w.Body)
 	}
 	w := keyRequest(h, "POST", "/v1/devices", "lwm_admin_test", `{"endpoint":"two"}`)
-	if w.Code != 429 || !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") || !strings.Contains(w.Body.String(), `"code":"limit_exceeded"`) {
+	if w.Code != 429 || w.Header().Get("Retry-After") != "60" || !strings.HasPrefix(w.Header().Get("Content-Type"), "application/problem+json") || !strings.Contains(w.Body.String(), `"code":"limit_exceeded"`) {
 		t.Fatalf("limit: %d %s", w.Code, w.Body)
 	}
 }

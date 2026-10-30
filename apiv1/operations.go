@@ -171,6 +171,8 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			}
 			if reached {
 				o.limits.mu.Unlock()
+				// A full rolling minute lets existing operations age out.
+				w.Header().Set("Retry-After", "60")
 				WriteProblem(w, 429, "limit_exceeded", "Operation limit exceeded")
 				return
 			}

@@ -153,6 +153,8 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if reached {
+					// Capacity has no expiry; suggest a backoff, not guaranteed availability.
+					w.Header().Set("Retry-After", "60")
 					WriteProblem(w, 429, "limit_exceeded", "Device limit exceeded")
 					return
 				}
