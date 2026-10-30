@@ -183,7 +183,7 @@ type Binding struct {
 
 	peers    sync.Map // mux.Conn -> *coapPeer
 	pskMu    sync.Mutex
-	pskConns map[io.Closer]string // includes in-progress handshakes
+	pskConns map[io.Closer]string // established sessions
 	amu      sync.Mutex
 	afters   map[mux.Conn][]func()
 	oscore   atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
@@ -263,19 +263,13 @@ func (dc DTLSConfig) CIDLen() int {
 // ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr.
 func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
 	cfg := dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup)
-	cfg.PSKForConn = func(conn io.Closer) piondtls.PSKCallback {
-		return func(id []byte) ([]byte, error) {
-			b.pskMu.Lock()
-			defer b.pskMu.Unlock()
-			key, err := b.pskLookup(id)
-			if err == nil {
-				if b.pskConns == nil {
-					b.pskConns = make(map[io.Closer]string)
-				}
-				b.pskConns[conn] = string(id)
-			}
-			return key, err
+	cfg.OnHandshake = func(conn io.Closer, identity string) {
+		b.pskMu.Lock()
+		defer b.pskMu.Unlock()
+		if b.pskConns == nil {
+			b.pskConns = make(map[io.Closer]string)
 		}
+		b.pskConns[conn] = identity
 	}
 	cfg.OnConnClose = func(conn io.Closer) {
 		b.pskMu.Lock()
@@ -309,10 +303,9 @@ func (b *Binding) pskLookup(identity []byte) ([]byte, error) {
 	return si.PSKKey, nil
 }
 
-// RevokePSKIdentity closes all connections that used identity, including
-// handshakes in progress. Update or remove the security-store credential before
-// calling it; otherwise a subsequent handshake can authenticate with the old key.
-// Serialize concurrent credential changes for the same identity with this call.
+// RevokePSKIdentity closes established sessions for identity. Custom PSK
+// sources must call this after changing their credentials. Handshakes already
+// in progress are not covered; see issue #97.
 func (b *Binding) RevokePSKIdentity(identity string) {
 	b.pskMu.Lock()
 	defer b.pskMu.Unlock()

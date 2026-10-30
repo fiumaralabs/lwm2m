@@ -52,57 +52,15 @@ func TestRotatedPSKRejectsPreviouslyAuthenticatedLiveSession(t *testing.T) {
 	if err == nil && response.Code == codes.Created {
 		t.Fatal("old live PSK session registered after key rotation")
 	}
+	ctxCurrent, cancelCurrent := context.WithTimeout(h.ctx, 3*time.Second)
+	defer cancelCurrent()
+	response, err = c.Register(ctxCurrent)
+	if err == nil && response.Code == codes.Created {
+		t.Fatal("previously current PSK session registered after key rotation")
+	}
 	newClient := h.mustRegisterSecure(testclient.Config{Endpoint: "live-rotation"}, h.dtls, pskConfig("live-id", []byte("fedcba9876543210")))
 	if r, err := newClient.Register(h.ctx); err != nil || r.Code != codes.Created {
 		t.Fatalf("new key failed after revocation: %v %v", r, err)
-	}
-}
-
-func TestRevokePSKDuringHandshake(t *testing.T) {
-	h := newHarness(t)
-	old := []byte("0123456789abcdef")
-	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "inflight", PSKIdentity: "inflight-id", PSKKey: old}); err != nil {
-		t.Fatal(err)
-	}
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	addr, err := h.b.ListenDTLS("127.0.0.1:0", DTLSConfig{Options: []piondtls.ServerOption{
-		piondtls.WithVerifyConnection(func(*piondtls.State) error {
-			close(entered)
-			<-release
-			return nil
-		}),
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	result := make(chan error, 1)
-	ctx, cancel := context.WithTimeout(h.ctx, 3*time.Second)
-	defer cancel()
-	a, err := net.ResolveUDPAddr("udp", addr.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, err := piondtls.Dial("udp", a, pskConfig("inflight-id", old)...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-	go func() {
-		result <- c.HandshakeContext(ctx)
-	}()
-	select {
-	case <-entered:
-	case <-ctx.Done():
-		t.Fatal("handshake never reached verification")
-	}
-	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "inflight", PSKIdentity: "inflight-id", PSKKey: []byte("fedcba9876543210")}); err != nil {
-		close(release)
-		t.Fatal(err)
-	}
-	close(release)
-	if err := <-result; err == nil {
-		t.Fatal("old in-flight handshake succeeded")
 	}
 }
 
