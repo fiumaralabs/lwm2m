@@ -668,7 +668,12 @@ func serveSecurity(w http.ResponseWriter, r *http.Request, store server.Security
 	case r.Method == http.MethodDelete && len(segs) >= 2 && segs[0] == "clients":
 		// ponytail: Leshan also evicts the endpoint's registration here
 		// (infosAreCompromised); the native API has no operator-remove.
-		if _, ok := store.Remove(strings.Join(segs[1:], "/")); !ok {
+		_, ok, err := store.Remove(strings.Join(segs[1:], "/"))
+		if err != nil {
+			textError(w, http.StatusInternalServerError, "credential removal failed")
+			return
+		}
+		if !ok {
 			writeJSON(w, map[string]string{"message": "not_found"})
 			return
 		}

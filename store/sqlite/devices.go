@@ -121,7 +121,7 @@ func (s *Devices) migrate() error {
 	if err = tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version < 0 || version > 14 {
+	if version < 0 || version > 15 {
 		return fmt.Errorf("unsupported SQLite schema version %d", version)
 	}
 	if version == 0 {
@@ -191,6 +191,11 @@ func (s *Devices) migrate() error {
 	}
 	if version < 14 {
 		if _, err = tx.Exec(deviceProfilesMigration); err != nil {
+			return err
+		}
+	}
+	if version < 15 {
+		if _, err = tx.Exec(securityUpdatedAtMigration); err != nil {
 			return err
 		}
 	}

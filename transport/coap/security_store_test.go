@@ -28,10 +28,10 @@ func TestRevokingSecurityStoreMutations(t *testing.T) {
 	if err := put("one", "new"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := s.Remove("one"); !ok {
+	if _, ok, err := s.Remove("one"); err != nil || !ok {
 		t.Fatal("missing endpoint")
 	}
-	if _, ok := s.Remove("one"); ok {
+	if _, ok, err := s.Remove("one"); err != nil || ok {
 		t.Fatal("removed twice")
 	}
 	if !reflect.DeepEqual(revoked, []string{"old", "new"}) {

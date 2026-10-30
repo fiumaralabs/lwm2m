@@ -55,7 +55,7 @@ func TestInFlightPSKHandshakeRejectedAfterRotation(t *testing.T) {
 				t.Fatal("PSK lookup did not start")
 			}
 			if remove {
-				if _, ok := h.srv.Security().Remove("device"); !ok {
+				if _, ok, err := h.srv.Security().Remove("device"); err != nil || !ok {
 					t.Fatal("credential missing")
 				}
 			} else if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "device", PSKIdentity: "identity", PSKKey: []byte("fedcba9876543210")}); err != nil {
