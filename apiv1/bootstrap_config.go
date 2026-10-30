@@ -139,7 +139,7 @@ func redactBootstrapValue(v any, sensitive bool) {
 			}
 		}
 		for k, child := range x {
-			if strings.EqualFold(k, "key") || strings.EqualFold(k, "privateKey") || (sensitive && k == "value") {
+			if strings.EqualFold(k, "key") || strings.EqualFold(k, "privateKey") || strings.EqualFold(k, "masterSecret") || (sensitive && k == "value") {
 				delete(x, k)
 			} else {
 				redactBootstrapValue(child, sensitive)
