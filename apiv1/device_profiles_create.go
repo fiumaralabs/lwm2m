@@ -117,7 +117,7 @@ func validProfileInput(in *profileCreateInput) bool {
 	}
 	if len(in.BootstrapTemplate) > 0 {
 		var config map[string]any
-		if json.Unmarshal(in.BootstrapTemplate, &config) != nil || config == nil {
+		if !validProfileBootstrap(in.BootstrapTemplate) || json.Unmarshal(in.BootstrapTemplate, &config) != nil || config == nil {
 			return false
 		}
 		before, err := json.Marshal(config)
