@@ -1,9 +1,29 @@
 package apiv1
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"net/http/httptest"
 	"testing"
 )
+
+func TestDeviceProfileReadAuthorization(t *testing.T) {
+	keys := Keys{entries: map[string]credential{
+		"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:write,", tenant: "default"},
+	}}
+	h := New(Options{Keys: keys})
+	for _, path := range []string{"/v1/device-profiles", "/v1/device-profiles/dp_a"} {
+		r := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != 401 {
+			t.Errorf("%s without credentials: %d", path, w.Code)
+		}
+		if w = deviceRequest(h, "GET", path, ""); w.Code != 403 {
+			t.Errorf("%s without read scope: %d", path, w.Code)
+		}
+	}
+}
 
 func TestDeviceProfileReadContract(t *testing.T) {
 	profiles := NewMemoryDeviceProfileStore()
@@ -16,6 +36,11 @@ func TestDeviceProfileReadContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := New(Options{Keys: deviceKeys(), DeviceProfiles: profiles})
+	get := deviceRequest(h, "GET", "/v1/device-profiles/dp_a", "")
+	var profile DeviceProfile
+	if get.Code != 200 || json.Unmarshal(get.Body.Bytes(), &profile) != nil || profile.ID != "dp_a" || profile.Name != "pump" {
+		t.Fatalf("get: %d %s", get.Code, get.Body.String())
+	}
 	w := deviceRequest(h, "GET", "/v1/device-profiles?limit=1", "")
 	var page struct {
 		Items      []DeviceProfile `json:"items"`
