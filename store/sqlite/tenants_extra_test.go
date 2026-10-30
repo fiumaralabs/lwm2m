@@ -51,7 +51,7 @@ func TestTenantsUpgradeVersion10(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec("DROP TABLE tenants; PRAGMA user_version=10"); err != nil {
+	if _, err = db.Exec("DROP TABLE tenants; DROP TABLE firmware; PRAGMA user_version=10"); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.Close(); err != nil {

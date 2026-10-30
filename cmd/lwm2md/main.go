@@ -56,12 +56,14 @@ func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.K
 	var operationStore operations.Operations = memory.NewOperations()
 	var events store.Events = &memory.Events{}
 	var observationStore apiv1.ObservationDeliveryStore = &memory.Observations{}
+	var firmwareStore apiv1.FirmwareStore
 	if durable, ok := devices.(*sqlite.Devices); ok {
 		keys = keys.WithStore(durable.APIKeys())
 		auditStore = durable.Audit()
 		operationStore = durable.Operations()
 		events = durable.Events()
 		observationStore = durable.Observations()
+		firmwareStore = durable.Firmware()
 	}
 	var executor *operations.Executor
 	var observations *apiv1.ObservationDelivery
@@ -96,7 +98,7 @@ func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.K
 			series = durable.TimeSeries()
 		}
 	}
-	native := apiv1.New(apiv1.Options{TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{Firmware: firmwareStore, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
