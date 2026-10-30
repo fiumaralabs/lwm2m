@@ -78,7 +78,7 @@ func TestOperatorAPI(t *testing.T) {
 	}
 	s := h.device(testclient.Config{Endpoint: "a-dev", PSKIdentity: "a-dev", PSKKey: key})
 	mustCode(mustRegister(h, s))
-	if _, ok := h.srv.RevokeSecurity("a-dev"); !ok {
+	if _, ok, err := h.srv.RevokeSecurity("a-dev"); err != nil || !ok {
 		t.Fatal("revoke")
 	}
 	if _, ok := h.srv.Store().ByEndpoint("a-dev"); ok {

@@ -159,6 +159,8 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+			unlockLifecycle := bootstrapLifecycle.lock(tenant)
+			defer unlockLifecycle()
 			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels})
 			if err != nil {
 				if errors.Is(err, store.ErrDeviceExists) {
@@ -226,6 +228,12 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 405, "method_not_allowed", "Expected GET or DELETE")
 		return
 	}
+	if r.Method == "DELETE" {
+		unlock := o.limits.lock(tenant)
+		defer unlock()
+		unlockLifecycle := bootstrapLifecycle.lock(tenant)
+		defer unlockLifecycle()
+	}
 	d, err := o.Devices.Get(tenant, ep)
 	if err != nil {
 		if errors.Is(err, store.ErrDeviceNotFound) {
@@ -246,6 +254,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 500, "internal_error", "Cannot delete device")
 		return
 	}
+	o.BootstrapConfigs.Delete(tenant, ep)
 	o.emitDevice(tenant, "lwm2m.device.deleted", d)
 	w.WriteHeader(204)
 }

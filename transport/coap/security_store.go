@@ -35,12 +35,15 @@ func (s *RevokingSecurityStore) Put(info server.SecurityInfo) error {
 	return nil
 }
 
-func (s *RevokingSecurityStore) Remove(endpoint string) (server.SecurityInfo, bool) {
+func (s *RevokingSecurityStore) Remove(endpoint string) (server.SecurityInfo, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	old, ok := s.SecurityStore.Remove(endpoint)
+	old, ok, err := s.SecurityStore.Remove(endpoint)
+	if err != nil {
+		return old, false, err
+	}
 	if ok && old.PSKIdentity != "" {
 		s.revoke(old.PSKIdentity)
 	}
-	return old, ok
+	return old, ok, nil
 }

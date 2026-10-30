@@ -69,7 +69,7 @@ func TestDispatchedRegistrationRevoked(t *testing.T) {
 					if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "device", PSKIdentity: "identity", PSKKey: []byte("fedcba9876543210")}); err != nil {
 						t.Fatal(err)
 					}
-				} else if _, ok := h.srv.RevokeSecurity("device"); !ok {
+				} else if _, ok, err := h.srv.RevokeSecurity("device"); err != nil || !ok {
 					t.Fatal("missing credential")
 				}
 				close(resume)
@@ -111,7 +111,7 @@ func TestEventRevocationFromGoroutine(t *testing.T) {
 		cfg.OnEvent = func(e server.Event) {
 			previous(e)
 			if _, ok := e.(server.Registered); ok {
-				go func() { _, found := srv.RevokeSecurity("device"); done <- found }()
+				go func() { _, found, _ := srv.RevokeSecurity("device"); done <- found }()
 			}
 		}
 	})

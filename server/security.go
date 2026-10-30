@@ -5,11 +5,13 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"time"
 )
 
 // SecurityInfo is the credential the server holds for one endpoint
 // (T §5.2.4, SEC-05/09/10). Exactly one credential kind is set.
 type SecurityInfo struct {
+	UpdatedAt   time.Time
 	Endpoint    string
 	PSKIdentity string
 	PSKKey      []byte
@@ -24,7 +26,7 @@ type SecurityStore interface {
 	ByEndpoint(ep string) (SecurityInfo, bool)
 	ByPSKIdentity(identity string) (SecurityInfo, bool)
 	Put(SecurityInfo) error
-	Remove(ep string) (SecurityInfo, bool)
+	Remove(ep string) (SecurityInfo, bool, error)
 	All() []SecurityInfo
 }
 
@@ -61,6 +63,7 @@ func (s *MemorySecurityStore) Put(si SecurityInfo) error {
 	if old, ok := s.byEP[si.Endpoint]; ok && old.PSKIdentity != "" {
 		delete(s.byPSK, old.PSKIdentity)
 	}
+	si.UpdatedAt = time.Now().UTC()
 	s.byEP[si.Endpoint] = si
 	if si.PSKIdentity != "" {
 		s.byPSK[si.PSKIdentity] = si.Endpoint
@@ -85,7 +88,7 @@ func (s *MemorySecurityStore) ByPSKIdentity(id string) (SecurityInfo, bool) {
 	return s.byEP[ep], true
 }
 
-func (s *MemorySecurityStore) Remove(ep string) (SecurityInfo, bool) {
+func (s *MemorySecurityStore) Remove(ep string) (SecurityInfo, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	si, ok := s.byEP[ep]
@@ -93,7 +96,7 @@ func (s *MemorySecurityStore) Remove(ep string) (SecurityInfo, bool) {
 		delete(s.byEP, ep)
 		delete(s.byPSK, si.PSKIdentity)
 	}
-	return si, ok
+	return si, ok, nil
 }
 
 // Matches reports whether an authenticated identity is the one stored for
