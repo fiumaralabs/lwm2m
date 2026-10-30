@@ -203,7 +203,11 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var cb *coap.Binding
-	security := coap.NewRevokingSecurityStore(server.NewMemorySecurityStore(), func(id string) { cb.RevokePSKIdentity(id) })
+	var securityStore server.SecurityStore = server.NewMemorySecurityStore()
+	if durable, ok := devices.(*sqlite.Devices); ok {
+		securityStore = durable.Security()
+	}
+	security := coap.NewRevokingSecurityStore(securityStore, func(id string) { cb.RevokePSKIdentity(id) })
 	srv, native, executor, dispatcher := newDaemonWithTimeSeries(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, devices)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
