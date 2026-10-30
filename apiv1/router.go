@@ -11,10 +11,11 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
-	limits         *tenantLimiter
-	Models         ModelStore         `json:"-"`
-	Firmware       FirmwareStore      `json:"-"`
-	DeviceProfiles DeviceProfileStore `json:"-"`
+	limits           *tenantLimiter
+	Models           ModelStore           `json:"-"`
+	Firmware         FirmwareStore        `json:"-"`
+	DeviceProfiles   DeviceProfileStore   `json:"-"`
+	BootstrapConfigs BootstrapConfigStore `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
@@ -40,6 +41,9 @@ type Options struct {
 // New returns the authenticated native API handler.
 func New(o Options) http.Handler {
 	o.limits = &tenantLimiter{tenants: newTenantStore()}
+	if o.BootstrapConfigs == nil {
+		o.BootstrapConfigs = NewMemoryBootstrapConfigStore()
+	}
 	if o.DeviceProfiles == nil {
 		o.DeviceProfiles = NewMemoryDeviceProfileStore()
 	}
@@ -134,6 +138,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap") && r.URL.EscapedPath() != "/v1/devices/bootstrap" {
+				o.bootstrap(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/state") && r.URL.EscapedPath() != "/v1/devices/state" {
 				o.state(w, r)
 				return
