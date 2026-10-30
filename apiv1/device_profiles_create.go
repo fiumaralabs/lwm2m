@@ -26,7 +26,16 @@ type profileCreateInput struct {
 
 func (o Options) createDeviceProfile(w http.ResponseWriter, r *http.Request) {
 	tenant, key := TenantFrom(r.Context()), r.Header.Get("Idempotency-Key")
-	respond := func(p DeviceProfile) {
+	respond := func(result ProfileCreateResult) {
+		if result.Problem != nil {
+			WriteProblem(w, result.Problem.Status, result.Problem.Code, result.Problem.Detail)
+			return
+		}
+		if result.Profile == nil {
+			WriteProblem(w, 500, "internal_error", "Unable to create profile")
+			return
+		}
+		p := *result.Profile
 		b, err := json.Marshal(p)
 		if err != nil {
 			WriteProblem(w, 500, "internal_error", "Unable to encode profile")
@@ -37,26 +46,42 @@ func (o Options) createDeviceProfile(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Location", "/v1/device-profiles/"+p.ID)
 		deviceJSON(w, 201, p)
 	}
-	if p, ok := o.DeviceProfiles.Replay(tenant, key); ok {
-		respond(p)
+	if result, ok := o.DeviceProfiles.ReplayResult(tenant, key); ok {
+		respond(result)
 		return
 	}
 	var in *profileCreateInput
-	if !DecodeJSON(w, r, &in) {
-		return
+	capture := &profileProblemCapture{header: make(http.Header)}
+	var problem *Problem
+	if !DecodeJSON(capture, r, &in) {
+		problem = &Problem{}
+		if err := json.Unmarshal(capture.body.Bytes(), problem); err != nil {
+			WriteProblem(w, 500, "internal_error", "Unable to encode problem")
+			return
+		}
+	} else if in == nil || strings.TrimSpace(in.Name) == "" || !validProfileInput(in) {
+		problem = &Problem{Status: 400, Code: "invalid_profile", Detail: "Invalid device profile"}
 	}
-	if in == nil || strings.TrimSpace(in.Name) == "" || !validProfileInput(in) {
-		WriteProblem(w, 400, "invalid_profile", "Invalid device profile")
-		return
+	result := ProfileCreateResult{Problem: problem}
+	if problem == nil {
+		result.Profile = &DeviceProfile{ID: id.New("dp"), Name: in.Name, Observations: in.Observations, Attributes: in.Attributes, OnRegister: in.OnRegister, Timeseries: in.Timeseries, BootstrapTemplate: in.BootstrapTemplate}
 	}
-	p := DeviceProfile{ID: id.New("dp"), Name: in.Name, Observations: in.Observations, Attributes: in.Attributes, OnRegister: in.OnRegister, Timeseries: in.Timeseries, BootstrapTemplate: in.BootstrapTemplate}
-	p, err := o.DeviceProfiles.CreateIdempotent(tenant, p, key)
+	result, err := o.DeviceProfiles.CreateResult(tenant, key, result)
 	if err != nil {
 		WriteProblem(w, 500, "internal_error", "Unable to create profile")
 		return
 	}
-	respond(p)
+	respond(result)
 }
+
+type profileProblemCapture struct {
+	header http.Header
+	body   bytes.Buffer
+}
+
+func (c *profileProblemCapture) Header() http.Header         { return c.header }
+func (c *profileProblemCapture) WriteHeader(int)             {}
+func (c *profileProblemCapture) Write(b []byte) (int, error) { return c.body.Write(b) }
 
 func profileDecode(raw json.RawMessage, target any) bool {
 	d := json.NewDecoder(bytes.NewReader(raw))
@@ -160,6 +185,16 @@ func validProfileOperation(raw json.RawMessage) bool {
 		Prefix          string                     `json:"prefix"`
 	}
 	if !profileDecode(raw, &op) {
+		return false
+	}
+	validFormat := func(s string) bool {
+		switch s {
+		case "", "text", "link-format", "opaque", "cbor", "senml-json", "senml-cbor", "senml-etch-json", "senml-etch-cbor", "tlv", "oma-json", "lwm2m-cbor":
+			return true
+		}
+		return false
+	}
+	if !validFormat(op.Format) || !validFormat(op.Accept) || op.TTLSeconds != nil && *op.TTLSeconds < 0 || op.WhenOffline != "" && op.WhenOffline != "queue" && op.WhenOffline != "reject" {
 		return false
 	}
 	validPath := func(s string) bool {

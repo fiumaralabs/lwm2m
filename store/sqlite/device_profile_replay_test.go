@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -140,5 +141,97 @@ func TestDeviceProfileReplayAtomicRollbackAndExpiry(t *testing.T) {
 	second, err := profiles.CreateIdempotent("a", apiv1.DeviceProfile{ID: "second", Name: "new"}, "key")
 	if err != nil || second.ID != "second" {
 		t.Fatalf("expired replay: %+v %v", second, err)
+	}
+}
+
+func TestDeviceProfileErrorReplayAfterReopen(t *testing.T) {
+	hash := sha256.Sum256([]byte("lwm_test_secret"))
+	keys, err := apiv1.LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:read,devices:write\n", hash)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "profiles.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := func(h http.Handler, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "/v1/device-profiles", strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer lwm_test_secret")
+		r.Header.Set("Idempotency-Key", "bad-first")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	first := request(apiv1.New(apiv1.Options{Keys: keys, DeviceProfiles: db.DeviceProfiles()}), `{"name":""}`)
+	if first.Code != 400 {
+		t.Fatalf("first: %d %s", first.Code, first.Body)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	h := apiv1.New(apiv1.Options{Keys: keys, DeviceProfiles: db.DeviceProfiles()})
+	const n = 16
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got := request(h, `{"name":"valid"}`)
+			if got.Code != first.Code || got.Body.String() != first.Body.String() || got.Header().Get("Content-Type") != first.Header().Get("Content-Type") {
+				t.Errorf("replay: %d %s", got.Code, got.Body)
+			}
+		}()
+	}
+	wg.Wait()
+	if len(db.DeviceProfiles().List("default")) != 0 {
+		t.Fatal("replay created a profile")
+	}
+}
+
+func TestDeviceProfileConcurrentMixedResult(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "profiles.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := db.DeviceProfiles()
+	const n = 16
+	results := make([]apiv1.ProfileCreateResult, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			candidate := apiv1.ProfileCreateResult{Problem: &apiv1.Problem{Status: 400, Code: "invalid_profile"}}
+			if i%2 == 0 {
+				candidate = apiv1.ProfileCreateResult{Profile: &apiv1.DeviceProfile{ID: fmt.Sprint(i), Name: "valid"}}
+			}
+			results[i], errs[i] = store.CreateResult("default", "same", candidate)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+	first, _ := json.Marshal(results[0])
+	for i := range results {
+		got, _ := json.Marshal(results[i])
+		if errs[i] != nil || string(got) != string(first) {
+			t.Errorf("result %d: %s %v, first %s", i, got, errs[i], first)
+		}
+	}
+	want := 0
+	if results[0].Profile != nil {
+		want = 1
+	}
+	if got := len(store.List("default")); got != want {
+		t.Fatalf("profiles %d, want %d", got, want)
 	}
 }

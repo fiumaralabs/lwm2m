@@ -25,12 +25,31 @@ type DeviceProfile struct {
 // Delete returns inUse when a device references the profile.
 type DeviceProfileStore interface {
 	Create(tenant string, profile DeviceProfile) error
-	Replay(tenant, key string) (DeviceProfile, bool)
-	CreateIdempotent(tenant string, profile DeviceProfile, key string) (DeviceProfile, error)
+	ReplayResult(tenant, key string) (ProfileCreateResult, bool)
+	CreateResult(tenant, key string, result ProfileCreateResult) (ProfileCreateResult, error)
 	List(tenant string) []DeviceProfile
 	Get(tenant, id string) (DeviceProfile, bool)
 	Replace(tenant string, profile DeviceProfile) bool
 	Delete(tenant, id string) (found, inUse bool)
+}
+
+// ProfileCreateResult is the durable outcome of a profile creation request.
+type ProfileCreateResult struct {
+	Profile *DeviceProfile `json:"profile,omitempty"`
+	Problem *Problem       `json:"problem,omitempty"`
+}
+
+func cloneProfileResult(r ProfileCreateResult) ProfileCreateResult {
+	if r.Profile != nil {
+		p := cloneDeviceProfile(*r.Profile)
+		r.Profile = &p
+	}
+	if r.Problem != nil {
+		p := *r.Problem
+		p.Errors = append([]FieldError(nil), p.Errors...)
+		r.Problem = &p
+	}
+	return r
 }
 
 type memoryDeviceProfileStore struct {
@@ -40,7 +59,7 @@ type memoryDeviceProfileStore struct {
 }
 
 type profileReplay struct {
-	profile DeviceProfile
+	result  ProfileCreateResult
 	expires time.Time
 }
 
@@ -71,40 +90,42 @@ func (s *memoryDeviceProfileStore) Create(tenant string, p DeviceProfile) error 
 	s.items[tenant][p.ID] = cloneDeviceProfile(p)
 	return nil
 }
-func (s *memoryDeviceProfileStore) Replay(tenant, key string) (DeviceProfile, bool) {
+func (s *memoryDeviceProfileStore) ReplayResult(tenant, key string) (ProfileCreateResult, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	r, ok := s.replays[[2]string{tenant, key}]
 	if key == "" || !ok || !time.Now().Before(r.expires) {
-		return DeviceProfile{}, false
+		return ProfileCreateResult{}, false
 	}
-	return cloneDeviceProfile(r.profile), true
+	return cloneProfileResult(r.result), true
 }
-func (s *memoryDeviceProfileStore) CreateIdempotent(tenant string, p DeviceProfile, key string) (DeviceProfile, error) {
+func (s *memoryDeviceProfileStore) CreateResult(tenant, key string, result ProfileCreateResult) (ProfileCreateResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	k := [2]string{tenant, key}
 	if r, ok := s.replays[k]; key != "" && ok && now.Before(r.expires) {
-		return cloneDeviceProfile(r.profile), nil
+		return cloneProfileResult(r.result), nil
 	}
-	if s.items[tenant] == nil {
-		s.items[tenant] = make(map[string]DeviceProfile)
+	if result.Profile != nil {
+		p := cloneDeviceProfile(*result.Profile)
+		if s.items[tenant] == nil {
+			s.items[tenant] = make(map[string]DeviceProfile)
+		}
+		if _, ok := s.items[tenant][p.ID]; ok {
+			return ProfileCreateResult{}, errors.New("device profile already exists")
+		}
+		s.items[tenant][p.ID] = p
 	}
-	if _, ok := s.items[tenant][p.ID]; ok {
-		return DeviceProfile{}, errors.New("device profile already exists")
-	}
-	p = cloneDeviceProfile(p)
-	s.items[tenant][p.ID] = p
 	for k, r := range s.replays {
 		if !now.Before(r.expires) {
 			delete(s.replays, k)
 		}
 	}
 	if key != "" {
-		s.replays[k] = profileReplay{cloneDeviceProfile(p), now.Add(24 * time.Hour)}
+		s.replays[k] = profileReplay{cloneProfileResult(result), now.Add(24 * time.Hour)}
 	}
-	return cloneDeviceProfile(p), nil
+	return cloneProfileResult(result), nil
 }
 func (s *memoryDeviceProfileStore) Get(tenant, id string) (DeviceProfile, bool) {
 	s.mu.RLock()
