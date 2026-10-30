@@ -2,13 +2,12 @@ package link
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 )
 
 var fuzzLinks = []string{
 	"", "</3/0>,</3/1>", `</>;lwm2m=1.1,</0/0>;ssid=101;uri="coaps://s1",</3/0/7>;dim=2;pmin=10`,
-	`</rp/6>;ver=2.0,</rp/6/0>`, `</a>;t="x\"y"`, "lwm2m=1.0;x,</0/0>", "</a>,",
+	`</rp/6>;ver=2.0,</rp/6/0>`, `</a>;t="x\"y"`, `</>;x="\0"`, "lwm2m=1.0;x,</0/0>", "</a>,",
 }
 
 func FuzzParse(f *testing.F) {
@@ -19,15 +18,6 @@ func FuzzParse(f *testing.F) {
 		links, err := Parse(s)
 		if err != nil {
 			return
-		}
-		// Leshan-compatible parsing retains backslashes, whereas Encode escapes
-		// them; such values do not currently have a stable round trip.
-		for _, l := range links {
-			for _, p := range l.Params {
-				if strings.Contains(p.Value, `\`) {
-					return
-				}
-			}
 		}
 		encoded := Encode(links)
 		again, err := Parse(encoded)

@@ -51,8 +51,8 @@ var ErrSyntax = errors.New("link: syntax error")
 //
 // Link targets must be absolute paths ("/", "/a/b"): LwM2M links are object
 // paths, so URIs with a scheme, authority, query or fragment are rejected.
-// Inside a quoted-string only \" is unescaped; other backslash pairs are
-// kept verbatim (Leshan's reading, pinned by vectors).
+// Inside a quoted-string, escaped quotes and backslashes are unescaped.
+// Other backslash pairs are retained for compatibility with Leshan.
 func Parse(s string) ([]Link, error) {
 	if s == "" {
 		return nil, nil
@@ -189,7 +189,7 @@ func (p *parser) quoted() (string, error) {
 			if next < 0x20 && next != '	' || next == 0x7f {
 				return "", p.fail("control character in quoted-string")
 			}
-			if next != '"' {
+			if next != '"' && next != '\\' {
 				b.WriteByte('\\')
 			}
 			b.WriteByte(p.s[p.i+1])
