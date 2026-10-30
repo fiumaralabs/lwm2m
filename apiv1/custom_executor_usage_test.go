@@ -37,8 +37,16 @@ func TestCustomExecutorQuotaAndUsage(t *testing.T) {
 			}
 			path := "/v1/devices/pump/operations"
 			body := `{"type":"read","paths":["/3/0/0"]}`
-			if w := deviceRequest(h, "POST", path, body); w.Code != 202 {
-				t.Fatal(w.Code, w.Body)
+			first := deviceRequest(h, "POST", path, body)
+			if first.Code != 202 {
+				t.Fatal(first.Code, first.Body)
+			}
+			var op operations.Operation
+			if err := json.Unmarshal(first.Body.Bytes(), &op); err != nil {
+				t.Fatal(err)
+			}
+			if w := deviceRequest(h, "GET", first.Header().Get("Location"), ""); w.Code != 200 {
+				t.Errorf("get: %d %s", w.Code, w.Body)
 			}
 			if w := deviceRequest(h, "POST", path, body); w.Code != 429 {
 				t.Errorf("quota: got %d %s, want 429", w.Code, w.Body)
@@ -52,7 +60,7 @@ func TestCustomExecutorQuotaAndUsage(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &v); err != nil {
 				t.Fatal(err)
 			}
-			if w.Code != 200 || v.Daily[time.Now().UTC().Format(time.DateOnly)].Operations != 1 {
+			if w.Code != 200 || v.Daily[op.CreatedAt.UTC().Format(time.DateOnly)].Operations != 1 {
 				t.Errorf("usage: %d %s", w.Code, w.Body)
 			}
 		})

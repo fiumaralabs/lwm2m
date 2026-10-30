@@ -18,13 +18,14 @@ type Options struct {
 	Settings store.Settings `json:"-"`
 	EventOptions
 	AuditOptions
-	Webhooks     store.Webhooks       `json:"-"`
-	Observations store.Observations   `json:"-"`
-	TimeSeries   TimeSeriesStore      `json:"-"`
-	Operations   store.Operations     `json:"-"`
-	Executor     *operations.Executor `json:"-"`
-	Devices      store.Devices        `json:"-"`
-	Server       *server.Server       `json:"-"`
+	Webhooks     store.Webhooks     `json:"-"`
+	Observations store.Observations `json:"-"`
+	TimeSeries   TimeSeriesStore    `json:"-"`
+	// When Executor is supplied, its store is authoritative and Operations is ignored.
+	Operations store.Operations     `json:"-"`
+	Executor   *operations.Executor `json:"-"`
+	Devices    store.Devices        `json:"-"`
+	Server     *server.Server       `json:"-"`
 	// ServerTenant identifies the sole tenant served by Server (default: default).
 	ServerTenant  string                       `json:"-"`
 	Keys          Keys                         `json:"-"`
@@ -66,7 +67,9 @@ func New(o Options) http.Handler {
 	}
 
 	events := o.eventHandler()
-	if o.Operations == nil {
+	if o.Executor != nil {
+		o.Operations = o.Executor.Store()
+	} else if o.Operations == nil {
 		o.Operations = memory.NewOperations()
 	}
 	if o.Executor == nil && o.Server != nil {
