@@ -37,6 +37,9 @@ type memoryTenantStore struct {
 	items map[string]Tenant
 }
 
+// NewMemoryTenantStore creates an in-memory tenant store.
+func NewMemoryTenantStore() TenantStore { return newTenantStore() }
+
 func newTenantStore() *memoryTenantStore {
 	return &memoryTenantStore{items: map[string]Tenant{"default": {ID: "default", Name: "default", Status: "active"}}}
 }
