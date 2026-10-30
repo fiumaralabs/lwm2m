@@ -142,7 +142,10 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		LastUpdate:     now,
 		peer:           peer,
 	}
-	old := s.store.Add(reg)
+	var old *Registration
+	if err := guardPeer(peer, func() error { old = s.store.Add(reg); return nil }); err != nil {
+		return replyCode(codes.Forbidden)
+	}
 	if old != nil {
 		s.queues.handover(old.ID, reg.ID) // before dropClientState: queued requests follow the new registration (T24)
 		s.dropClientState(old)
@@ -151,7 +154,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 	return reply{
 		msg: &Message{Code: codes.Created, Location: []string{"rd", reg.ID}},
 		after: func() {
-			s.emit(Registered{Registration: reg, Replaced: old})
+			_ = guardPeer(peer, func() error { s.emit(Registered{Registration: reg, Replaced: old}); return nil })
 			s.queues.release(reg, wasAsleep)
 		},
 	}
@@ -268,12 +271,16 @@ func (s *Server) update(peerConn Peer, m *Message, reg *Registration) reply {
 	r.Addr = peerConn.RemoteAddr()
 	r.peer = peerConn
 	reg = &r
-	if !s.store.Update(reg) {
+	var updated bool
+	if err := guardPeer(peerConn, func() error { updated = s.store.Update(reg); return nil }); err != nil {
+		return replyCode(codes.Forbidden)
+	}
+	if !updated {
 		return replyCode(codes.NotFound) // removed concurrently
 	}
 	wasAsleep := s.queues.markAwake(reg) // awake at once; waiters go after the reply (GEN-10)
 	return reply{msg: status(codes.Changed), after: func() {
-		s.emit(Updated{Registration: reg, Previous: *prev})
+		_ = guardPeer(peerConn, func() error { s.emit(Updated{Registration: reg, Previous: *prev}); return nil })
 		s.queues.release(reg, wasAsleep)
 	}}
 }

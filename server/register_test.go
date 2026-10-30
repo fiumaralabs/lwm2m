@@ -558,3 +558,36 @@ func TestSetLifetime(t *testing.T) {
 		t.Fatal("written lifetime not applied")
 	}
 }
+
+// A revoked peer receives Forbidden without a registration write or event.
+type revokedPeer struct{ fakePeer }
+
+func (revokedPeer) Guard(func() error) error { return server.ErrPeerRevoked }
+
+func TestRevokedPeerRegisterAndUpdateForbidden(t *testing.T) {
+	h := newHarness(t)
+	req := &server.Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=guarded", "lwm2m=1.1", "lt=60"}, Payload: []byte("</1/0>")}
+	resp, after := h.srv.HandleUplink(revokedPeer{}, req)
+	after()
+	if resp.Code != codes.Forbidden {
+		t.Fatalf("register = %v", resp.Code)
+	}
+	if _, ok := h.srv.Store().ByEndpoint("guarded"); ok {
+		t.Fatal("revoked register wrote state")
+	}
+	resp, after = h.srv.HandleUplink(fakePeer{}, req)
+	if resp.Code != codes.Created {
+		t.Fatalf("control register = %v", resp.Code)
+	}
+	after()
+	location := resp.Location[1]
+	resp, after = h.srv.HandleUplink(revokedPeer{}, &server.Message{Code: codes.POST, Path: "/rd/" + location, Query: []string{"lt=99"}})
+	after()
+	if resp.Code != codes.Forbidden {
+		t.Fatalf("update = %v", resp.Code)
+	}
+	reg, ok := h.srv.Store().ByEndpoint("guarded")
+	if !ok || reg.Lifetime != 60*time.Second {
+		t.Fatal("revoked update changed state")
+	}
+}
