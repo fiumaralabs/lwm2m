@@ -1,8 +1,10 @@
 package apiv1
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestBootstrapGETRedactsSupportedSecuritySecrets(t *testing.T) {
@@ -34,6 +36,51 @@ func TestBootstrapGETRedactsSupportedSecuritySecrets(t *testing.T) {
 		if !strings.Contains(w.Body.String(), s) {
 			t.Errorf("GET lost %q: %s", s, w.Body.String())
 		}
+	}
+}
+
+type blockedBootstrapPut struct {
+	BootstrapConfigStore
+	entered, release chan struct{}
+}
+
+func (s *blockedBootstrapPut) Put(tenant, endpoint string, b json.RawMessage) {
+	close(s.entered)
+	<-s.release
+	s.BootstrapConfigStore.Put(tenant, endpoint, b)
+}
+
+func TestBootstrapPutConcurrentDeviceDeletion(t *testing.T) {
+	keys := deviceKeys()
+	c := keys.entries["test"]
+	c.scopes += "bootstrap:write,"
+	keys.entries["test"] = c
+	configs := &blockedBootstrapPut{BootstrapConfigStore: NewMemoryBootstrapConfigStore(), entered: make(chan struct{}), release: make(chan struct{})}
+	h := New(Options{Keys: keys, BootstrapConfigs: configs})
+	if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"a"}`); w.Code != 201 {
+		t.Fatal(w.Code)
+	}
+	putDone := make(chan int, 1)
+	go func() { putDone <- deviceRequest(h, "PUT", "/v1/devices/a/bootstrap", `{}`).Code }()
+	<-configs.entered
+	deleted := make(chan int, 1)
+	go func() { deleted <- deviceRequest(h, "DELETE", "/v1/devices/a", "").Code }()
+	select {
+	case code := <-deleted:
+		close(configs.release)
+		<-putDone
+		t.Fatalf("device deletion completed before in-flight PUT: %d", code)
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(configs.release)
+	if code := <-putDone; code != 204 {
+		t.Fatalf("PUT: %d", code)
+	}
+	if code := <-deleted; code != 204 {
+		t.Fatalf("DELETE: %d", code)
+	}
+	if _, ok := configs.Get("default", "a"); ok {
+		t.Fatal("in-flight PUT restored deleted config")
 	}
 }
 

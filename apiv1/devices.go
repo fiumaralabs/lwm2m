@@ -226,6 +226,10 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 405, "method_not_allowed", "Expected GET or DELETE")
 		return
 	}
+	if r.Method == "DELETE" {
+		unlock := o.limits.lock(tenant)
+		defer unlock()
+	}
 	d, err := o.Devices.Get(tenant, ep)
 	if err != nil {
 		if errors.Is(err, store.ErrDeviceNotFound) {

@@ -170,7 +170,15 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 404, "not_found", "Unknown device path")
 		return
 	}
+	var body []byte
+	var readErr error
+	if r.Method == "PUT" {
+		body, readErr = io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	}
 	tenant := TenantFrom(r.Context())
+	// Serialize config access with device creation and deletion for this tenant.
+	unlock := o.limits.lock(tenant)
+	defer unlock()
 	if _, err = o.Devices.Get(tenant, ep); err != nil {
 		if errors.Is(err, store.ErrDeviceNotFound) {
 			WriteProblem(w, 404, "not_found", "Device not found")
@@ -181,9 +189,9 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case "PUT":
-		b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		b := body
 		var input bootstrapInput
-		if err != nil || json.Unmarshal(b, &input) != nil || len(bytes.TrimSpace(b)) == 0 || bytes.TrimSpace(b)[0] != '{' {
+		if readErr != nil || json.Unmarshal(b, &input) != nil || len(bytes.TrimSpace(b)) == 0 || bytes.TrimSpace(b)[0] != '{' {
 			WriteProblem(w, 400, "invalid_json", "Invalid bootstrap config")
 			return
 		}
