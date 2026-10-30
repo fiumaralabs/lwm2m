@@ -110,8 +110,12 @@ func cloneFirmwareUpdate(u FirmwareUpdate) FirmwareUpdate {
 	}
 	if u.Outcome != nil {
 		v := *u.Outcome
-		v.Added = append([]string(nil), v.Added...)
-		v.Removed = append([]string(nil), v.Removed...)
+		if v.Added != nil {
+			v.Added = append([]string{}, v.Added...)
+		}
+		if v.Removed != nil {
+			v.Removed = append([]string{}, v.Removed...)
+		}
 		u.Outcome = &v
 	}
 	return u
