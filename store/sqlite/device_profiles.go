@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
 )
@@ -18,6 +20,57 @@ func (s *Devices) DeviceProfiles() *DeviceProfiles { return &DeviceProfiles{db: 
 func (s *DeviceProfiles) Create(tenant string, p apiv1.DeviceProfile) error {
 	_, err := s.db.Exec(`INSERT INTO device_profiles(tenant,id,name,observations,attributes,on_register,timeseries,bootstrap_template) VALUES(?,?,?,?,?,?,?,?)`, tenant, p.ID, p.Name, []byte(p.Observations), []byte(p.Attributes), []byte(p.OnRegister), []byte(p.Timeseries), []byte(p.BootstrapTemplate))
 	return err
+}
+
+func (s *DeviceProfiles) Replay(tenant, key string) (apiv1.DeviceProfile, bool) {
+	var b []byte
+	if key == "" || s.db.QueryRow(`SELECT body FROM device_profile_replays WHERE tenant=? AND key=? AND expires>?`, tenant, key, time.Now().UnixNano()).Scan(&b) != nil {
+		return apiv1.DeviceProfile{}, false
+	}
+	var p apiv1.DeviceProfile
+	if err := json.Unmarshal(b, &p); err != nil {
+		panic(fmt.Errorf("device profile replay: %w", err))
+	}
+	return p, true
+}
+func (s *DeviceProfiles) CreateIdempotent(tenant string, p apiv1.DeviceProfile, key string) (apiv1.DeviceProfile, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return apiv1.DeviceProfile{}, err
+	}
+	defer tx.Rollback()
+	now := time.Now()
+	if key != "" {
+		var b []byte
+		err = tx.QueryRow(`SELECT body FROM device_profile_replays WHERE tenant=? AND key=? AND expires>?`, tenant, key, now.UnixNano()).Scan(&b)
+		if err == nil {
+			err = json.Unmarshal(b, &p)
+			return p, err
+		}
+		if err != sql.ErrNoRows {
+			return apiv1.DeviceProfile{}, err
+		}
+	}
+	_, err = tx.Exec(`INSERT INTO device_profiles(tenant,id,name,observations,attributes,on_register,timeseries,bootstrap_template) VALUES(?,?,?,?,?,?,?,?)`, tenant, p.ID, p.Name, []byte(p.Observations), []byte(p.Attributes), []byte(p.OnRegister), []byte(p.Timeseries), []byte(p.BootstrapTemplate))
+	if err != nil {
+		return apiv1.DeviceProfile{}, err
+	}
+	if _, err = tx.Exec(`DELETE FROM device_profile_replays WHERE expires<=?`, now.UnixNano()); err != nil {
+		return apiv1.DeviceProfile{}, err
+	}
+	if key != "" {
+		b, e := json.Marshal(p)
+		if e != nil {
+			return apiv1.DeviceProfile{}, e
+		}
+		if _, err = tx.Exec(`INSERT INTO device_profile_replays(tenant,key,body,expires) VALUES(?,?,?,?)`, tenant, key, b, now.Add(24*time.Hour).UnixNano()); err != nil {
+			return apiv1.DeviceProfile{}, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return apiv1.DeviceProfile{}, err
+	}
+	return p, nil
 }
 
 type profileScanner interface{ Scan(...any) error }

@@ -19,12 +19,16 @@ type profileCursor struct {
 
 func (o Options) deviceProfiles(w http.ResponseWriter, r *http.Request) {
 	collection := r.URL.Path == "/v1/device-profiles"
+	if r.Method == http.MethodPost && collection {
+		o.createDeviceProfile(w, r)
+		return
+	}
 	if r.Method == http.MethodDelete && !collection {
 		RequireScope("devices:write")(http.HandlerFunc(o.deleteDeviceProfile)).ServeHTTP(w, r)
 		return
 	}
 	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", "GET")
+		w.Header().Set("Allow", "GET, POST")
 		if !collection {
 			w.Header().Set("Allow", "GET, DELETE")
 		}

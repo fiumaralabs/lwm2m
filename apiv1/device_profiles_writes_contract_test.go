@@ -87,7 +87,9 @@ func TestDeviceProfileWriteCreateAndReplay(t *testing.T) {
 		t.Fatalf("replay: %d %s", replay.Code, replay.Body)
 	}
 	mismatch := profileWriteRequest(h, "POST", path, `{"name":"other"}`, "lwm_test_secret", "create")
-	profileProblem(t, mismatch, 409, 422)
+	if mismatch.Code != 201 || mismatch.Body.String() != first.Body.String() || mismatch.Header().Get("ETag") != first.Header().Get("ETag") || mismatch.Header().Get("Location") != first.Header().Get("Location") {
+		t.Fatalf("different-body replay: %d %s", mismatch.Code, mismatch.Body)
+	}
 	if len(store.List("default")) != 1 {
 		t.Fatal("different body created a second profile")
 	}
@@ -102,6 +104,7 @@ func TestDeviceProfileWriteActionsStoredOnly(t *testing.T) {
 		`{"type":"delete","path":"/3/0"}`,
 		`{"type":"discover","path":"/3/0","depth":1}`,
 		`{"type":"write-attributes","path":"/3/0/1","attributes":{"pmin":60}}`,
+		`{"type":"write-attributes","path":"/3/0/1","attributes":{"pmin":null}}`,
 		`{"type":"read-acl"}`,
 		`{"type":"set-rights","aclInstance":0,"shortServerId":1,"rights":["read","write"]}`,
 		`{"type":"set-lifetime","lifetimeSeconds":300}`,
@@ -147,7 +150,7 @@ func TestDeviceProfileWriteActionsStoredOnly(t *testing.T) {
 
 func TestDeviceProfileWriteInvalid(t *testing.T) {
 	h := New(Options{Keys: profileWriteKeys()})
-	for _, body := range []string{`{`, `{"name":"pump","typo":true}`, `{}`, `{"name":""}`, `{"name":"pump","onRegister":[{"type":"unknown"}]}`, `{"name":"pump","onRegister":[{"type":"read"}]}`, `{"name":"pump","onRegister":[{"type":"execute","path":"bad"}]}`} {
+	for _, body := range []string{`{`, `{"name":"pump","typo":true}`, `{}`, `{"name":""}`, `{"name":"pump","onRegister":[{"type":"unknown"}]}`, `{"name":"pump","onRegister":[{"type":"read"}]}`, `{"name":"pump","onRegister":[{"type":"execute","path":"bad"}]}`, `{"name":"pump","onRegister":[{"type":"write","values":[{}]}]}`, `{"name":"pump","onRegister":[{"type":"write-attributes","path":"/3/0/1"}]}`, `{"name":"pump","onRegister":[{"type":"delete","path":"/3/0/1"}]}`, `{"name":"pump","onRegister":[{"type":"set-lifetime"}]}`, `{"name":"pump","onRegister":[{"type":"raw","path":"/3/0/1","method":"BOGUS"}]}`, `{"name":"pump","onRegister":[{"type":"sync-clock","bogus":true}]}`, `{"name":"pump","bootstrapTemplate":{"servers":[{"server":"self","security":{"psk":{"key":"test"}}}]}}`} {
 		t.Run(body, func(t *testing.T) {
 			profileProblem(t, profileWriteRequest(h, "POST", "/v1/device-profiles", body, "lwm_test_secret", ""), 400, 422)
 		})
