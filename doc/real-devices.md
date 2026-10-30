@@ -17,13 +17,15 @@ DTLS, carrier, power behavior, or FOTA.
 - Use an isolated server and a test device. Ensure the device can reach the
   server's CoAP/DTLS address and the test operator can reach its HTTP API.
   Do not use production devices, credentials, or firmware for this plan.
-- Pre-provision the same endpoint in `/v1/devices`. Provision a unique random
-  DTLS PSK and identity on both the test server and device through their
-  supported secure provisioning methods. The credentials endpoint is described
-  in [API.md](API.md). Do not commit, print, or include PSKs, API tokens or SIM
-  identifiers in the run record. Configure the client for the matching CoAPS
-  server URI and identity. Confirm the selected sample actually exposes the
-  resources used below before running the checker.
+- Pre-provision the same endpoint in `/v1/devices`. **BLOCKED: PSK setup for
+  `lwm2md` through the native API is not implemented at this server revision.**
+  The credentials endpoint in [API.md](API.md) is a proposed contract, not an
+  available provisioning procedure. Do not start a PSK hardware run until a
+  supported server-side provisioning mechanism is available and verified.
+  When available, provision a unique random PSK and matching identity securely
+  on both sides and configure the matching CoAPS URI. Never commit, print, or
+  record PSKs, API tokens or SIM identifiers. Confirm the selected sample
+  exposes the resources used below before running the checker.
 - Use an API key with `devices:read` and `operations:write` scopes and access
   to the test device's tenant. Provide it through `LWM2M_API_TOKEN` in the
   environment without placing it in shell history. Use a protected connection
@@ -45,7 +47,7 @@ for each operation and observation; a sleeping device may need to wake first.
 | Write | Write the value just read back to `/3/0/15`, then read it again and compare. This is still a device write. |
 | Execute | Execute `/3303/0/5605` (reset measured min/max). |
 | Observe | Observe `/3303/0/5700` becomes active; the script cancels it. This does not prove notifications arrived. |
-| FOTA | Explicitly skipped by the script. Use the manual procedure below. |
+| FOTA | Explicitly skipped by the script. The manual check below is blocked pending a supported update path. |
 
 The sample may not expose those resources. Set `LWM2M_WRITE_PATH`,
 `LWM2M_EXECUTE_PATH`, and `LWM2M_OBSERVE_PATH` to suitable resources in the
@@ -65,12 +67,15 @@ Do not interpret a skipped or unsupported check as a pass.
    mechanism. Confirm recovery access and power stability. Record image version,
    hash, signing procedure (not keys), and the supported transport. The
    simulator does not implement the board's firmware update path.
-3. Use the firmware API described in [API.md](API.md) and the sample's FOTA
-   instructions to deliver that image to the isolated device. Check the firmware
-   object state and update result, then verify the device reconnects and reports
-   the intended firmware version after any reboot. Record actual transitions,
-   errors and timeouts. A successful upload or accepted request alone is not a
-   successful update. Do not deploy an image to an unattended device.
+3. **BLOCKED: the native firmware creation and firmware-update API endpoints
+   described in [API.md](API.md) are not implemented at this server revision.**
+   The API description is a proposed contract, not a runnable procedure. Do not
+   mark FOTA as passed until a supported update path is available and tested.
+   Once unblocked, deliver the image using the supported path and the sample's
+   FOTA instructions. Check firmware object state and update result, then verify
+   reconnection and the intended version after any reboot. Record transitions,
+   errors and timeouts. An accepted request alone is not a successful update.
+   Do not deploy an image to an unattended device.
 
 ## Run record
 
