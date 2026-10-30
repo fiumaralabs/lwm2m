@@ -43,7 +43,6 @@ func TestRotatedPSKRejectsPreviouslyAuthenticatedLiveSession(t *testing.T) {
 	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "live-rotation", PSKIdentity: "live-id", PSKKey: []byte("fedcba9876543210")}); err != nil {
 		t.Fatal(err)
 	}
-	h.b.RevokePSKIdentity("live-id")
 	if r, err := unrelated.Register(h.ctx); err != nil || r.Code != codes.Created {
 		t.Fatalf("unrelated session affected by revocation: %v %v", r, err)
 	}
@@ -101,9 +100,36 @@ func TestRevokePSKDuringHandshake(t *testing.T) {
 		close(release)
 		t.Fatal(err)
 	}
-	h.b.RevokePSKIdentity("inflight-id")
 	close(release)
 	if err := <-result; err == nil {
 		t.Fatal("old in-flight handshake succeeded")
+	}
+}
+
+// A custom PSK source must remain authoritative over the default store lookup.
+func TestCustomPSKCallbackIsPreserved(t *testing.T) {
+	h := newHarness(t)
+	storeKey := []byte("0123456789abcdef")
+	customKey := []byte("fedcba9876543210")
+	if err := h.srv.Security().Put(server.SecurityInfo{Endpoint: "custom", PSKIdentity: "custom-id", PSKKey: storeKey}); err != nil {
+		t.Fatal(err)
+	}
+	addr, err := h.b.ListenDTLS("127.0.0.1:0", DTLSConfig{Options: []piondtls.ServerOption{piondtls.WithPSK(func(id []byte) ([]byte, error) { return customKey, nil })}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := net.ResolveUDPAddr("udp", addr.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := piondtls.Dial("udp", a, pskConfig("custom-id", customKey)...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx, cancel := context.WithTimeout(h.ctx, 3*time.Second)
+	defer cancel()
+	if err := c.HandshakeContext(ctx); err != nil {
+		t.Fatalf("custom PSK handshake: %v", err)
 	}
 }
