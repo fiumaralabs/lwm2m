@@ -11,8 +11,9 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
-	limits *tenantLimiter
-	Models ModelStore `json:"-"`
+	limits   *tenantLimiter
+	Models   ModelStore    `json:"-"`
+	Firmware FirmwareStore `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
@@ -65,6 +66,9 @@ func New(o Options) http.Handler {
 	if o.Models == nil {
 		o.Models = &memoryModelStore{}
 	}
+	if o.Firmware == nil {
+		o.Firmware = NewMemoryFirmwareStore()
+	}
 
 	events := o.eventHandler()
 	if o.Executor != nil {
@@ -81,6 +85,10 @@ func New(o Options) http.Handler {
 		o.Audit = &MemoryAuditStore{}
 	}
 	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/firmware" || strings.HasPrefix(r.URL.Path, "/v1/firmware/") {
+			serveFirmware(o.Firmware, w, r)
+			return
+		}
 		if r.URL.Path == "/v1/audit-log" {
 			RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveAudit(o.Audit, w, r) })).ServeHTTP(w, r)
 			return
