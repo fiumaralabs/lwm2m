@@ -161,7 +161,13 @@ func main() {
 	fwCoap := flag.String("fw-coap", ":5693", "firmware CoAP/UDP address, with -fw-dir")
 	fwCoaps := flag.String("fw-coaps", ":5694", "firmware CoAP/DTLS address (server PSKs), with -fw-dir")
 	verbose := flag.Bool("v", false, "log registration, notification and bootstrap events")
+	configPath := flag.String("config", "", "load settings from a JSON file")
 	flag.Parse()
+	if *configPath != "" {
+		if err := applyConfig(flag.CommandLine, *configPath); err != nil {
+			log.Fatal(err)
+		}
+	}
 	var devices store.Devices = &memory.Devices{}
 	if strings.HasPrefix(*storeFlag, "sqlite:") && strings.TrimPrefix(*storeFlag, "sqlite:") != "" {
 		durable, err := sqlite.Open(strings.TrimPrefix(*storeFlag, "sqlite:"))
