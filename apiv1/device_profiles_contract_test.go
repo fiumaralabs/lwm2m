@@ -60,7 +60,7 @@ func TestDeviceProfileReadContract(t *testing.T) {
 	if w := deviceRequest(New(Options{Keys: deviceKeys()}), "GET", "/v1/device-profiles", ""); w.Code != 200 || w.Body.String() != "{\"items\":[]}\n" {
 		t.Fatalf("default empty store: %d %s", w.Code, w.Body.String())
 	}
-	for _, method := range []string{"POST", "PATCH", "DELETE"} {
+	for _, method := range []string{"POST", "PATCH"} {
 		if w := deviceRequest(h, method, "/v1/device-profiles/dp_a", ""); w.Code != 405 {
 			t.Fatalf("%s unexpectedly available: %d", method, w.Code)
 		}
