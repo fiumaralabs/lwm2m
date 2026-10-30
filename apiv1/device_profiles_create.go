@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/attr"
@@ -179,11 +180,19 @@ func validProfileOperation(raw json.RawMessage) bool {
 		if len(op.Values) == 0 || op.Type == "create" && !validPath(op.Path) || op.Path != "" && !validPath(op.Path) {
 			return false
 		}
+		if op.Type == "create" {
+			path, _ := lwm2m.ParsePath(op.Path)
+			if !path.IsObject() {
+				return false
+			}
+		}
 		for _, rawValue := range op.Values {
 			var value struct {
-				Path  string          `json:"path"`
-				Type  string          `json:"type"`
-				Value json.RawMessage `json:"value"`
+				Path      string          `json:"path"`
+				Type      string          `json:"type"`
+				Value     json.RawMessage `json:"value"`
+				Prefix    string          `json:"prefix"`
+				Timestamp *time.Time      `json:"timestamp"`
 			}
 			if !profileDecode(rawValue, &value) || !validPath(value.Path) {
 				return false
@@ -194,7 +203,7 @@ func validProfileOperation(raw json.RawMessage) bool {
 				if value.Type != "" || !(path.IsInstance() || path.IsResource()) {
 					return false
 				}
-			} else if string(value.Value) == "null" || value.Value[0] == '{' || value.Value[0] == '[' || !validBootstrapValue(value.Type, value.Value) {
+			} else if !(path.IsResource() || path.IsResourceInstance()) || string(value.Value) == "null" || value.Value[0] == '{' || value.Value[0] == '[' || !validBootstrapValue(value.Type, value.Value) {
 				return false
 			}
 		}
