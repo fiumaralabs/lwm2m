@@ -75,7 +75,7 @@ func New(o Options) http.Handler {
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
-	return Authenticate(o.Keys, recordAudit(o.Audit, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/audit-log" {
 			RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveAudit(o.Audit, w, r) })).ServeHTTP(w, r)
 			return
@@ -142,5 +142,5 @@ func New(o Options) http.Handler {
 			return
 		}
 		WriteProblem(w, 404, "not_found", "Unknown API path")
-	})))
+	}))))
 }
