@@ -81,6 +81,9 @@ type resultJSON struct {
 	Values    []valueJSON `json:"values,omitempty"`
 }
 
+// Store returns the operation store used by the executor.
+func (e *Executor) Store() Operations { return e.st }
+
 func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Executor {
 	if opts.Now == nil {
 		opts.Now = time.Now

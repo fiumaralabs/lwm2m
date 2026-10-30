@@ -80,7 +80,7 @@ func TestEventsReopenAndMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Exercise upgrading an existing v2 database, not just a fresh database.
-	if _, err := db.Exec(`CREATE TABLE devices (tenant TEXT, endpoint TEXT, payload TEXT, last_seen TEXT DEFAULT '', PRIMARY KEY(tenant,endpoint)); CREATE TABLE operations (tenant TEXT, id TEXT, body TEXT); INSERT INTO devices VALUES('a','one','{"endpoint":"one"}',''); PRAGMA user_version=2;`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE devices (tenant TEXT, endpoint TEXT, payload TEXT, last_seen TEXT DEFAULT '', PRIMARY KEY(tenant,endpoint)); CREATE TABLE operations (tenant TEXT NOT NULL, id TEXT NOT NULL, device TEXT NOT NULL, status TEXT NOT NULL, seq INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (tenant, id)); INSERT INTO devices VALUES('a','one','{"endpoint":"one"}',''); PRAGMA user_version=2;`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

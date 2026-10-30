@@ -913,6 +913,8 @@ A message bus sink (MQTT, NATS, Kafka) for the same events is deployment configu
 
 `GET /v1/tenants/{id}/usage`: device count, registered count, operations, events and storage per day.
 
+The current native API returns `{"devices":0,"registered":0,"daily":{"2026-01-01":{"operations":0,"events":0}}}`. `daily` is keyed by UTC date and counts retained operation records and retained event records; event retention can make historical counts incomplete. Storage usage is not yet available. Registered includes sleeping devices with a current registration. `limits.devices` and `limits.operationsPerMinute` use zero for unlimited; the latter counts accepted operations in the preceding rolling minute. API quota checks are serialized per handler, not across multiple server processes or other writers; they are not a distributed quota mechanism.
+
 ### 17.2 API keys
 
 | Method | Path | Description |

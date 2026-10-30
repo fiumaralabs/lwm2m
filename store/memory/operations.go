@@ -17,6 +17,13 @@ import (
 type Operations struct {
 	mu      sync.Mutex
 	records map[[2]string]operations.Operation
+	byTime  map[string][]operationTime
+}
+
+// operationTime indexes immutable creation timestamps in ascending order.
+type operationTime struct {
+	at time.Time
+	id string
 }
 
 func NewOperations() *Operations { return &Operations{} }
@@ -58,8 +65,15 @@ func (s *Operations) Create(ctx context.Context, tenant string, o operations.Ope
 	}
 	if s.records == nil {
 		s.records = make(map[[2]string]operations.Operation)
+		s.byTime = make(map[string][]operationTime)
 	}
 	s.records[key] = cloneOperation(o)
+	index := s.byTime[tenant]
+	i := sort.Search(len(index), func(i int) bool { return index[i].at.After(o.CreatedAt) })
+	index = append(index, operationTime{})
+	copy(index[i+1:], index[i:])
+	index[i] = operationTime{at: o.CreatedAt, id: o.ID}
+	s.byTime[tenant] = index
 	return nil
 }
 
@@ -99,7 +113,7 @@ func (s *Operations) List(ctx context.Context, tenant string, f operations.ListF
 	if limit < 1 || limit > 500 {
 		return nil, "", store.ErrCursor
 	}
-	items, err := s.list(ctx, tenant, f.Device, false)
+	items, err := s.list(ctx, tenant, f.Device, false, f.CreatedAfter, f.CreatedBefore)
 	if err != nil {
 		return nil, "", err
 	}
@@ -122,20 +136,33 @@ func (s *Operations) List(ctx context.Context, tenant string, f operations.ListF
 	return out, "", nil
 }
 func (s *Operations) Pending(ctx context.Context, tenant, device string) ([]operations.Operation, error) {
-	return s.list(ctx, tenant, device, true)
+	return s.list(ctx, tenant, device, true, nil, nil)
 }
-func (s *Operations) list(ctx context.Context, tenant, device string, pending bool) ([]operations.Operation, error) {
+func (s *Operations) list(ctx context.Context, tenant, device string, pending bool, after, before *time.Time) ([]operations.Operation, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
 		return nil, err
 	}
+	index := s.byTime[tenant]
+	start, end := 0, len(index)
+	if after != nil {
+		start = sort.Search(len(index), func(i int) bool { return index[i].at.After(*after) })
+	}
+	if before != nil {
+		end = sort.Search(len(index), func(i int) bool { return index[i].at.After(*before) })
+	}
+	if end < start {
+		end = start
+	}
 	out := []operations.Operation{}
-	for _, o := range s.records {
-		if o.Tenant == tenant && (device == "" || device == o.Device) && (!pending || o.Status == operations.Queued) {
+	for _, entry := range index[start:end] {
+		o := s.records[[2]string{tenant, entry.id}]
+		if (device == "" || device == o.Device) && (!pending || o.Status == operations.Queued) {
 			out = append(out, cloneOperation(o))
 		}
 	}
+	s.mu.Unlock()
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
 		if !pending {
