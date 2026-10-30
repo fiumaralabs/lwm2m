@@ -223,13 +223,15 @@ func (b *Binding) ListenUDP(addr string) (net.Addr, error) {
 	return l.LocalAddr(), nil
 }
 
-// DTLSConfig configures a DTLS listener. PSK credentials are resolved from
-// the security store by identity.
+// DTLSConfig configures a DTLS listener. By default, PSK credentials are
+// resolved from the security store by identity; Options can override this lookup.
 type DTLSConfig struct {
 	// Options go to pion/dtls after the listener's defaults (PSK lookup,
 	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins except
-	// WithSessionStore and WithPSK, which are ignored because this listener
-	// resolves and tracks PSKs through the server security store.
+	// WithSessionStore, which is ignored. WithPSK overrides the default
+	// security-store lookup; custom PSK sources must call RevokePSKIdentity
+	// when their credentials change to close established sessions. In-flight
+	// handshakes are not covered; see issue #97.
 	// Resumption is disabled for both PSK and certificate clients.
 	Options []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
