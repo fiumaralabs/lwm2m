@@ -188,6 +188,15 @@ func validProfileOperation(raw json.RawMessage) bool {
 			if !profileDecode(rawValue, &value) || !validPath(value.Path) {
 				return false
 			}
+			path, _ := lwm2m.ParsePath(value.Path)
+			if len(value.Value) == 0 {
+				// An untyped empty instance or multi-instance resource is legal (§7.1).
+				if value.Type != "" || !(path.IsInstance() || path.IsResource()) {
+					return false
+				}
+			} else if string(value.Value) == "null" || value.Value[0] == '{' || value.Value[0] == '[' || !validBootstrapValue(value.Type, value.Value) {
+				return false
+			}
 		}
 		if op.Mode != "" && op.Mode != "partial" && op.Mode != "replace" {
 			return false
