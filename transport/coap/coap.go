@@ -181,12 +181,14 @@ type Binding struct {
 	closers []func() error
 	closed  bool
 
-	peers  sync.Map // mux.Conn -> *coapPeer
-	amu    sync.Mutex
-	afters map[mux.Conn][]func()
-	oscore atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
-	held   heldConns              // keeps sessions of registered clients open (keepconn.go)
-	block1 block1Assembler        // client Block1 reassembly (block1.go)
+	peers    sync.Map // mux.Conn -> *coapPeer
+	pskMu    sync.Mutex
+	pskConns map[io.Closer]string // established sessions
+	amu      sync.Mutex
+	afters   map[mux.Conn][]func()
+	oscore   atomic.Pointer[OSCORE] // set by EnableOSCORE (oscore.go)
+	held     heldConns              // keeps sessions of registered clients open (keepconn.go)
+	block1   block1Assembler        // client Block1 reassembly (block1.go)
 }
 
 // New returns a Binding for srv. Call Listen* to start serving.
@@ -221,12 +223,15 @@ func (b *Binding) ListenUDP(addr string) (net.Addr, error) {
 	return l.LocalAddr(), nil
 }
 
-// DTLSConfig configures a DTLS listener. PSK credentials are resolved from
-// the security store by identity.
+// DTLSConfig configures a DTLS listener. By default, PSK credentials are
+// resolved from the security store by identity; Options can override this lookup.
 type DTLSConfig struct {
 	// Options go to pion/dtls after the listener's defaults (PSK lookup,
 	// DTLSCipherSuites, DTLS 1.2 and 1.3); a later option wins except
-	// WithSessionStore, which is ignored because this listener enables PSK.
+	// WithSessionStore, which is ignored. WithPSK overrides the default
+	// security-store lookup; custom PSK sources must call RevokePSKIdentity
+	// when their credentials change to close established sessions. In-flight
+	// handshakes are not covered; see issue #97.
 	// Resumption is disabled for both PSK and certificate clients.
 	Options []piondtls.ServerOption
 	// CIDLength is the length of the Connection ID the server assigns
@@ -259,7 +264,21 @@ func (dc DTLSConfig) CIDLen() int {
 
 // ListenDTLS serves CoAP over DTLS 1.2 and 1.3 on addr.
 func (b *Binding) ListenDTLS(addr string, dc DTLSConfig) (net.Addr, error) {
-	l, err := dtlscoap.Listen("udp", addr, dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup))
+	cfg := dtlscoap.ServerConfig(dc.Options, dc.CIDLen(), dc.SessionTTL, b.pskLookup)
+	cfg.OnHandshake = func(conn io.Closer, identity string) {
+		b.pskMu.Lock()
+		defer b.pskMu.Unlock()
+		if b.pskConns == nil {
+			b.pskConns = make(map[io.Closer]string)
+		}
+		b.pskConns[conn] = identity
+	}
+	cfg.OnConnClose = func(conn io.Closer) {
+		b.pskMu.Lock()
+		delete(b.pskConns, conn)
+		b.pskMu.Unlock()
+	}
+	l, err := dtlscoap.Listen("udp", addr, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +303,20 @@ func (b *Binding) pskLookup(identity []byte) ([]byte, error) {
 		return nil, fmt.Errorf("coap: unknown PSK identity")
 	}
 	return si.PSKKey, nil
+}
+
+// RevokePSKIdentity closes established sessions for identity. Custom PSK
+// sources must call this after changing their credentials. Handshakes already
+// in progress are not covered; see issue #97.
+func (b *Binding) RevokePSKIdentity(identity string) {
+	b.pskMu.Lock()
+	defer b.pskMu.Unlock()
+	for conn, id := range b.pskConns {
+		if id == identity {
+			delete(b.pskConns, conn)
+			_ = conn.Close()
+		}
+	}
 }
 
 // Close stops all listeners. It does not close the Server.

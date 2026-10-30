@@ -200,14 +200,16 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv, native, executor, dispatcher := newDaemonWithTimeSeries(server.Config{OnEvent: onEvent, Schema: models.Schema}, api, keys, *timeSeries, devices)
+	var cb *coap.Binding
+	security := coap.NewRevokingSecurityStore(server.NewMemorySecurityStore(), func(id string) { cb.RevokePSKIdentity(id) })
+	srv, native, executor, dispatcher := newDaemonWithTimeSeries(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, devices)
+	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
 	if err := executor.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
-	cb := coap.New(srv)
 
 	listen := func(name, addr string, f func(string) (net.Addr, error)) {
 		if addr == "" {

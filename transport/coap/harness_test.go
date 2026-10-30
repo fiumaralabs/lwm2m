@@ -84,6 +84,10 @@ func newHarness(t *testing.T, mod ...func(*server.Config)) *harness {
 	for _, m := range mod {
 		m(&cfg)
 	}
+	if cfg.Security == nil {
+		cfg.Security = server.NewMemorySecurityStore()
+	}
+	cfg.Security = NewRevokingSecurityStore(cfg.Security, func(id string) { h.b.RevokePSKIdentity(id) })
 	h.srv = server.New(cfg)
 	h.b = New(h.srv)
 	a, err := h.b.ListenUDP("127.0.0.1:0")
