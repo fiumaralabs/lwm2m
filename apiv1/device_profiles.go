@@ -1,9 +1,12 @@
 package apiv1
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -32,6 +35,15 @@ func (o Options) deviceProfiles(w http.ResponseWriter, r *http.Request) {
 			WriteProblem(w, 404, "not_found", "Unknown profile")
 			return
 		}
+		// Version the representation hash so future conditional writes can use
+		// the same validator while comparing and updating atomically in the store.
+		body, err := json.Marshal(p)
+		if err != nil {
+			WriteProblem(w, 500, "internal_error", "Unable to encode profile")
+			return
+		}
+		sum := sha256.Sum256(body)
+		w.Header().Set("ETag", fmt.Sprintf("\"profile-v1-%x\"", sum))
 		deviceJSON(w, 200, p)
 		return
 	}
@@ -61,7 +73,8 @@ func (o Options) deviceProfiles(w http.ResponseWriter, r *http.Request) {
 		}
 		after = c.After
 	}
-	all := o.DeviceProfiles.List(tenant)
+	all := append([]DeviceProfile(nil), o.DeviceProfiles.List(tenant)...)
+	sort.Slice(all, func(i, j int) bool { return all[i].ID < all[j].ID })
 	items := make([]DeviceProfile, 0, limit)
 	next := ""
 	for _, p := range all {
