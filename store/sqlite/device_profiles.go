@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
 )
@@ -18,6 +20,99 @@ func (s *Devices) DeviceProfiles() *DeviceProfiles { return &DeviceProfiles{db: 
 func (s *DeviceProfiles) Create(tenant string, p apiv1.DeviceProfile) error {
 	_, err := s.db.Exec(`INSERT INTO device_profiles(tenant,id,name,observations,attributes,on_register,timeseries,bootstrap_template) VALUES(?,?,?,?,?,?,?,?)`, tenant, p.ID, p.Name, []byte(p.Observations), []byte(p.Attributes), []byte(p.OnRegister), []byte(p.Timeseries), []byte(p.BootstrapTemplate))
 	return err
+}
+
+// Replay and CreateIdempotent remain available to direct store consumers.
+func (s *DeviceProfiles) Replay(tenant, key string) (apiv1.DeviceProfile, bool) {
+	r, ok := s.ReplayResult(tenant, key)
+	if !ok || r.Profile == nil {
+		return apiv1.DeviceProfile{}, false
+	}
+	return *r.Profile, true
+}
+func (s *DeviceProfiles) CreateIdempotent(tenant string, p apiv1.DeviceProfile, key string) (apiv1.DeviceProfile, error) {
+	r, err := s.CreateResult(tenant, key, apiv1.ProfileCreateResult{Profile: &p})
+	if err != nil {
+		return apiv1.DeviceProfile{}, err
+	}
+	if r.Profile == nil {
+		return apiv1.DeviceProfile{}, fmt.Errorf("idempotency key contains an error response")
+	}
+	return *r.Profile, nil
+}
+func decodeProfileResult(b []byte) (apiv1.ProfileCreateResult, error) {
+	var r apiv1.ProfileCreateResult
+	if err := json.Unmarshal(b, &r); err != nil {
+		return r, err
+	}
+	// The original migration stored the profile directly; keep existing replay records readable.
+	if r.Profile == nil && r.Problem == nil {
+		var p apiv1.DeviceProfile
+		if err := json.Unmarshal(b, &p); err != nil {
+			return r, err
+		}
+		r.Profile = &p
+	}
+	return r, nil
+}
+func (s *DeviceProfiles) ReplayResult(tenant, key string) (apiv1.ProfileCreateResult, bool) {
+	var b []byte
+	if key == "" {
+		return apiv1.ProfileCreateResult{}, false
+	}
+	err := s.db.QueryRow(`SELECT body FROM device_profile_replays WHERE tenant=? AND key=? AND expires>?`, tenant, key, time.Now().UnixNano()).Scan(&b)
+	if err == sql.ErrNoRows {
+		return apiv1.ProfileCreateResult{}, false
+	}
+	if err != nil {
+		panic(fmt.Errorf("device profile replay: %w", err))
+	}
+	r, err := decodeProfileResult(b)
+	if err != nil {
+		panic(fmt.Errorf("device profile replay: %w", err))
+	}
+	return r, true
+}
+func (s *DeviceProfiles) CreateResult(tenant, key string, result apiv1.ProfileCreateResult) (apiv1.ProfileCreateResult, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return apiv1.ProfileCreateResult{}, err
+	}
+	defer tx.Rollback()
+	now := time.Now()
+	if key != "" {
+		var b []byte
+		err = tx.QueryRow(`SELECT body FROM device_profile_replays WHERE tenant=? AND key=? AND expires>?`, tenant, key, now.UnixNano()).Scan(&b)
+		if err == nil {
+			return decodeProfileResult(b)
+		}
+		if err != sql.ErrNoRows {
+			return apiv1.ProfileCreateResult{}, err
+		}
+	}
+	if result.Profile != nil {
+		p := result.Profile
+		_, err = tx.Exec(`INSERT INTO device_profiles(tenant,id,name,observations,attributes,on_register,timeseries,bootstrap_template) VALUES(?,?,?,?,?,?,?,?)`, tenant, p.ID, p.Name, []byte(p.Observations), []byte(p.Attributes), []byte(p.OnRegister), []byte(p.Timeseries), []byte(p.BootstrapTemplate))
+		if err != nil {
+			return apiv1.ProfileCreateResult{}, err
+		}
+	}
+	if _, err = tx.Exec(`DELETE FROM device_profile_replays WHERE expires<=?`, now.UnixNano()); err != nil {
+		return apiv1.ProfileCreateResult{}, err
+	}
+	if key != "" {
+		b, e := json.Marshal(result)
+		if e != nil {
+			return apiv1.ProfileCreateResult{}, e
+		}
+		if _, err = tx.Exec(`INSERT INTO device_profile_replays(tenant,key,body,expires) VALUES(?,?,?,?)`, tenant, key, b, now.Add(24*time.Hour).UnixNano()); err != nil {
+			return apiv1.ProfileCreateResult{}, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return apiv1.ProfileCreateResult{}, err
+	}
+	return result, nil
 }
 
 type profileScanner interface{ Scan(...any) error }

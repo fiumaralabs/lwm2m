@@ -94,7 +94,11 @@ func New(o Options) http.Handler {
 	}
 	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/device-profiles" || strings.HasPrefix(r.URL.Path, "/v1/device-profiles/") {
-			RequireScope("devices:read")(http.HandlerFunc(o.deviceProfiles)).ServeHTTP(w, r)
+			scope := "devices:read"
+			if r.Method != http.MethodGet {
+				scope = "devices:write"
+			}
+			RequireScope(scope)(http.HandlerFunc(o.deviceProfiles)).ServeHTTP(w, r)
 			return
 		}
 		if r.URL.Path == "/v1/firmware" || strings.HasPrefix(r.URL.Path, "/v1/firmware/") {
