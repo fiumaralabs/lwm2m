@@ -60,6 +60,9 @@ var deviceProfileReplaysMigration string
 //go:embed 014_device_profiles.sql
 var deviceProfilesMigration string
 
+//go:embed 017_jobs.sql
+var jobsMigration string
+
 type Devices struct{ db *sql.DB }
 type deviceCursor struct {
 	Tenant, Q, Status *string
@@ -124,7 +127,7 @@ func (s *Devices) migrate() error {
 	if err = tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version < 0 || version > 16 {
+	if version < 0 || version > 17 {
 		return fmt.Errorf("unsupported SQLite schema version %d", version)
 	}
 	if version == 0 {
@@ -204,6 +207,11 @@ func (s *Devices) migrate() error {
 	}
 	if version < 16 {
 		if _, err = tx.Exec(deviceProfileReplaysMigration); err != nil {
+			return err
+		}
+	}
+	if version < 17 {
+		if _, err = tx.Exec(jobsMigration); err != nil {
 			return err
 		}
 	}
