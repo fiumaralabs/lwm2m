@@ -194,16 +194,7 @@ func validProfileOperation(raw json.RawMessage) bool {
 				Prefix    string          `json:"prefix"`
 				Timestamp *time.Time      `json:"timestamp"`
 			}
-			if !profileDecode(rawValue, &value) || !validPath(value.Path) {
-				return false
-			}
-			path, _ := lwm2m.ParsePath(value.Path)
-			if len(value.Value) == 0 {
-				// An untyped empty instance or multi-instance resource is legal (§7.1).
-				if value.Type != "" || !(path.IsInstance() || path.IsResource()) {
-					return false
-				}
-			} else if !(path.IsResource() || path.IsResourceInstance()) || string(value.Value) == "null" || value.Value[0] == '{' || value.Value[0] == '[' || !validBootstrapValue(value.Type, value.Value) {
+			if !profileDecode(rawValue, &value) || !validProfileValue(value.Path, value.Type, value.Value) {
 				return false
 			}
 		}

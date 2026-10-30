@@ -158,7 +158,7 @@ func validProfileBootstrap(raw json.RawMessage) bool {
 			return false
 		}
 		for _, v := range w.Values {
-			if !pathOK(v.Path) || !validBootstrapValue(v.Type, v.Value) {
+			if !validProfileValue(v.Path, v.Type, v.Value) {
 				return false
 			}
 			if v.Timestamp != "" {
@@ -189,6 +189,18 @@ func bootstrapHasNull(v any) bool {
 		}
 	}
 	return false
+}
+
+// validProfileValue applies the same §7.1 shape rules to both profile inputs.
+func validProfileValue(valuePath, kind string, raw json.RawMessage) bool {
+	path, err := lwm2m.ParsePath(valuePath)
+	if err != nil || !strings.HasPrefix(valuePath, "/") || path.IsRoot() {
+		return false
+	}
+	if len(raw) == 0 {
+		return kind == "" && (path.IsInstance() || path.IsResource())
+	}
+	return (path.IsResource() || path.IsResourceInstance()) && string(raw) != "null" && raw[0] != '{' && raw[0] != '[' && validBootstrapValue(kind, raw)
 }
 
 func validBootstrapValue(kind string, raw json.RawMessage) bool {
