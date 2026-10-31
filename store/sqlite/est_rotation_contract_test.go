@@ -80,6 +80,24 @@ func TestESTIssuerRotationContract(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			// A legacy writer can crash after creating an anchor but before saving config.
+			if err := anchors.Create("crashed", anchor("orphan")); err != nil {
+				t.Fatal(err)
+			}
+			if err := anchors.Create("crashed", anchor("manual")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.PutConfigRotatingIssuerAnchor("crashed", apiv1.ESTConfig{Certificate: "new"}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+				t.Fatalf("orphaned issuer must fail closed: %v", err)
+			}
+			if _, ok := configs.Get("crashed"); ok {
+				t.Fatal("config created despite ambiguous anchors")
+			}
+			if got := anchors.List("crashed"); len(got) != 2 || got[0].ID != "manual" || got[1].ID != "orphan" {
+				t.Fatalf("orphaned or manual anchors changed: %+v", got)
+			}
+			anchors.Delete("crashed", "manual")
+			anchors.Delete("crashed", "orphan")
 			// Pre-marker stores cannot distinguish an auto-created issuer from a
 			// manually created anchor. Do not rotate or delete either silently.
 			if err := anchors.Create("legacy", anchor("old")); err != nil {
