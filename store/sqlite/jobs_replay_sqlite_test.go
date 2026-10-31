@@ -10,7 +10,27 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
+	"github.com/fiumaralabs/lwm2m/store/storetest"
 )
+
+func TestSQLiteSharedJobReplays(t *testing.T) {
+	storetest.JobReplays(t, func(t *testing.T) (apiv1.JobStore, apiv1.JobReplayStore, func(string, string, time.Duration)) {
+		t.Helper()
+		d, err := Open(filepath.Join(t.TempDir(), "jobs.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		jobs := d.Jobs()
+		replay := any(jobs).(apiv1.JobReplayStore)
+		return jobs, replay, func(tenant, key string, age time.Duration) {
+			t.Helper()
+			if _, err := d.db.Exec("UPDATE job_replays SET expires = expires - ? WHERE tenant = ? AND key = ?", int64(age), tenant, key); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
 
 func replayJob(id string) apiv1.JobCreateResult {
 	j := apiv1.Job{ID: id, Target: apiv1.JobTarget{Devices: []string{"device"}}, Action: apiv1.JobAction{Operation: json.RawMessage(`{}`)}, Rollout: apiv1.JobRollout{MaxConcurrent: 1}, TTLSeconds: 30}

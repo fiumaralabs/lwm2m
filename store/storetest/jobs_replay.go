@@ -87,7 +87,7 @@ func JobReplays(t *testing.T, fresh func(*testing.T) (apiv1.JobStore, apiv1.JobR
 	t.Run("Expiry24Hours", func(t *testing.T) {
 		jobs, replay, age := fresh(t)
 		if age == nil {
-			t.Skip("backend does not expose a deterministic replay-aging test helper")
+			t.Fatal("backend must provide deterministic replay aging")
 		}
 		first := create(t, replay, "a", "key", job("first"))
 		age("a", "key", 23*time.Hour)

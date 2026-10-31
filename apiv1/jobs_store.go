@@ -64,14 +64,21 @@ type JobStore interface {
 	ListTasks(string, string, string) []JobTask
 }
 type memoryJobStore struct {
-	mu      sync.RWMutex
-	jobs    map[string]map[string]Job
-	tasks   map[string]map[string]map[string]JobTask
-	replays map[string]map[string]jobReplay
+	mu          sync.RWMutex
+	jobs        map[string]map[string]Job
+	tasks       map[string]map[string]map[string]JobTask
+	replays     map[string]map[string]jobReplay
+	replayClock func() time.Time
 }
 
 func NewMemoryJobStore() JobStore {
-	return &memoryJobStore{jobs: make(map[string]map[string]Job), tasks: make(map[string]map[string]map[string]JobTask), replays: make(map[string]map[string]jobReplay)}
+	return NewMemoryJobStoreWithReplayClock(time.Now)
+}
+
+// NewMemoryJobStoreWithReplayClock uses clock for replay retention decisions.
+// The clock must be safe for concurrent use and must not be nil.
+func NewMemoryJobStoreWithReplayClock(clock func() time.Time) JobStore {
+	return &memoryJobStore{jobs: make(map[string]map[string]Job), tasks: make(map[string]map[string]map[string]JobTask), replays: make(map[string]map[string]jobReplay), replayClock: clock}
 }
 
 // ReplayCreate and CreateResult expose the separate replay contract while the
