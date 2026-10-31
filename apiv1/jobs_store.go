@@ -168,7 +168,7 @@ func (s *memoryJobStore) job(tenant, id string) (Job, bool) {
 		switch task.Status {
 		case "pending":
 			j.Counts.Pending++
-		case "running":
+		case "running", "dispatching":
 			j.Counts.Running++
 		case "succeeded":
 			j.Counts.Succeeded++

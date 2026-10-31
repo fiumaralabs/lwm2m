@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/gob"
 	"fmt"
@@ -80,7 +81,7 @@ func (s *Jobs) Get(tenant, id string) (apiv1.Job, bool) {
 		switch t.Status {
 		case "pending":
 			j.Counts.Pending++
-		case "running":
+		case "running", "dispatching":
 			j.Counts.Running++
 		case "succeeded":
 			j.Counts.Succeeded++
@@ -129,11 +130,17 @@ func transition(from, to string) bool {
 	return false
 }
 func (s *Jobs) UpdateStatus(tenant, id, status string) bool {
-	tx, err := s.db.Begin()
+	ctx := context.Background()
+	conn, err := s.db.Conn(ctx)
 	failJob(err)
-	defer tx.Rollback()
+	defer conn.Close()
+	// Acquire the writer reservation before reading, as ClaimTasks does, to
+	// avoid a deferred read transaction failing to upgrade under contention.
+	_, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE")
+	failJob(err)
+	defer conn.ExecContext(ctx, "ROLLBACK")
 	var b []byte
-	err = tx.QueryRow(`SELECT payload FROM jobs WHERE tenant=? AND id=?`, tenant, id).Scan(&b)
+	err = conn.QueryRowContext(ctx, `SELECT payload FROM jobs WHERE tenant=? AND id=?`, tenant, id).Scan(&b)
 	if err == sql.ErrNoRows {
 		return false
 	}
@@ -152,9 +159,10 @@ func (s *Jobs) UpdateStatus(tenant, id, status string) bool {
 	j.Status = status
 	b, err = encodeJob(j)
 	failJob(err)
-	_, err = tx.Exec(`UPDATE jobs SET payload=? WHERE tenant=? AND id=?`, b, tenant, id)
+	_, err = conn.ExecContext(ctx, `UPDATE jobs SET payload=? WHERE tenant=? AND id=?`, b, tenant, id)
 	failJob(err)
-	failJob(tx.Commit())
+	_, err = conn.ExecContext(ctx, "COMMIT")
+	failJob(err)
 	return true
 }
 func (s *Jobs) PutTask(tenant, id string, t apiv1.JobTask) bool {
