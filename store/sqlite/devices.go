@@ -63,6 +63,9 @@ var deviceProfilesMigration string
 //go:embed 017_jobs.sql
 var jobsMigration string
 
+//go:embed 019_job_replays.sql
+var jobReplaysMigration string
+
 //go:embed 018_firmware_updates.sql
 var firmwareUpdatesMigration string
 
@@ -134,7 +137,7 @@ func (s *Devices) migrate() error {
 	if err = tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version < 0 || version > 18 {
+	if version < 0 || version > 19 {
 		return fmt.Errorf("unsupported SQLite schema version %d", version)
 	}
 	if version == 0 {
@@ -224,6 +227,11 @@ func (s *Devices) migrate() error {
 	}
 	if version < 18 {
 		if _, err = tx.Exec(firmwareUpdatesMigration); err != nil {
+			return err
+		}
+	}
+	if version < 19 {
+		if _, err = tx.Exec(jobReplaysMigration); err != nil {
 			return err
 		}
 	}

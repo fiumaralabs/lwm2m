@@ -29,45 +29,79 @@ func NewJobsHandler(store JobStore) http.Handler {
 				WriteProblem(w, 404, "not_found", "Unknown job")
 				return
 			}
-			var in struct {
-				Name       string     `json:"name"`
-				Target     JobTarget  `json:"target"`
-				Action     JobAction  `json:"action"`
-				Rollout    JobRollout `json:"rollout"`
-				TTLSeconds int        `json:"ttlSeconds"`
-			}
-			if !DecodeJSON(w, r, &in) {
-				return
-			}
-			j := Job{ID: id.New("job"), Name: in.Name, Target: in.Target, Action: in.Action, Rollout: in.Rollout, TTLSeconds: in.TTLSeconds, Status: "scheduled", CreatedAt: time.Now().UTC()}
-			if j.Rollout.StartAt == nil {
-				j.Rollout.StartAt = &j.CreatedAt
-			}
-			if ValidateJob(j) != nil || !validJobRequest(j) {
-				WriteProblem(w, 400, "invalid_job", "Invalid job configuration")
-				return
-			}
-			var operation struct {
-				Type string `json:"type"`
-			}
-			_ = json.Unmarshal(j.Action.Operation, &operation)
-			if operation.Type == "raw" {
-				authorized := false
-				RequireScope("operations:raw")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-					authorized = true
-				})).ServeHTTP(w, r)
-				if !authorized {
-					return
-				}
-			}
-			if err := store.Create(TenantFrom(r.Context()), j); err != nil {
+			tenant, key := TenantFrom(r.Context()), r.Header.Get("Idempotency-Key")
+			result, found, err := store.ReplayJob(tenant, key)
+			if err != nil {
 				WriteProblem(w, 500, "internal_error", "Unable to create job")
 				return
 			}
-			w.Header().Set("Location", "/v1/jobs/"+j.ID)
-			deviceJSON(w, 201, j)
+			if !found {
+				var in struct {
+					Name       string     `json:"name"`
+					Target     JobTarget  `json:"target"`
+					Action     JobAction  `json:"action"`
+					Rollout    JobRollout `json:"rollout"`
+					TTLSeconds int        `json:"ttlSeconds"`
+				}
+				capture := &profileProblemCapture{header: make(http.Header)}
+				if !DecodeJSON(capture, r, &in) {
+					var p Problem
+					if json.Unmarshal(capture.body.Bytes(), &p) != nil {
+						WriteProblem(w, 500, "internal_error", "Unable to create job")
+						return
+					}
+					result.Problem = &p
+				} else {
+					j := Job{ID: id.New("job"), Name: in.Name, Target: in.Target, Action: in.Action, Rollout: in.Rollout, TTLSeconds: in.TTLSeconds, Status: "scheduled", CreatedAt: time.Now().UTC()}
+					if j.Rollout.StartAt == nil {
+						j.Rollout.StartAt = &j.CreatedAt
+					}
+					if ValidateJob(j) != nil || !validJobRequest(j) {
+						result.Problem = &Problem{Status: 400, Code: "invalid_job", Detail: "Invalid job configuration"}
+					} else {
+						result.Job = &j
+					}
+				}
+				if !authorizeJobResult(w, r, result) {
+					return
+				}
+				result, err = store.CreateJobResult(tenant, key, result)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Unable to create job")
+					return
+				}
+			}
+			if !authorizeJobResult(w, r, result) {
+				return
+			}
+			if result.Problem != nil {
+				WriteProblem(w, result.Problem.Status, result.Problem.Code, result.Problem.Detail)
+				return
+			}
+			if result.Job == nil {
+				WriteProblem(w, 500, "internal_error", "Unable to create job")
+				return
+			}
+			w.Header().Set("Location", "/v1/jobs/"+result.Job.ID)
+			deviceJSON(w, 201, result.Job)
 		})).ServeHTTP(w, r)
 	})
+}
+
+func authorizeJobResult(w http.ResponseWriter, r *http.Request, result JobCreateResult) bool {
+	if result.Job == nil {
+		return true
+	}
+	var operation struct {
+		Type string `json:"type"`
+	}
+	_ = json.Unmarshal(result.Job.Action.Operation, &operation)
+	if operation.Type != "raw" {
+		return true
+	}
+	authorized := false
+	RequireScope("operations:raw")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { authorized = true })).ServeHTTP(w, r)
+	return authorized
 }
 
 func validJobRequest(j Job) bool {
@@ -148,13 +182,7 @@ func serveJobReads(store JobStore, w http.ResponseWriter, r *http.Request) {
 			deviceJSON(w, 200, j)
 			return
 		}
-		tasks := store.ListTasks(tenant, parts[0], r.URL.Query().Get("status"))
-		if tasks == nil {
-			tasks = []JobTask{}
-		}
-		deviceJSON(w, 200, struct {
-			Items []JobTask `json:"items"`
-		}{tasks})
+		serveJobTasks(store, w, r, tenant, parts[0])
 		return
 	}
 	q := r.URL.Query()
