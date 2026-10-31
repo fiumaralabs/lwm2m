@@ -158,7 +158,10 @@ func (o Options) serveCredentials(w http.ResponseWriter, r *http.Request) {
 			WriteProblem(w, 404, "not_found", "Credential not found")
 			return
 		}
-		if _, err := o.Events.Append(tenant, "credentials.revoked", ep, json.RawMessage(`{}`)); err != nil {
+		data, _ := json.Marshal(struct {
+			Endpoint string `json:"endpoint"`
+		}{ep})
+		if _, err := o.Events.Append(tenant, "lwm2m.credentials.revoked", ep, data); err != nil {
 			slog.Error("Cannot append credential event", "error", err)
 		}
 		w.WriteHeader(http.StatusNoContent)

@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
 	"testing"
 
@@ -80,9 +79,16 @@ func TestCredentialsErrorsAndGeneration(t *testing.T) {
 	if w = deviceRequest(h, "DELETE", "/v1/devices/a/credentials", ""); w.Code != 204 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	ev, _, err := events.List("default", store.EventFilter{Type: "credentials.revoked", Limit: 100})
-	if err != nil || len(ev) != 1 || strings.Contains(string(ev[0].Data), resp.PSK.Key) || strings.Contains(string(ev[0].Data), resp.PSK.Identity) {
-		t.Fatal("bad revocation event", ev, err)
+	ev := history(t, h, "/v1/devices/a/events?type=lwm2m.credentials.revoked").Items
+	if len(ev) != 1 {
+		t.Fatalf("expected one revocation event, got %d", len(ev))
+	}
+	if ev[0].Type != "lwm2m.credentials.revoked" || ev[0].Subject != "a" || string(ev[0].Data) != `{"endpoint":"a"}` {
+		t.Fatalf("bad revocation event: %+v", ev[0])
+	}
+	raw, err := json.Marshal(ev[0])
+	if err != nil || strings.Contains(string(raw), resp.PSK.Key) || strings.Contains(string(raw), resp.PSK.Identity) || strings.Contains(string(raw), `"key"`) {
+		t.Fatal("revocation event leaked credential")
 	}
 }
 
