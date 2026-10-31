@@ -5,6 +5,18 @@ import "errors"
 // ErrESTIssuerOwnershipAmbiguous requires explicit reconciliation of legacy anchors.
 var ErrESTIssuerOwnershipAmbiguous = errors.New("legacy EST issuer anchor ownership is ambiguous")
 
+// ErrESTIssuerMismatch indicates that the issuer and its trust anchor disagree.
+var ErrESTIssuerMismatch = errors.New("EST issuer certificate and anchor mismatch")
+
+// ValidateESTIssuerAnchor ensures the anchor is exactly the configured issuer.
+func ValidateESTIssuerAnchor(c ESTConfig, a TrustAnchor) error {
+	certs, ok := parseTrustAnchorCertificates(c.Certificate)
+	if !ok || len(certs) != 1 || c.Certificate != a.PEM || len(a.Certificates) != 1 || certs[0].Fingerprint != a.Certificates[0].Fingerprint {
+		return ErrESTIssuerMismatch
+	}
+	return nil
+}
+
 // ESTIssuerRotator atomically replaces the config and its managed trust anchor.
 type ESTIssuerRotator interface {
 	PutConfigRotatingIssuerAnchor(tenant string, config ESTConfig, anchor TrustAnchor) (existed bool, err error)
@@ -22,6 +34,9 @@ func NewMemoryESTIssuerRotator(configs ESTConfigStore, anchors TrustAnchorStore)
 }
 
 func (s *memoryESTIssuerRotator) PutConfigRotatingIssuerAnchor(tenant string, c ESTConfig, anchor TrustAnchor) (bool, error) {
+	if err := ValidateESTIssuerAnchor(c, anchor); err != nil {
+		return false, err
+	}
 	s.configs.mu.Lock()
 	defer s.configs.mu.Unlock()
 	s.anchors.mu.Lock()

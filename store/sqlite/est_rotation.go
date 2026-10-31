@@ -6,6 +6,9 @@ var _ apiv1.ESTIssuerRotator = (*TrustAnchors)(nil)
 
 // PutConfigRotatingIssuerAnchor updates both records in one write transaction.
 func (s *TrustAnchors) PutConfigRotatingIssuerAnchor(tenant string, c apiv1.ESTConfig, a apiv1.TrustAnchor) (bool, error) {
+	if err := apiv1.ValidateESTIssuerAnchor(c, a); err != nil {
+		return false, err
+	}
 	tx, err := s.devices.db.Begin()
 	if err != nil {
 		return false, err

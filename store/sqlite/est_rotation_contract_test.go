@@ -1,16 +1,51 @@
 package sqlite_test
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
 	"github.com/fiumaralabs/lwm2m/store/sqlite"
 )
+
+func rotationFixtures(t *testing.T) func(string) apiv1.TrustAnchor {
+	t.Helper()
+	var mu sync.Mutex
+	fixtures := make(map[string]apiv1.TrustAnchor)
+	return func(id string) apiv1.TrustAnchor {
+		mu.Lock()
+		defer mu.Unlock()
+		if a, ok := fixtures[id]; ok {
+			return a
+		}
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cert := &x509.Certificate{SerialNumber: big.NewInt(1), NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour), BasicConstraintsValid: true, IsCA: true, KeyUsage: x509.KeyUsageCertSign}
+		der, err := x509.CreateCertificate(rand.Reader, cert, cert, &key.PublicKey, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(der)
+		a := apiv1.TrustAnchor{ID: id, PEM: string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})), Certificates: []apiv1.TrustAnchorCertificate{{Fingerprint: hex.EncodeToString(sum[:])}}}
+		fixtures[id] = a
+		return a
+	}
+}
 
 type issuerRotator interface {
 	PutConfigRotatingIssuerAnchor(string, apiv1.ESTConfig, apiv1.TrustAnchor) (bool, error)
@@ -22,10 +57,8 @@ func TestESTIssuerRotationReopen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	anchor := func(id string) apiv1.TrustAnchor {
-		return apiv1.TrustAnchor{ID: id, Certificates: []apiv1.TrustAnchorCertificate{{Fingerprint: id}}}
-	}
-	if _, err := db.TrustAnchors(10).PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: "a"}, anchor("a")); err != nil {
+	anchor := rotationFixtures(t)
+	if _, err := db.TrustAnchors(10).PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: anchor("a").PEM}, anchor("a")); err != nil {
 		t.Fatal(err)
 	}
 	manual := anchor("manual")
@@ -40,7 +73,7 @@ func TestESTIssuerRotationReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.TrustAnchors(10).PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: "b"}, anchor("b")); err != nil {
+	if _, err := db.TrustAnchors(10).PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: anchor("b").PEM}, anchor("b")); err != nil {
 		t.Fatal(err)
 	}
 	list := db.TrustAnchors(10).List("x")
@@ -76,12 +109,10 @@ func TestESTIssuerRotationContract(t *testing.T) {
 					t.Fatal("anchor store does not support atomic issuer rotation")
 				}
 			}
-			anchor := func(id string) apiv1.TrustAnchor {
-				return apiv1.TrustAnchor{ID: id, PEM: id, Certificates: []apiv1.TrustAnchorCertificate{{Fingerprint: id}}}
-			}
+			anchor := rotationFixtures(t)
 			rotate := func(tenant, id string) {
 				t.Helper()
-				if _, err := r.PutConfigRotatingIssuerAnchor(tenant, apiv1.ESTConfig{Certificate: id}, anchor(id)); err != nil {
+				if _, err := r.PutConfigRotatingIssuerAnchor(tenant, apiv1.ESTConfig{Certificate: anchor(id).PEM}, anchor(id)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -92,7 +123,7 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			if err := anchors.Create("crashed", anchor("manual")); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := r.PutConfigRotatingIssuerAnchor("crashed", apiv1.ESTConfig{Certificate: "new"}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+			if _, err := r.PutConfigRotatingIssuerAnchor("crashed", apiv1.ESTConfig{Certificate: anchor("new").PEM}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
 				t.Fatalf("orphaned issuer must fail closed: %v", err)
 			}
 			if _, ok := configs.Get("crashed"); ok {
@@ -111,11 +142,11 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			if err := anchors.Create("legacy", anchor("manual-old")); err != nil {
 				t.Fatal(err)
 			}
-			configs.Put("legacy", apiv1.ESTConfig{Certificate: "old"})
-			if _, err := r.PutConfigRotatingIssuerAnchor("legacy", apiv1.ESTConfig{Certificate: "new"}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+			configs.Put("legacy", apiv1.ESTConfig{Certificate: anchor("old").PEM})
+			if _, err := r.PutConfigRotatingIssuerAnchor("legacy", apiv1.ESTConfig{Certificate: anchor("new").PEM}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
 				t.Fatalf("ambiguous legacy issuer must fail closed: %v", err)
 			}
-			if got, _ := configs.Get("legacy"); got.Certificate != "old" {
+			if got, _ := configs.Get("legacy"); got.Certificate != anchor("old").PEM {
 				t.Fatalf("legacy config changed: %+v", got)
 			}
 			if got := anchors.List("legacy"); len(got) != 2 || got[0].ID != "manual-old" || got[1].ID != "old" {
@@ -123,7 +154,7 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			}
 			anchors.Delete("legacy", "old")
 			// The manual anchor remains ambiguous until explicitly reconciled.
-			if _, err := r.PutConfigRotatingIssuerAnchor("legacy", apiv1.ESTConfig{Certificate: "new"}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+			if _, err := r.PutConfigRotatingIssuerAnchor("legacy", apiv1.ESTConfig{Certificate: anchor("new").PEM}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
 				t.Fatalf("manual ownership ambiguity must fail closed: %v", err)
 			}
 			anchors.Delete("legacy", "manual-old")
@@ -133,8 +164,8 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			if err := anchors.Create("mixed", anchor("legacy")); err != nil {
 				t.Fatal(err)
 			}
-			configs.Put("mixed", apiv1.ESTConfig{Certificate: "legacy"})
-			if _, err := r.PutConfigRotatingIssuerAnchor("mixed", apiv1.ESTConfig{Certificate: "next"}, anchor("next")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+			configs.Put("mixed", apiv1.ESTConfig{Certificate: anchor("legacy").PEM})
+			if _, err := r.PutConfigRotatingIssuerAnchor("mixed", apiv1.ESTConfig{Certificate: anchor("next").PEM}, anchor("next")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
 				t.Fatalf("mixed legacy writes must fail closed: %v", err)
 			}
 			if got := anchors.List("mixed"); len(got) != 2 {
@@ -148,10 +179,10 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			if err := anchors.Create("mixed-crash", anchor("orphan")); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := r.PutConfigRotatingIssuerAnchor("mixed-crash", apiv1.ESTConfig{Certificate: "c"}, anchor("c")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+			if _, err := r.PutConfigRotatingIssuerAnchor("mixed-crash", apiv1.ESTConfig{Certificate: anchor("c").PEM}, anchor("c")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
 				t.Fatalf("orphan after managed install must fail closed: %v", err)
 			}
-			if got, _ := configs.Get("mixed-crash"); got.Certificate != "a" {
+			if got, _ := configs.Get("mixed-crash"); got.Certificate != anchor("a").PEM {
 				t.Fatalf("config changed after ambiguous rotation: %+v", got)
 			}
 			if got := anchors.List("mixed-crash"); len(got) != 2 || got[0].ID != "a" || got[1].ID != "orphan" {
@@ -162,8 +193,14 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			rotate("x", "a")
 			beforeConfig, _ := configs.Get("x")
 			beforeAnchors := anchors.List("x")
-			if _, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: "b"}, anchor("a")); err == nil {
+			if _, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: anchor("b").PEM}, anchor("a")); err == nil {
 				t.Error("mismatched issuer must be rejected")
+			}
+			forged := anchor("b")
+			forged.Certificates = append([]apiv1.TrustAnchorCertificate(nil), forged.Certificates...)
+			forged.Certificates[0].Fingerprint = anchor("a").Certificates[0].Fingerprint
+			if _, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: forged.PEM}, forged); err == nil {
+				t.Error("forged fingerprint must be rejected")
 			}
 			afterConfig, _ := configs.Get("x")
 			if !reflect.DeepEqual(beforeConfig, afterConfig) || !reflect.DeepEqual(beforeAnchors, anchors.List("x")) {
@@ -189,10 +226,10 @@ func TestESTIssuerRotationContract(t *testing.T) {
 				t.Fatalf("idempotency: %v", got)
 			}
 			// Duplicate a manual fingerprint to force insertion failure after the old issuer is removed.
-			if _, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: "bad"}, anchor("manual")); err == nil {
+			if _, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: anchor("manual").PEM}, anchor("manual")); err == nil {
 				t.Fatal("expected insert failure")
 			}
-			if got, _ := configs.Get("x"); got.Certificate != "b" {
+			if got, _ := configs.Get("x"); got.Certificate != anchor("b").PEM {
 				t.Fatalf("config changed after failure: %+v", got)
 			}
 			if _, ok := anchors.Get("x", "b"); !ok {
@@ -205,7 +242,7 @@ func TestESTIssuerRotationContract(t *testing.T) {
 				go func(i int) {
 					defer wg.Done()
 					id := fmt.Sprintf("c%d", i)
-					_, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: id}, anchor(id))
+					_, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: anchor(id).PEM}, anchor(id))
 					errs <- err
 				}(i)
 			}
@@ -221,7 +258,7 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			if len(list) != 2 {
 				t.Fatalf("unexpected anchors: %+v", list)
 			}
-			if _, ok := anchors.Get("x", got.Certificate); !ok {
+			if (list[0].ESTIssuer && list[0].PEM != got.Certificate) || (list[1].ESTIssuer && list[1].PEM != got.Certificate) || (!list[0].ESTIssuer && !list[1].ESTIssuer) {
 				t.Fatalf("config does not match anchor: %+v %+v", got, list)
 			}
 		})
