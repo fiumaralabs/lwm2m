@@ -83,7 +83,26 @@ func TestDeviceProfilePatchContract(t *testing.T) {
 			if after.Code != 200 || after.Header().Get("ETag") != changed.Header().Get("ETag") {
 				t.Fatalf("GET/PATCH ETag mismatch: %d %q vs %q", after.Code, after.Header().Get("ETag"), changed.Header().Get("ETag"))
 			}
-			removed := req("PATCH", path, `{"timeseries":null}`, writeKey, media, after.Header().Get("ETag"))
+			preserved := req("PATCH", path, `{"timeseries":{"retentionDays":91}}`, writeKey, media, after.Header().Get("ETag"))
+			if preserved.Code != 200 || !strings.Contains(preserved.Body.String(), `"fromReads":false`) {
+				t.Fatalf("nested sibling not preserved: %d %s", preserved.Code, preserved.Body)
+			}
+			nested := req("PATCH", path, `{"timeseries":{"fromReads":null}}`, writeKey, media, preserved.Header().Get("ETag"))
+			if nested.Code != 200 {
+				t.Fatalf("nested PATCH: %d %s", nested.Code, nested.Body)
+			}
+			var nestedResult map[string]json.RawMessage
+			if err := json.Unmarshal(nested.Body.Bytes(), &nestedResult); err != nil {
+				t.Fatal(err)
+			}
+			var timeseries map[string]json.RawMessage
+			if err := json.Unmarshal(nestedResult["timeseries"], &timeseries); err != nil {
+				t.Fatal(err)
+			}
+			if string(timeseries["retentionDays"]) != "91" || len(timeseries) != 1 || string(nestedResult["onRegister"]) != `[{"type":"sync-clock"}]` {
+				t.Fatalf("nested merge/null lost or retained fields: %s", nested.Body)
+			}
+			removed := req("PATCH", path, `{"timeseries":null}`, writeKey, media, nested.Header().Get("ETag"))
 			if removed.Code != 200 {
 				t.Fatalf("null PATCH: %d %s", removed.Code, removed.Body)
 			}
@@ -126,6 +145,42 @@ func TestDeviceProfilePatchContract(t *testing.T) {
 						t.Error("rejected request changed profile or ETag")
 					}
 				})
+			}
+			// Release both writers together with the same validator and distinct values.
+			start := make(chan struct{})
+			type outcome struct {
+				name     string
+				response *httptest.ResponseRecorder
+			}
+			results := make(chan outcome, 2)
+			for _, name := range []string{"winner-a", "winner-b"} {
+				go func(name string) {
+					<-start
+					w := req("PATCH", path, fmt.Sprintf(`{"name":%q}`, name), writeKey, media, beforeTag)
+					results <- outcome{name, w}
+				}(name)
+			}
+			close(start)
+			winner, success, precondition := "", 0, 0
+			for range 2 {
+				result := <-results
+				switch result.response.Code {
+				case 200:
+					success++
+					winner = result.name
+				case 412:
+					precondition++
+				default:
+					t.Errorf("concurrent PATCH: %d %s", result.response.Code, result.response.Body)
+				}
+			}
+			if success != 1 || precondition != 1 {
+				t.Fatalf("concurrent PATCH results: %d successes, %d precondition failures", success, precondition)
+			}
+			persisted := get()
+			var actual apiv1.DeviceProfile
+			if err := json.Unmarshal(persisted.Body.Bytes(), &actual); err != nil || persisted.Code != 200 || actual.Name != winner {
+				t.Fatalf("persisted winner %q: %d %s (error %v)", winner, persisted.Code, persisted.Body, err)
 			}
 			method := req("POST", path, "", writeKey, "", "")
 			if method.Code != 405 || !strings.Contains(method.Header().Get("Allow"), "PATCH") {
