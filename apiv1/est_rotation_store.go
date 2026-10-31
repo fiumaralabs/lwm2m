@@ -1,5 +1,10 @@
 package apiv1
 
+import "errors"
+
+// ErrESTIssuerOwnershipAmbiguous requires explicit reconciliation of legacy anchors.
+var ErrESTIssuerOwnershipAmbiguous = errors.New("legacy EST issuer anchor ownership is ambiguous")
+
 // ESTIssuerRotator atomically replaces the config and its managed trust anchor.
 type ESTIssuerRotator interface {
 	PutConfigRotatingIssuerAnchor(tenant string, config ESTConfig, anchor TrustAnchor) (existed bool, err error)
@@ -21,6 +26,18 @@ func (s *memoryESTIssuerRotator) PutConfigRotatingIssuerAnchor(tenant string, c 
 	defer s.configs.mu.Unlock()
 	s.anchors.mu.Lock()
 	defer s.anchors.mu.Unlock()
+	previous, configExists := s.configs.items[tenant]
+	matching, unmarked := false, false
+	for _, a := range s.anchors.items[tenant] {
+		if a.ESTIssuer {
+			matching = matching || a.PEM == previous.Certificate
+		} else {
+			unmarked = true
+		}
+	}
+	if configExists && !matching && unmarked {
+		return false, ErrESTIssuerOwnershipAmbiguous
+	}
 	old := make([]TrustAnchor, 0, 1)
 	for id, a := range s.anchors.items[tenant] {
 		if a.ESTIssuer {

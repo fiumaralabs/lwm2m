@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -79,6 +80,45 @@ func TestESTIssuerRotationContract(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			// Pre-marker stores cannot distinguish an auto-created issuer from a
+			// manually created anchor. Do not rotate or delete either silently.
+			if err := anchors.Create("legacy", anchor("old")); err != nil {
+				t.Fatal(err)
+			}
+			if err := anchors.Create("legacy", anchor("manual-old")); err != nil {
+				t.Fatal(err)
+			}
+			configs.Put("legacy", apiv1.ESTConfig{Certificate: "old"})
+			if _, err := r.PutConfigRotatingIssuerAnchor("legacy", apiv1.ESTConfig{Certificate: "new"}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+				t.Fatalf("ambiguous legacy issuer must fail closed: %v", err)
+			}
+			if got, _ := configs.Get("legacy"); got.Certificate != "old" {
+				t.Fatalf("legacy config changed: %+v", got)
+			}
+			if got := anchors.List("legacy"); len(got) != 2 || got[0].ID != "manual-old" || got[1].ID != "old" {
+				t.Fatalf("legacy anchors changed: %+v", got)
+			}
+			anchors.Delete("legacy", "old")
+			// The manual anchor remains ambiguous until explicitly reconciled.
+			if _, err := r.PutConfigRotatingIssuerAnchor("legacy", apiv1.ESTConfig{Certificate: "new"}, anchor("new")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+				t.Fatalf("manual ownership ambiguity must fail closed: %v", err)
+			}
+			anchors.Delete("legacy", "manual-old")
+			rotate("legacy", "new") // explicit resolution permits upgrade
+			anchors.Delete("legacy", "new")
+			rotate("mixed", "managed")
+			if err := anchors.Create("mixed", anchor("legacy")); err != nil {
+				t.Fatal(err)
+			}
+			configs.Put("mixed", apiv1.ESTConfig{Certificate: "legacy"})
+			if _, err := r.PutConfigRotatingIssuerAnchor("mixed", apiv1.ESTConfig{Certificate: "next"}, anchor("next")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+				t.Fatalf("mixed legacy writes must fail closed: %v", err)
+			}
+			if got := anchors.List("mixed"); len(got) != 2 {
+				t.Fatalf("mixed anchors changed: %+v", got)
+			}
+			anchors.Delete("mixed", "managed")
+			anchors.Delete("mixed", "legacy")
 			rotate("x", "a")
 			rotate("y", "y")
 			if err := anchors.Create("x", anchor("manual")); err != nil {
