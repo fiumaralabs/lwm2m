@@ -136,7 +136,8 @@ func TestESTRouterRoundTrip(t *testing.T) {
 	var page struct {
 		Items []TrustAnchor `json:"items"`
 	}
-	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil || w.Code != 200 || len(page.Items) != 1 {
+	certs, valid := parseTrustAnchorCertificates(cert2)
+	if err := json.Unmarshal(w.Body.Bytes(), &page); !valid || err != nil || w.Code != 200 || len(page.Items) != 1 || len(page.Items[0].Certificates) != 1 || page.Items[0].Certificates[0].Fingerprint != certs[0].Fingerprint {
 		t.Fatalf("anchors after replacement: %d %s, %v", w.Code, w.Body.String(), err)
 	}
 }
