@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/codec"
@@ -30,15 +31,17 @@ type Step struct {
 
 // Result is the outcome of a bootstrap session or Pack request.
 type Result struct {
-	Endpoint string
-	Identity server.Identity
-	Pack     bool                // a Bootstrap-Pack-Request was answered
-	Format   lwm2m.ContentFormat // format of the Writes (or of the Pack)
-	Query    []string            // the request's query, unknown parameters included
-	Steps    []Step
-	Discover []link.Entry            // Bootstrap-Discover result
-	Reads    map[string][]lwm2m.Node // Bootstrap-Read results by path
-	Err      error                   // nil: Finish answered 2.04 (or Pack sent)
+	StartedAt time.Time
+	EndedAt   time.Time
+	Endpoint  string
+	Identity  server.Identity
+	Pack      bool                // a Bootstrap-Pack-Request was answered
+	Format    lwm2m.ContentFormat // format of the Writes (or of the Pack)
+	Query     []string            // the request's query, unknown parameters included
+	Steps     []Step
+	Discover  []link.Entry            // Bootstrap-Discover result
+	Reads     map[string][]lwm2m.Node // Bootstrap-Read results by path
+	Err       error                   // nil: Finish answered 2.04 (or Pack sent)
 }
 
 type session struct {
@@ -58,7 +61,7 @@ func (s *Server) newSession(ep string, id server.Identity, peer server.Peer, cfg
 	ctx, stop := context.WithTimeoutCause(base, s.cfg.SessionTimeout, ErrSessionTimeout) // BS-08
 	cancel := func(err error) { cancelBase(err); stop() }
 	ss := &session{s: s, ep: ep, peer: peer, cfg: cfg, ctx: ctx, cancel: cancel,
-		res: Result{Endpoint: ep, Identity: id, Format: f, Query: q}}
+		res: Result{Endpoint: ep, Identity: id, Format: f, Query: q, StartedAt: time.Now().UTC()}}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {

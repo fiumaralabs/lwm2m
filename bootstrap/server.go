@@ -52,6 +52,9 @@ type Config struct {
 	Security server.SecurityStore // credentials for the bootstrap connection; default in-memory
 	// OnSession is called when a session ends, from the session goroutine.
 	OnSession func(Result)
+	// Recorder persists a completed session. RecordError receives persistence failures.
+	Recorder    func(Result) error
+	RecordError func(error)
 	// SessionTimeout bounds a session from Bootstrap-Request to the
 	// Finish response. Default ExchangeLifetime (BS-08).
 	SessionTimeout time.Duration
@@ -432,7 +435,7 @@ func (s *Server) packRequest(peer server.Peer, m *server.Message) *server.Messag
 		return status(codes.BadRequest)
 	}
 	_, writes := cfg.plan(bsIDs, true) // packable checks the Pack covers the deletes
-	res := Result{Endpoint: ep, Identity: id, Pack: true, Format: format, Query: m.Query}
+	res := Result{Endpoint: ep, Identity: id, Pack: true, Format: format, Query: m.Query, StartedAt: time.Now().UTC()}
 	why := cfg.packable(writes)
 	// AutoIDForSecurityObject promises that no /0 write lands on the client's
 	// BS account. A Pack has no Bootstrap-Discover, so only acc (BS-14, 1.2.1)
@@ -484,6 +487,12 @@ func (s *Server) packRequest(peer server.Peer, m *server.Message) *server.Messag
 }
 
 func (s *Server) report(r Result) {
+	r.EndedAt = time.Now().UTC()
+	if s.cfg.Recorder != nil {
+		if err := s.cfg.Recorder(r); err != nil && s.cfg.RecordError != nil {
+			s.cfg.RecordError(err)
+		}
+	}
 	if s.cfg.OnSession != nil {
 		s.cfg.OnSession(r)
 	}
