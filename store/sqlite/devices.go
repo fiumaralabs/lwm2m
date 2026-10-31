@@ -63,6 +63,9 @@ var deviceProfilesMigration string
 //go:embed 017_jobs.sql
 var jobsMigration string
 
+//go:embed 018_firmware_updates.sql
+var firmwareUpdatesMigration string
+
 type Devices struct{ db *sql.DB }
 type deviceCursor struct {
 	Tenant, Q, Status *string
@@ -110,6 +113,10 @@ func Open(path string) (*Devices, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
+	if _, err = db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return nil, err
+	}
 	s := &Devices{db: db}
 	if err = s.migrate(); err != nil {
 		db.Close()
@@ -127,7 +134,7 @@ func (s *Devices) migrate() error {
 	if err = tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version < 0 || version > 17 {
+	if version < 0 || version > 18 {
 		return fmt.Errorf("unsupported SQLite schema version %d", version)
 	}
 	if version == 0 {
@@ -212,6 +219,11 @@ func (s *Devices) migrate() error {
 	}
 	if version < 17 {
 		if _, err = tx.Exec(jobsMigration); err != nil {
+			return err
+		}
+	}
+	if version < 18 {
+		if _, err = tx.Exec(firmwareUpdatesMigration); err != nil {
 			return err
 		}
 	}

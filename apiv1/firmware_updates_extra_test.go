@@ -39,7 +39,7 @@ func TestFirmwareUpdateTransitions(t *testing.T) {
 	}{
 		{"pending", "succeeded", false}, {"pending", "downloading", true}, {"downloading", "pending", false}, {"downloading", "downloaded", true}, {"downloaded", "updating", true}, {"updating", "succeeded", true}, {"deferred", "updating", true}, {"deferred", "cancelled", true}, {"succeeded", "failed", false}, {"failed", "pending", false}, {"cancelled", "pending", false}, {"unknown", "failed", false},
 	} {
-		if got := validFirmwareUpdateTransition(tc.from, tc.to); got != tc.valid {
+		if got := ValidFirmwareUpdateTransition(tc.from, tc.to); got != tc.valid {
 			t.Errorf("%s -> %s: %v", tc.from, tc.to, got)
 		}
 	}

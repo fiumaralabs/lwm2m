@@ -190,7 +190,7 @@ func TestSecurityMigrationFrom14(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`DROP TABLE job_tasks; DROP TABLE jobs; ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=14`); err != nil {
+	if _, err := raw.Exec(`DROP TABLE firmware_updates; DROP TABLE job_tasks; DROP TABLE jobs; ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=14`); err != nil {
 		t.Fatal(err)
 	}
 	raw.Close()
