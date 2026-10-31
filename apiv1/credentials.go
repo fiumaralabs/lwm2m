@@ -77,50 +77,9 @@ func (o Options) serveCredentials(w http.ResponseWriter, r *http.Request) {
 		response.UpdatedAt = info.UpdatedAt
 		deviceJSON(w, 200, response)
 	case http.MethodPut:
-		var input credentialInput
-		if !DecodeJSON(w, r, &input) {
+		identity, encoded, key, generated, ok := decodePSKCredential(w, r)
+		if !ok {
 			return
-		}
-		if len(input.RPK) > 0 {
-			WriteProblem(w, 501, "rpk_unsupported", "RPK is not supported")
-			return
-		}
-		if len(input.X509) > 0 || len(input.OSCORE) > 0 {
-			WriteProblem(w, 501, "security_mode_unsupported", "Security mode is not supported")
-			return
-		}
-		if input.PSK == nil {
-			WriteProblem(w, 400, "invalid_credential", "PSK is required")
-			return
-		}
-		identity, encoded := input.PSK.Identity, input.PSK.Key
-		var key []byte
-		if input.PSK.Generate {
-			if identity != "" || encoded != "" {
-				WriteProblem(w, 400, "invalid_credential", "Generated credentials must not specify identity or key")
-				return
-			}
-			var random [48]byte
-			if _, err = rand.Read(random[:]); err != nil {
-				WriteProblem(w, 500, "internal_error", "Cannot generate credentials")
-				return
-			}
-			identity = hex.EncodeToString(random[:16])
-			key = random[16:]
-			encoded = "base64:" + base64.StdEncoding.EncodeToString(key)
-		} else {
-			switch {
-			case strings.HasPrefix(encoded, "hex:"):
-				key, err = hex.DecodeString(strings.TrimPrefix(encoded, "hex:"))
-			case strings.HasPrefix(encoded, "base64:"):
-				key, err = base64.StdEncoding.DecodeString(strings.TrimPrefix(encoded, "base64:"))
-			default:
-				err = errors.New("invalid key encoding")
-			}
-			if err != nil || len(key) < 16 || strings.TrimSpace(identity) == "" {
-				WriteProblem(w, 400, "invalid_credential", "Invalid PSK identity or key")
-				return
-			}
 		}
 		_, existed := o.Server.Security().ByEndpoint(ep)
 		err = o.Server.Security().Put(server.SecurityInfo{Endpoint: ep, PSKIdentity: identity, PSKKey: key})
@@ -139,7 +98,7 @@ func (o Options) serveCredentials(w http.ResponseWriter, r *http.Request) {
 		var response credentialResponse
 		response.PSK.Identity = identity
 		response.UpdatedAt = info.UpdatedAt
-		if input.PSK.Generate {
+		if generated {
 			response.PSK.Key = encoded
 			w.Header().Set("Cache-Control", "no-store")
 		}
@@ -169,4 +128,54 @@ func (o Options) serveCredentials(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Allow", "GET, PUT, DELETE")
 		WriteProblem(w, 405, "method_not_allowed", "Expected GET, PUT or DELETE")
 	}
+}
+
+func decodePSKCredential(w http.ResponseWriter, r *http.Request) (string, string, []byte, bool, bool) {
+	var input credentialInput
+	if !DecodeJSON(w, r, &input) {
+		return "", "", nil, false, false
+	}
+	if len(input.RPK) > 0 {
+		WriteProblem(w, 501, "rpk_unsupported", "RPK is not supported")
+		return "", "", nil, false, false
+	}
+	if len(input.X509) > 0 || len(input.OSCORE) > 0 {
+		WriteProblem(w, 501, "security_mode_unsupported", "Security mode is not supported")
+		return "", "", nil, false, false
+	}
+	if input.PSK == nil {
+		WriteProblem(w, 400, "invalid_credential", "PSK is required")
+		return "", "", nil, false, false
+	}
+	identity, encoded := input.PSK.Identity, input.PSK.Key
+	var key []byte
+	var err error
+	if input.PSK.Generate {
+		if identity != "" || encoded != "" {
+			WriteProblem(w, 400, "invalid_credential", "Generated credentials must not specify identity or key")
+			return "", "", nil, false, false
+		}
+		var random [48]byte
+		if _, err := rand.Read(random[:]); err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot generate credentials")
+			return "", "", nil, false, false
+		}
+		identity = hex.EncodeToString(random[:16])
+		key = random[16:]
+		encoded = "base64:" + base64.StdEncoding.EncodeToString(key)
+	} else {
+		switch {
+		case strings.HasPrefix(encoded, "hex:"):
+			key, err = hex.DecodeString(strings.TrimPrefix(encoded, "hex:"))
+		case strings.HasPrefix(encoded, "base64:"):
+			key, err = base64.StdEncoding.DecodeString(strings.TrimPrefix(encoded, "base64:"))
+		default:
+			err = errors.New("invalid key encoding")
+		}
+		if err != nil || len(key) < 16 || strings.TrimSpace(identity) == "" {
+			WriteProblem(w, 400, "invalid_credential", "Invalid PSK identity or key")
+			return "", "", nil, false, false
+		}
+	}
+	return identity, encoded, key, input.PSK.Generate, true
 }
