@@ -2,13 +2,78 @@ package storetest
 
 import (
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
 )
 
 func Jobs(t *testing.T, fresh func() apiv1.JobStore) {
 	t.Helper()
+	t.Run("AtomicStart", func(t *testing.T) {
+		s := fresh()
+		now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		j := apiv1.Job{ID: "job", Target: apiv1.JobTarget{Selector: "x=y"}, Action: apiv1.JobAction{Operation: []byte(`{}`)}, Rollout: apiv1.JobRollout{MaxConcurrent: 1}, TTLSeconds: 1}
+		for _, tenant := range []string{"", "other"} {
+			if err := s.Create(tenant, j); err != nil {
+				t.Fatal(err)
+			}
+		}
+		tenants, err := s.JobTenants()
+		if err != nil || len(tenants) != 2 || tenants[0] != "" || tenants[1] != "other" {
+			t.Fatalf("tenants %v: %v", tenants, err)
+		}
+		if ok, err := s.StartJob("", "job", []string{"a", "a"}, now); err == nil || ok {
+			t.Fatal("duplicate accepted")
+		}
+		j, _ = s.Get("", "job")
+		if j.Status != "scheduled" || len(s.ListTasks("", "job", "")) != 0 {
+			t.Fatal("partial transaction")
+		}
+		var wg sync.WaitGroup
+		results := make(chan bool, 2)
+		errs := make(chan error, 2)
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ok, err := s.StartJob("", "job", []string{"a", "b"}, now)
+				results <- ok
+				errs <- err
+			}()
+		}
+		wg.Wait()
+		close(results)
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		winners := 0
+		for ok := range results {
+			if ok {
+				winners++
+			}
+		}
+		if winners != 1 {
+			t.Fatalf("winners %d", winners)
+		}
+		j, _ = s.Get("", "job")
+		if j.Status != "running" || j.StartedAt == nil || !j.StartedAt.Equal(now) || j.Counts.Pending != 2 {
+			t.Fatalf("job %+v", j)
+		}
+		if j, _ := s.Get("other", "job"); j.Status != "scheduled" || j.Counts.Total != 0 {
+			t.Fatal("tenant leak")
+		}
+		if !s.UpdateStatus("other", "job", "cancelled") {
+			t.Fatal("cancel")
+		}
+		if ok, err := s.StartJob("other", "job", []string{"a"}, now); ok || err != nil {
+			t.Fatal("started cancelled job")
+		}
+	})
 	t.Run("Transitions", func(t *testing.T) {
 		for _, tc := range []struct {
 			from []string
