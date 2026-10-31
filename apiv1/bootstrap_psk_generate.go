@@ -8,9 +8,67 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/fiumaralabs/lwm2m/server"
 )
+
+// Reject duplicate members and alternate spellings of structural keys before
+// typed decoding and map mutation can interpret the same JSON differently.
+func unambiguousBootstrapJSON(body []byte) bool {
+	d := json.NewDecoder(bytes.NewReader(body))
+	d.UseNumber()
+	var value func() bool
+	value = func() bool {
+		token, err := d.Token()
+		if err != nil {
+			return false
+		}
+		delim, ok := token.(json.Delim)
+		if !ok {
+			return true
+		}
+		switch delim {
+		case '{':
+			seen := map[string]bool{}
+			for d.More() {
+				token, err = d.Token()
+				if err != nil {
+					return false
+				}
+				key, ok := token.(string)
+				if !ok {
+					return false
+				}
+				folded := strings.ToLower(strings.ToUpper(key))
+				if seen[folded] {
+					return false
+				}
+				seen[folded] = true
+				for _, canonical := range []string{"servers", "security", "psk"} {
+					if key != canonical && strings.EqualFold(key, canonical) {
+						return false
+					}
+				}
+				if !value() {
+					return false
+				}
+			}
+			end, err := d.Token()
+			return err == nil && end == json.Delim('}')
+		case '[':
+			for d.More() {
+				if !value() {
+					return false
+				}
+			}
+			end, err := d.Token()
+			return err == nil && end == json.Delim(']')
+		}
+		return false
+	}
+	return value()
+}
 
 // generateBootstrapPSKs returns a non-nil response marker when it has written a generated config.
 func (o Options) generateBootstrapPSKs(w http.ResponseWriter, tenant, ep string, body []byte, input bootstrapInput) (any, bool) {

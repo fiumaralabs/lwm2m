@@ -198,7 +198,7 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 	case "PUT":
 		b := body
 		var input bootstrapInput
-		if readErr != nil || json.Unmarshal(b, &input) != nil || len(bytes.TrimSpace(b)) == 0 || bytes.TrimSpace(b)[0] != '{' {
+		if readErr != nil || json.Unmarshal(b, &input) != nil || len(bytes.TrimSpace(b)) == 0 || bytes.TrimSpace(b)[0] != '{' || !unambiguousBootstrapJSON(b) {
 			WriteProblem(w, 400, "invalid_json", "Invalid bootstrap config")
 			return
 		}
