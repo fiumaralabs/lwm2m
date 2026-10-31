@@ -13,15 +13,17 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
-	limits            *tenantLimiter
-	BootstrapSessions BootstrapSessionStore `json:"-"`
-	Models            ModelStore            `json:"-"`
-	Jobs              JobStore              `json:"-"`
-	Firmware          FirmwareStore         `json:"-"`
-	FirmwareUpdates   FirmwareUpdateStore   `json:"-"`
-	Gateway           GatewayReader         `json:"-"`
-	DeviceProfiles    DeviceProfileStore    `json:"-"`
-	BootstrapConfigs  BootstrapConfigStore  `json:"-"`
+	limits               *tenantLimiter
+	TrustAnchors         TrustAnchorStore         `json:"-"`
+	BootstrapCredentials BootstrapCredentialStore `json:"-"`
+	BootstrapSessions    BootstrapSessionStore    `json:"-"`
+	Models               ModelStore               `json:"-"`
+	Jobs                 JobStore                 `json:"-"`
+	Firmware             FirmwareStore            `json:"-"`
+	FirmwareUpdates      FirmwareUpdateStore      `json:"-"`
+	Gateway              GatewayReader            `json:"-"`
+	DeviceProfiles       DeviceProfileStore       `json:"-"`
+	BootstrapConfigs     BootstrapConfigStore     `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
@@ -47,6 +49,12 @@ type Options struct {
 // New returns the authenticated native API handler.
 func New(o Options) http.Handler {
 	o.limits = &tenantLimiter{tenants: newTenantStore()}
+	if o.TrustAnchors == nil {
+		o.TrustAnchors = NewMemoryTrustAnchorStore(0)
+	}
+	if o.BootstrapCredentials == nil {
+		o.BootstrapCredentials = NewMemoryBootstrapCredentialStore()
+	}
 	if o.BootstrapSessions == nil {
 		o.BootstrapSessions = NewMemoryBootstrapSessionStore()
 	}
@@ -106,10 +114,16 @@ func New(o Options) http.Handler {
 	models := o.modelHandler()
 	jobs := NewJobsHandler(o.Jobs)
 	updates := NewFirmwareUpdatesHandler(o.FirmwareUpdates, o.Firmware)
+	anchors := NewTrustAnchorHandler(o.TrustAnchors)
+	bootstrapCredentials := NewBootstrapCredentialsHandler(o.Devices, o.BootstrapCredentials)
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
 	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/trust-anchors" || strings.HasPrefix(r.URL.Path, "/v1/trust-anchors/") {
+			anchors.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/device-profiles" || strings.HasPrefix(r.URL.Path, "/v1/device-profiles/") {
 			scope := "devices:read"
 			if r.Method != http.MethodGet {
@@ -195,6 +209,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap/credentials") {
+				bootstrapCredentials.ServeHTTP(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap/sessions") {
 				RequireScope("devices:read")(http.HandlerFunc(o.serveBootstrapSessions)).ServeHTTP(w, r)
 				return
