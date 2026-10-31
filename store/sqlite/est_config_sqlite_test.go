@@ -29,7 +29,7 @@ func TestESTConfigUpgradeFrom21(t *testing.T) {
 	if err := db.db.QueryRow(`SELECT COUNT(*) FROM devices WHERE tenant='t' AND endpoint='kept'`).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("existing data: count=%d err=%v", count, err)
 	}
-	if err := db.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 22 {
+	if err := db.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 23 {
 		t.Fatalf("version=%d err=%v", version, err)
 	}
 	if db.ESTConfigs().Put("t", apiv1.ESTConfig{Selector: "ok"}) {
