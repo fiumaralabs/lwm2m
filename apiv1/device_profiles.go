@@ -23,6 +23,10 @@ func (o Options) deviceProfiles(w http.ResponseWriter, r *http.Request) {
 		o.createDeviceProfile(w, r)
 		return
 	}
+	if r.Method == http.MethodPatch && !collection {
+		RequireScope("devices:write")(http.HandlerFunc(o.patchDeviceProfile)).ServeHTTP(w, r)
+		return
+	}
 	if r.Method == http.MethodDelete && !collection {
 		RequireScope("devices:write")(http.HandlerFunc(o.deleteDeviceProfile)).ServeHTTP(w, r)
 		return
@@ -30,7 +34,7 @@ func (o Options) deviceProfiles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET, POST")
 		if !collection {
-			w.Header().Set("Allow", "GET, DELETE")
+			w.Header().Set("Allow", "GET, PATCH, DELETE")
 		}
 		WriteProblem(w, 405, "method_not_allowed", "Unsupported method")
 		return
