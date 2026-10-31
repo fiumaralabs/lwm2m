@@ -219,7 +219,7 @@ Device create outcomes let a client resolve an uncertain create and retry withou
 
 `GET /v1/device-creates/{operationId}` returns the outcome. If no record exists for the caller's tenant and ID, it atomically inserts and returns `status: "not-created"`, `reason: "fenced"`, so a later create with that ID cannot commit. A lookup of an ID used by another tenant only fences the caller's own namespace and reveals nothing about the other tenant.
 
-`DELETE /v1/device-creates/{operationId}` acknowledges and removes the record: 204 on success, 404 if absent. Records are retained until deleted; there is no automatic expiry in v1.
+`DELETE /v1/device-creates/{operationId}` acknowledges a terminal outcome and removes its result payload: 204 on success; 404 if no outcome exists or it was already acknowledged. A pending outcome cannot be acknowledged; DELETE returns 409 problem `operation-pending`. A tombstone is retained indefinitely, including after acknowledgement, for every acknowledged ID in its tenant namespace; IDs must never be reused. There is no automatic expiry in v1. GET for an acknowledged ID returns 410 problem `operation-id-acknowledged` without creating a new fence. A PUT for an acknowledged ID returns 409 `operation-id-reused`, regardless of its body. The tombstone and acknowledgement are atomic with respect to GET and PUT: in particular, a delayed PUT or retry cannot commit after either a fence or a committed result has been acknowledged. Before acknowledgement, GET's lookup-or-fence and PUT's create-or-return-outcome are ordered atomically: if GET fences first, PUT cannot create; if PUT commits first, GET returns the committed outcome.
 
 An outcome has the following JSON shape:
 
@@ -234,7 +234,7 @@ An outcome has the following JSON shape:
 }
 ```
 
-`reason` and `endpoint` are optional; `operationId`, `status`, `fingerprint`, `createdAt` and `completedAt` are present.
+`reason` and `endpoint` are optional; `operationId`, `status`, `fingerprint`, `createdAt` and `completedAt` are present. `fingerprint` is JSON `null` for a bodyless fence, not the hash of an empty body. For `pending`, `fingerprint` is the request fingerprint if known, otherwise JSON `null`; `completedAt` is JSON `null` for `pending`. For terminal outcomes `completedAt` is a timestamp, and `fingerprint` is the request fingerprint except for a bodyless fence.
 
 | Status | Meaning |
 |---|---|
