@@ -99,6 +99,10 @@ func (s *FirmwareUpdates) update(tenant, id, status string, observed *apiv1.Firm
 	tx, err := s.db.Begin()
 	failFirmwareUpdate(err)
 	defer tx.Rollback()
+	// Acquire the writer lock before reading so concurrent connections cannot
+	// both hold snapshots that SQLite cannot upgrade to write transactions.
+	_, err = tx.Exec(`UPDATE firmware_updates SET status=status WHERE tenant=? AND id=?`, tenant, id)
+	failFirmwareUpdate(err)
 	var b []byte
 	err = tx.QueryRow(`SELECT payload FROM firmware_updates WHERE tenant=? AND id=?`, tenant, id).Scan(&b)
 	if err == sql.ErrNoRows {
