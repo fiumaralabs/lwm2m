@@ -40,7 +40,7 @@ func TestFirmwareMigration(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err = db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 20 {
-		t.Fatalf("schema version = %d, err = %v; want 20", version, err)
+	if err = db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 21 {
+		t.Fatalf("schema version = %d, err = %v; want 21", version, err)
 	}
 }
