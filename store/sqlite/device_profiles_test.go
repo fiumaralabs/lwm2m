@@ -40,7 +40,7 @@ func TestDeviceProfilesMigrationFrom13(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(`DROP TABLE device_profiles; INSERT INTO firmware(tenant,id,payload) VALUES('t','kept','{}'); ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=13`); err != nil {
+	if _, err = db.Exec(`DROP TABLE job_tasks; DROP TABLE jobs; DROP TABLE device_profiles; INSERT INTO firmware(tenant,id,payload) VALUES('t','kept','{}'); ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=13`); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.Close(); err != nil {
