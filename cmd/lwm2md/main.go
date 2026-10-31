@@ -48,6 +48,10 @@ func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ..
 }
 
 func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	return newDaemonWithSessions(cfg, api, keys, enabled, apiv1.NewMemoryBootstrapSessionStore(), stores...)
+}
+
+func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
@@ -106,7 +110,7 @@ func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.K
 			series = durable.TimeSeries()
 		}
 	}
-	native := apiv1.New(apiv1.Options{DeviceProfiles: profiles, Firmware: firmwareStore, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
@@ -222,7 +226,8 @@ func main() {
 		securityStore = durable.Security()
 	}
 	security := coap.NewRevokingSecurityStore(securityStore, func(id string) { cb.RevokePSKIdentity(id) })
-	srv, native, executor, dispatcher := newDaemonWithTimeSeries(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, devices)
+	sessions := apiv1.NewMemoryBootstrapSessionStore()
+	srv, native, executor, dispatcher := newDaemonWithSessions(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, devices)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -278,7 +283,11 @@ func main() {
 	}
 
 	configs := bootstrap.NewMemoryConfigStore()
+	recordSession := apiv1.NewBootstrapSessionRecorder(sessions, "default")
 	bs := bootstrap.New(bootstrap.Config{Configs: configs, OnSession: func(r bootstrap.Result) {
+		if err := recordSession(r); err != nil {
+			log.Printf("cannot record bootstrap session: %v", err)
+		}
 		if *verbose || r.Err != nil {
 			log.Printf("bootstrap %s: steps=%v err=%v", r.Endpoint, r.Steps, r.Err)
 		}
