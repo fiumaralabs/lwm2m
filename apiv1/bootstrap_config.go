@@ -60,12 +60,14 @@ func (s *memoryBootstrapConfigs) Delete(t, ep string) bool {
 
 type bootstrapInput struct {
 	Servers []struct {
+		Server           string  `json:"server"`
 		ShortServerID    *uint16 `json:"shortServerId"`
 		SecurityInstance *uint16 `json:"securityInstance"`
 		ServerInstance   *uint16 `json:"serverInstance"`
 		Security         struct {
 			RPK json.RawMessage `json:"rpk"`
 			PSK *struct {
+				Identity string `json:"identity"`
 				Key      string `json:"key"`
 				Generate bool   `json:"generate"`
 			} `json:"psk"`
@@ -85,9 +87,6 @@ func validateBootstrap(c bootstrapInput) (string, []FieldError) {
 		if len(s.Security.RPK) != 0 && string(s.Security.RPK) != "null" {
 			return "rpk_unsupported", nil
 		}
-		if s.Security.PSK != nil && s.Security.PSK.Generate {
-			return "psk_generate_unsupported", nil
-		}
 		for _, item := range []struct {
 			v    *uint16
 			seen map[uint16]bool
@@ -104,7 +103,10 @@ func validateBootstrap(c bootstrapInput) (string, []FieldError) {
 			}
 			item.seen[*item.v] = true
 		}
-		if s.Security.PSK != nil {
+		if s.Security.PSK != nil && s.Security.PSK.Generate && (s.Security.PSK.Identity != "" || s.Security.PSK.Key != "") {
+			add(p+".security.psk", "generate cannot be combined with identity or key")
+		}
+		if s.Security.PSK != nil && !s.Security.PSK.Generate {
 			key := s.Security.PSK.Key
 			var b []byte
 			var err error
@@ -209,6 +211,13 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/problem+json")
 			w.WriteHeader(422)
 			_ = json.NewEncoder(w).Encode(Problem{Type: "about:blank", Title: http.StatusText(422), Status: 422, Detail: "Invalid bootstrap config", Code: "validation_error", Errors: fields})
+			return
+		}
+		generated, ok := o.generateBootstrapPSKs(w, tenant, ep, b, input)
+		if !ok {
+			return
+		}
+		if generated != nil {
 			return
 		}
 		o.BootstrapConfigs.Put(tenant, ep, b)
