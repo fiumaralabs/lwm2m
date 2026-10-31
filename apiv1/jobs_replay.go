@@ -7,9 +7,16 @@ import (
 
 // JobCreateResult is the immutable first response for a create request.
 type JobCreateResult struct {
-	Job     *Job
-	Problem *Problem
+	Job     *Job     `json:"job,omitempty"`
+	Problem *Problem `json:"problem,omitempty"`
 }
+
+// JobReplayStore atomically records and replays the first create result.
+type JobReplayStore interface {
+	ReplayCreate(tenant, key string) (JobCreateResult, bool)
+	CreateResult(tenant, key string, r JobCreateResult) (JobCreateResult, error)
+}
+
 type jobReplay struct {
 	result  JobCreateResult
 	expires time.Time

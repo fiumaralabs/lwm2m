@@ -74,6 +74,17 @@ func NewMemoryJobStore() JobStore {
 	return &memoryJobStore{jobs: make(map[string]map[string]Job), tasks: make(map[string]map[string]map[string]JobTask), replays: make(map[string]map[string]jobReplay)}
 }
 
+// ReplayCreate and CreateResult expose the separate replay contract while the
+// existing JobStore methods remain available to current endpoint consumers.
+func (s *memoryJobStore) ReplayCreate(tenant, key string) (JobCreateResult, bool) {
+	r, ok, _ := s.ReplayJob(tenant, key) // the in-memory lookup cannot fail
+	return r, ok
+}
+
+func (s *memoryJobStore) CreateResult(tenant, key string, r JobCreateResult) (JobCreateResult, error) {
+	return s.CreateJobResult(tenant, key, r)
+}
+
 // ValidateJob checks the create-time rollout and exclusive target and action fields.
 func ValidateJob(j Job) error {
 	targets := 0
