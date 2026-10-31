@@ -35,7 +35,7 @@ func (s *memoryESTIssuerRotator) PutConfigRotatingIssuerAnchor(tenant string, c 
 			unmarked = true
 		}
 	}
-	if configExists && !matching && unmarked {
+	if unmarked && (!configExists || !matching) {
 		return false, ErrESTIssuerOwnershipAmbiguous
 	}
 	old := make([]TrustAnchor, 0, 1)

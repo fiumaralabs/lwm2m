@@ -53,7 +53,7 @@ func (s *TrustAnchors) PutConfigRotatingIssuerAnchor(tenant string, c apiv1.ESTC
 	if err != nil {
 		return false, err
 	}
-	if configExists && !matching && unmarked {
+	if unmarked && (!configExists || !matching) {
 		return false, apiv1.ErrESTIssuerOwnershipAmbiguous
 	}
 	for _, id := range ids {
