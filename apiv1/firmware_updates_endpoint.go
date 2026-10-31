@@ -36,10 +36,13 @@ type firmwareUpdateCursor struct {
 func NewFirmwareUpdatesHandler(store FirmwareUpdateStore, firmware FirmwareStore) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		escapedPath := r.URL.EscapedPath()
 		device, id := "", ""
-		if strings.HasPrefix(path, "/v1/devices/") && strings.HasSuffix(path, "/firmware-updates") {
-			device = strings.TrimSuffix(strings.TrimPrefix(path, "/v1/devices/"), "/firmware-updates")
-			if device == "" || strings.Contains(device, "/") {
+		if strings.HasPrefix(escapedPath, "/v1/devices/") && strings.HasSuffix(escapedPath, "/firmware-updates") {
+			raw := strings.TrimSuffix(strings.TrimPrefix(escapedPath, "/v1/devices/"), "/firmware-updates")
+			var err error
+			device, err = url.PathUnescape(raw)
+			if err != nil || device == "" || strings.Contains(raw, "/") {
 				WriteProblem(w, 404, "not_found", "Unknown resource")
 				return
 			}
