@@ -67,3 +67,39 @@ func TestRouterFirmwareUpdates(t *testing.T) {
 		t.Fatalf("delete: %d %s", w.Code, w.Body.String())
 	}
 }
+
+func TestRouterFirmwareUpdatesEscapedEndpoint(t *testing.T) {
+	keys := deviceKeys()
+	entry := keys.entries["test"]
+	entry.scopes = ",devices:read,firmware:write,"
+	keys.entries["test"] = entry
+	devices := &memory.Devices{}
+	if _, err := devices.Create("default", store.Device{Endpoint: "pump/a"}); err != nil {
+		t.Fatal(err)
+	}
+	h := New(Options{Keys: keys, Devices: devices})
+	path := "/v1/devices/pump%2Fa/firmware-updates"
+	w := deviceRequest(h, "POST", path, `{"uri":"coaps://example/fw"}`)
+	if w.Code != 201 {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	var update FirmwareUpdate
+	if err := json.Unmarshal(w.Body.Bytes(), &update); err != nil || update.Device != "pump/a" {
+		t.Fatalf("create body: %s %v", w.Body.String(), err)
+	}
+	w = deviceRequest(h, "GET", path, "")
+	var page struct {
+		Items []FirmwareUpdate `json:"items"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &page); w.Code != 200 || err != nil || len(page.Items) != 1 || page.Items[0].ID != update.ID || page.Items[0].Device != "pump/a" {
+		t.Fatalf("list: %d %s %v", w.Code, w.Body.String(), err)
+	}
+	entry.tenant = "other"
+	keys.entries["test"] = entry
+	for _, method := range []string{"GET", "POST"} {
+		w = deviceRequest(h, method, path, `{"uri":"coaps://example/fw"}`)
+		if w.Code != 404 {
+			t.Errorf("cross-tenant %s: %d %s", method, w.Code, w.Body.String())
+		}
+	}
+}
