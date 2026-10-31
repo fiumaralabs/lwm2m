@@ -51,7 +51,7 @@ func TestTenantsUpgradeVersion10(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec("DROP TABLE firmware_updates; DROP TABLE job_tasks; DROP TABLE jobs; DROP TABLE device_profiles; DROP TABLE tenants; DROP TABLE firmware; ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=10"); err != nil {
+	if _, err = db.Exec("DROP TABLE bootstrap_sessions; DROP TABLE firmware_updates; DROP TABLE job_tasks; DROP TABLE jobs; DROP TABLE device_profiles; DROP TABLE tenants; DROP TABLE firmware; ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=10"); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.Close(); err != nil {

@@ -11,11 +11,12 @@ import (
 
 // Options configures the native API and its server information.
 type Options struct {
-	limits           *tenantLimiter
-	Models           ModelStore           `json:"-"`
-	Firmware         FirmwareStore        `json:"-"`
-	DeviceProfiles   DeviceProfileStore   `json:"-"`
-	BootstrapConfigs BootstrapConfigStore `json:"-"`
+	limits            *tenantLimiter
+	BootstrapSessions BootstrapSessionStore `json:"-"`
+	Models            ModelStore            `json:"-"`
+	Firmware          FirmwareStore         `json:"-"`
+	DeviceProfiles    DeviceProfileStore    `json:"-"`
+	BootstrapConfigs  BootstrapConfigStore  `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
@@ -41,6 +42,9 @@ type Options struct {
 // New returns the authenticated native API handler.
 func New(o Options) http.Handler {
 	o.limits = &tenantLimiter{tenants: newTenantStore()}
+	if o.BootstrapSessions == nil {
+		o.BootstrapSessions = NewMemoryBootstrapSessionStore()
+	}
 	if o.BootstrapConfigs == nil {
 		o.BootstrapConfigs = NewMemoryBootstrapConfigStore()
 	}
@@ -142,6 +146,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap/sessions") {
+				RequireScope("devices:read")(http.HandlerFunc(o.serveBootstrapSessions)).ServeHTTP(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/credentials") && r.URL.EscapedPath() != "/v1/devices/credentials" {
 				o.credentials(w, r)
 				return
