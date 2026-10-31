@@ -142,6 +142,10 @@ func New(o Options) http.Handler {
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
+			if strings.HasSuffix(r.URL.EscapedPath(), "/credentials") && r.URL.EscapedPath() != "/v1/devices/credentials" {
+				o.credentials(w, r)
+				return
+			}
 			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap") && r.URL.EscapedPath() != "/v1/devices/bootstrap" {
 				o.bootstrap(w, r)
 				return
