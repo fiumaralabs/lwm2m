@@ -55,7 +55,7 @@ A device answering a request with an error code is **not** an HTTP error. The op
 | 401 | Missing or invalid credentials |
 | 403 | Authenticated, but the scope or role does not allow it |
 | 404 | Unknown resource, or one that belongs to another tenant (never 403, so tenants cannot probe) |
-| 409 | Conflicts with current state: a second firmware update on one device, deleting firmware that an update uses |
+| 409 | Conflicts with current state: a second firmware update on one device, deleting firmware that an update uses, or reusing a device create operation ID with a different request (`code: "operation-id-reused"`, §5.5) |
 | 412 | `If-Match` mismatch |
 | 422 | Valid JSON that the server refuses: invalid bootstrap config, weak PSK (BS-10) |
 | 429 | Rate limited, with `Retry-After` |
@@ -98,6 +98,7 @@ The tenant is part of the credential, never of the URL. An API key belongs to on
 | Resource | Path |
 |---|---|
 | Devices | `/v1/devices`, `/v1/devices/{ep}` |
+| Device create outcomes | `/v1/device-creates/{operationId}` |
 | Registration | `/v1/devices/{ep}/registration` |
 | Device model | `/v1/devices/{ep}/model` |
 | Operations | `/v1/devices/{ep}/operations`, `/v1/operations/{id}` |
@@ -200,6 +201,54 @@ The current session of a device: what it sent in its last Register and Update (C
 ```
 
 Objects with no known definition have `"definition": null`.
+
+### 5.5 Device create outcomes
+
+Device create outcomes let a client resolve an uncertain create and retry without creating a second device. The client generates `operationId`, an opaque string of 1–128 characters from `[A-Za-z0-9._~-]`; an invalid ID returns 400 `invalid-argument`. Records are keyed by `(tenant, operationId)`, with the tenant taken only from the authenticated key. Different tenants can use the same ID independently.
+
+`PUT /v1/device-creates/{operationId}` takes the same body as `POST /v1/devices`. The server computes `fingerprint = "sha256:" + hex(SHA-256(canonical JSON of the body, keys sorted))`. The outcome record never stores the plaintext body or credentials.
+
+| Case | Response |
+|---|---|
+| Unknown ID, valid body and available endpoint | Atomically create the device and outcome in one transaction; return 201 with `status: "committed"`. |
+| Unknown ID, validation failure | Record `status: "not-created"`, `reason: "invalid"`; return 200 with the outcome. |
+| Unknown ID, endpoint already exists in any tenant | Record `status: "not-created"`, `reason: "endpoint-conflict"`; return 200 with the outcome. Do not reveal whether another tenant owns the endpoint or attribute a pre-existing device to this operation. |
+| Known ID, same fingerprint | Return the stored outcome unchanged with 200. Create nothing and emit no second `device.created` event or audit entry. |
+| Known ID, different fingerprint | Return 409 problem `operation-id-reused`; create nothing. |
+| Known ID, `reason: "fenced"` | Return the stored `not-created` outcome with 200 regardless of body. |
+
+`GET /v1/device-creates/{operationId}` returns the outcome. If no record exists for the caller's tenant and ID, it atomically inserts and returns `status: "not-created"`, `reason: "fenced"`, so a later create with that ID cannot commit. A lookup of an ID used by another tenant only fences the caller's own namespace and reveals nothing about the other tenant.
+
+`DELETE /v1/device-creates/{operationId}` acknowledges and removes the record: 204 on success, 404 if absent. Records are retained until deleted; there is no automatic expiry in v1.
+
+An outcome has the following JSON shape:
+
+```json
+{
+  "operationId": "create-pump-7",
+  "status": "committed",
+  "endpoint": "pump-7",
+  "fingerprint": "sha256:<hex>",
+  "createdAt": "2026-10-08T09:58:12Z",
+  "completedAt": "2026-10-08T09:58:12Z"
+}
+```
+
+`reason` and `endpoint` are optional; `operationId`, `status`, `fingerprint`, `createdAt` and `completedAt` are present.
+
+| Status | Meaning |
+|---|---|
+| `pending` | Not yet terminal. This implementation is atomic and never persists it, but clients must accept it. |
+| `committed` | The device and outcome were created atomically. |
+| `not-created` | No device was created by this operation; `reason` explains why. |
+
+| Reason | Meaning |
+|---|---|
+| `invalid` | The request failed validation. |
+| `endpoint-conflict` | The endpoint already exists. |
+| `fenced` | A GET found no outcome and fenced the ID. |
+
+Mutations are audited like `POST /v1/devices`; the scope is the same as device create.
 
 ## 6. Operations
 
