@@ -14,6 +14,17 @@ import (
 type Jobs struct{ db *sql.DB }
 
 var _ apiv1.JobStore = (*Jobs)(nil)
+var _ apiv1.JobReplayStore = (*Jobs)(nil)
+
+func (s *Jobs) ReplayCreate(tenant, key string) (apiv1.JobCreateResult, bool) {
+	result, ok, err := s.ReplayJob(tenant, key)
+	failJob(err)
+	return result, ok
+}
+
+func (s *Jobs) CreateResult(tenant, key string, result apiv1.JobCreateResult) (apiv1.JobCreateResult, error) {
+	return s.CreateJobResult(tenant, key, result)
+}
 
 func (s *Devices) Jobs() *Jobs { return &Jobs{db: s.db} }
 
