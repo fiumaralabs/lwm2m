@@ -2,6 +2,7 @@ package apiv1
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/store"
@@ -32,11 +33,13 @@ func (r JobRunner) Tick(ctx context.Context) error {
 			if job.Status != "scheduled" || (job.Rollout.StartAt != nil && job.Rollout.StartAt.After(now)) {
 				continue
 			}
-			endpoints, err := resolveJobTarget(ctx, r.Devices, tenant, job.Target)
-			if err != nil {
-				return err
+			starter, ok := r.Jobs.(interface {
+				StartJobSnapshot(context.Context, store.Devices, string, string, time.Time) (bool, error)
+			})
+			if !ok {
+				return fmt.Errorf("job store does not support atomic snapshots")
 			}
-			if _, err = r.Jobs.StartJob(tenant, job.ID, endpoints, now); err != nil {
+			if _, err = starter.StartJobSnapshot(ctx, r.Devices, tenant, job.ID, now); err != nil {
 				return err
 			}
 		}

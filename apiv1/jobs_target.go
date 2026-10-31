@@ -59,3 +59,26 @@ func resolveJobTarget(ctx context.Context, devices store.Devices, tenant string,
 		cursor = next
 	}
 }
+
+// MatchJobTarget resolves a target against a single owned device snapshot.
+func MatchJobTarget(ctx context.Context, devices []store.Device, target JobTarget) ([]string, error) {
+	wanted := make(map[string]bool, len(target.Devices))
+	for _, d := range target.Devices {
+		wanted[d] = true
+	}
+	match, err := selector.Parse(target.Selector)
+	if target.Devices == nil && err != nil {
+		return nil, err
+	}
+	result := []string{}
+	for _, d := range devices {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if (target.Devices != nil && wanted[d.Endpoint]) || (target.Devices == nil && match.Matches(d.Labels)) {
+			result = append(result, d.Endpoint)
+		}
+	}
+	sort.Strings(result)
+	return result, nil
+}

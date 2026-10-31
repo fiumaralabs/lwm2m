@@ -119,3 +119,14 @@ func (s *Devices) List(tenant string, f store.DeviceFilter, cursor string, limit
 	}
 	return out, next, nil
 }
+
+// WithDeviceSnapshot holds the device read lock until fn completes.
+func (s *Devices) WithDeviceSnapshot(tenant string, fn func([]store.Device) error) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	devices := make([]store.Device, 0, len(s.records[tenant]))
+	for _, d := range s.records[tenant] {
+		devices = append(devices, clone(d))
+	}
+	return fn(devices)
+}
