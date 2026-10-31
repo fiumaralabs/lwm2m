@@ -30,6 +30,11 @@ func (r JobRunner) Tick(ctx context.Context) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			// A snapshot with no matching devices has no tasks to dispatch.
+			if job.Status == "running" && job.Counts.Total == 0 {
+				r.Jobs.UpdateStatus(tenant, job.ID, "succeeded")
+				continue
+			}
 			if job.Status != "scheduled" || (job.Rollout.StartAt != nil && job.Rollout.StartAt.After(now)) {
 				continue
 			}
