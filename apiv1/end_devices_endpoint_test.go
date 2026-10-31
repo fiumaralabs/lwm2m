@@ -86,3 +86,26 @@ func TestEndDevicesHandler(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 }
+
+func TestPrefixedRegistrationAlternateRoot(t *testing.T) {
+	links := mustLinks(t, `</lwm2m>;rt="oma.lwm2m",</lwm2m/d01/3303/0>;ver="1.1",</d01/3303/1>,</lwm2mx/d01/3/0>`)
+	got := prefixedObjects(links)
+	want := map[string][]link.Object{"d01": {{ID: 3303, Version: "1.1", Instances: []uint16{0, 1}}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+func TestEndDevicesHandlerAlternateRoot(t *testing.T) {
+	devices := &memory.Devices{}
+	if _, err := devices.Create("default", store.Device{Endpoint: "gw"}); err != nil {
+		t.Fatal(err)
+	}
+	source := &endDeviceFixture{links: mustLinks(t, `</lwm2m>;rt="oma.lwm2m",</lwm2m/25/0>,</lwm2m/d01/3303/0>`), devices: []gateway.Device{{Instance: 0, ID: "sensor", Prefix: "d01"}}}
+	handler := Authenticate(deviceKeys(), endDevicesHandler(devices, source))
+	w := deviceRequest(handler, "GET", "/v1/devices/gw/end-devices", "")
+	want := `{"items":[{"prefix":"d01","id":"sensor","instance":0,"objects":[{"id":3303,"instances":[0]}]}]}` + "\n"
+	if w.Code != 200 || w.Body.String() != want {
+		t.Fatalf("status %d: %s, want %s", w.Code, w.Body.String(), want)
+	}
+}
