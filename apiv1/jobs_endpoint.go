@@ -25,16 +25,21 @@ func NewJobsHandler(store JobStore) http.Handler {
 				serveJobReads(store, w, r)
 				return
 			}
+			if r.Method == http.MethodPost && r.URL.Path != "/v1/jobs" {
+				serveJobAction(store, w, r)
+				return
+			}
 			if r.URL.Path != "/v1/jobs" || r.Method != http.MethodPost {
 				WriteProblem(w, 404, "not_found", "Unknown job")
 				return
 			}
 			tenant, key := TenantFrom(r.Context()), r.Header.Get("Idempotency-Key")
-			result, found, err := store.ReplayJob(tenant, key)
-			if err != nil {
+			replay, ok := store.(JobReplayStore)
+			if !ok {
 				WriteProblem(w, 500, "internal_error", "Unable to create job")
 				return
 			}
+			result, found := replay.ReplayCreate(tenant, key)
 			if !found {
 				var in struct {
 					Name       string     `json:"name"`
@@ -65,7 +70,8 @@ func NewJobsHandler(store JobStore) http.Handler {
 				if !authorizeJobResult(w, r, result) {
 					return
 				}
-				result, err = store.CreateJobResult(tenant, key, result)
+				var err error
+				result, err = replay.CreateResult(tenant, key, result)
 				if err != nil {
 					WriteProblem(w, 500, "internal_error", "Unable to create job")
 					return
