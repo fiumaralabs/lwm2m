@@ -47,6 +47,19 @@ func NewJobsHandler(store JobStore) http.Handler {
 				WriteProblem(w, 400, "invalid_job", "Invalid job configuration")
 				return
 			}
+			var operation struct {
+				Type string `json:"type"`
+			}
+			_ = json.Unmarshal(j.Action.Operation, &operation)
+			if operation.Type == "raw" {
+				authorized := false
+				RequireScope("operations:raw")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+					authorized = true
+				})).ServeHTTP(w, r)
+				if !authorized {
+					return
+				}
+			}
 			if err := store.Create(TenantFrom(r.Context()), j); err != nil {
 				WriteProblem(w, 500, "internal_error", "Unable to create job")
 				return
