@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,37 +30,46 @@ func NewTrustAnchorHandler(store TrustAnchorStore) http.Handler {
 		tenant := TenantFrom(r.Context())
 		switch {
 		case collection && r.Method == http.MethodPost:
+			idem := r.Header.Get("Idempotency-Key")
+			respond := func(result TrustAnchorResult) {
+				if result.Problem != nil {
+					WriteProblem(w, result.Problem.Status, result.Problem.Code, result.Problem.Detail)
+					return
+				}
+				if result.Anchor == nil {
+					WriteProblem(w, 500, "internal_error", "Unable to create trust anchor")
+					return
+				}
+				a := *result.Anchor
+				w.Header().Set("Location", path+"/"+a.ID)
+				w.Header().Set("ETag", trustAnchorETag(a))
+				deviceJSON(w, 201, a)
+			}
+			if result, ok := store.Replay(tenant, idem); ok {
+				respond(result)
+				return
+			}
 			var in *struct {
 				Name         string `json:"name"`
 				Certificates string `json:"certificates"`
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-			if !DecodeJSON(w, r, &in) {
-				return
-			}
-			if in == nil || strings.TrimSpace(in.Name) == "" {
-				WriteProblem(w, 400, "invalid_trust_anchor", "Name and CA certificates are required")
-				return
-			}
-			certs, ok := parseTrustAnchorCertificates(in.Certificates)
-			if !ok {
-				WriteProblem(w, 400, "invalid_trust_anchor", "Expected valid, unexpired CA certificates")
-				return
-			}
-			a := TrustAnchor{ID: id.New("ta"), Name: in.Name, PEM: in.Certificates, Certificates: certs}
-			if err := store.Create(tenant, a); err != nil {
-				switch {
-				case errors.Is(err, ErrTrustAnchorDuplicate):
-					WriteProblem(w, 409, "duplicate_trust_anchor", "Certificate already exists")
-				case errors.Is(err, ErrTrustAnchorLimit):
-					WriteProblem(w, 503, "capacity_exceeded", "Trust anchor capacity reached")
-				default:
-					WriteProblem(w, 500, "internal_error", "Unable to create trust anchor")
+			capture := &profileProblemCapture{header: make(http.Header)}
+			result := TrustAnchorResult{}
+			if !DecodeJSON(capture, r, &in) {
+				result.Problem = &Problem{}
+				if json.Unmarshal(capture.body.Bytes(), result.Problem) != nil {
+					WriteProblem(w, 500, "internal_error", "Unable to decode problem")
+					return
 				}
-				return
+			} else if in == nil || strings.TrimSpace(in.Name) == "" {
+				result.Problem = &Problem{Status: 400, Code: "invalid_trust_anchor", Detail: "Name and CA certificates are required"}
+			} else if certs, ok := parseTrustAnchorCertificates(in.Certificates); !ok {
+				result.Problem = &Problem{Status: 400, Code: "invalid_trust_anchor", Detail: "Expected valid, unexpired CA certificates"}
+			} else {
+				result.Anchor = &TrustAnchor{ID: id.New("ta"), Name: in.Name, PEM: in.Certificates, Certificates: certs}
 			}
-			w.Header().Set("Location", path+"/"+a.ID)
-			deviceJSON(w, 201, a)
+			respond(store.CreateResult(tenant, idem, result))
 		case collection && r.Method == http.MethodGet:
 			listTrustAnchors(w, r, store, tenant)
 		case !collection && r.Method == http.MethodGet:
@@ -70,10 +78,16 @@ func NewTrustAnchorHandler(store TrustAnchorStore) http.Handler {
 				WriteProblem(w, 404, "not_found", "Unknown trust anchor")
 				return
 			}
+			w.Header().Set("ETag", trustAnchorETag(a))
 			deviceJSON(w, 200, a)
 		case !collection && r.Method == http.MethodDelete:
-			if !store.Delete(tenant, key) {
+			found, matched := store.DeleteMatch(tenant, key, webhookIfMatch(r))
+			if !found {
 				WriteProblem(w, 404, "not_found", "Unknown trust anchor")
+				return
+			}
+			if !matched {
+				WriteProblem(w, 412, "precondition_failed", "ETag does not match")
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)

@@ -65,4 +65,27 @@ func TestTrustAnchorReplayAndConditions(t *testing.T) {
 	if got := request("POST", path, "b", "key", "", body); got.Code != 201 || got.Body.String() == first.Body.String() {
 		t.Fatalf("tenant replay %d", got.Code)
 	}
+	bad := request("POST", path, "a", "bad-key", "", []byte("invalid"))
+	if replay := request("POST", path, "a", "bad-key", "", body); bad.Code != 400 || replay.Code != bad.Code || replay.Body.String() != bad.Body.String() {
+		t.Fatalf("failure replay: %d %d", bad.Code, replay.Code)
+	}
+	created := request("POST", path, "c", "", "", body)
+	deletePath, deleteTag := created.Header().Get("Location"), created.Header().Get("ETag")
+	deletes := make([]*httptest.ResponseRecorder, n)
+	for i := range deletes {
+		wg.Add(1)
+		go func(i int) { defer wg.Done(); deletes[i] = request("DELETE", deletePath, "c", "", deleteTag, nil) }(i)
+	}
+	wg.Wait()
+	success := 0
+	for _, w := range deletes {
+		if w.Code == 204 {
+			success++
+		} else if w.Code != 404 {
+			t.Fatalf("concurrent delete: %d", w.Code)
+		}
+	}
+	if success != 1 {
+		t.Fatalf("concurrent successful deletes: %d", success)
+	}
 }
