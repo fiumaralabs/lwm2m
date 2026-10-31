@@ -14,6 +14,7 @@ type Options struct {
 	limits            *tenantLimiter
 	BootstrapSessions BootstrapSessionStore `json:"-"`
 	Models            ModelStore            `json:"-"`
+	Jobs              JobStore              `json:"-"`
 	Firmware          FirmwareStore         `json:"-"`
 	DeviceProfiles    DeviceProfileStore    `json:"-"`
 	BootstrapConfigs  BootstrapConfigStore  `json:"-"`
@@ -78,6 +79,9 @@ func New(o Options) http.Handler {
 	if o.Models == nil {
 		o.Models = &memoryModelStore{}
 	}
+	if o.Jobs == nil {
+		o.Jobs = NewMemoryJobStore()
+	}
 	if o.Firmware == nil {
 		o.Firmware = NewMemoryFirmwareStore()
 	}
@@ -93,6 +97,7 @@ func New(o Options) http.Handler {
 	}
 	ops := o.operationHandler()
 	models := o.modelHandler()
+	jobs := NewJobsHandler(o.Jobs)
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
@@ -103,6 +108,10 @@ func New(o Options) http.Handler {
 				scope = "devices:write"
 			}
 			RequireScope(scope)(http.HandlerFunc(o.deviceProfiles)).ServeHTTP(w, r)
+			return
+		}
+		if r.URL.Path == "/v1/jobs" || strings.HasPrefix(r.URL.Path, "/v1/jobs/") {
+			jobs.ServeHTTP(w, r)
 			return
 		}
 		if r.URL.Path == "/v1/firmware" || strings.HasPrefix(r.URL.Path, "/v1/firmware/") {
