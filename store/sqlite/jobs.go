@@ -80,7 +80,7 @@ func (s *Jobs) Get(tenant, id string) (apiv1.Job, bool) {
 		switch t.Status {
 		case "pending":
 			j.Counts.Pending++
-		case "running":
+		case "running", "dispatching":
 			j.Counts.Running++
 		case "succeeded":
 			j.Counts.Succeeded++
