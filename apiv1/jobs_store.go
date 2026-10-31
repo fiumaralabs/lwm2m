@@ -62,6 +62,8 @@ type JobStore interface {
 	UpdateStatus(string, string, string) bool
 	PutTask(string, string, JobTask) bool
 	ListTasks(string, string, string) []JobTask
+	JobTenants() ([]string, error)
+	StartJob(tenant, id string, devices []string, now time.Time) (bool, error)
 }
 type memoryJobStore struct {
 	mu          sync.RWMutex
