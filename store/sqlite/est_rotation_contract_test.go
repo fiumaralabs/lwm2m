@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -159,6 +160,15 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			anchors.Delete("mixed-crash", "a")
 			anchors.Delete("mixed-crash", "orphan")
 			rotate("x", "a")
+			beforeConfig, _ := configs.Get("x")
+			beforeAnchors := anchors.List("x")
+			if _, err := r.PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: "b"}, anchor("a")); err == nil {
+				t.Error("mismatched issuer must be rejected")
+			}
+			afterConfig, _ := configs.Get("x")
+			if !reflect.DeepEqual(beforeConfig, afterConfig) || !reflect.DeepEqual(beforeAnchors, anchors.List("x")) {
+				t.Error("mismatched issuer changed stored state")
+			}
 			rotate("y", "y")
 			manual := anchor("manual")
 			if result := anchors.CreateResult("x", "", apiv1.TrustAnchorResult{Anchor: &manual}); result.Problem != nil {
