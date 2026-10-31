@@ -137,10 +137,28 @@ func TestESTIssuerRotationContract(t *testing.T) {
 			}
 			anchors.Delete("mixed", "managed")
 			anchors.Delete("mixed", "legacy")
+			// A legacy writer can crash after adding an unmarked issuer even when
+			// the current config still matches a managed issuer.
+			rotate("mixed-crash", "a")
+			if err := anchors.Create("mixed-crash", anchor("orphan")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := r.PutConfigRotatingIssuerAnchor("mixed-crash", apiv1.ESTConfig{Certificate: "c"}, anchor("c")); !errors.Is(err, apiv1.ErrESTIssuerOwnershipAmbiguous) {
+				t.Fatalf("orphan after managed install must fail closed: %v", err)
+			}
+			if got, _ := configs.Get("mixed-crash"); got.Certificate != "a" {
+				t.Fatalf("config changed after ambiguous rotation: %+v", got)
+			}
+			if got := anchors.List("mixed-crash"); len(got) != 2 || got[0].ID != "a" || got[1].ID != "orphan" {
+				t.Fatalf("anchors changed after ambiguous rotation: %+v", got)
+			}
+			anchors.Delete("mixed-crash", "a")
+			anchors.Delete("mixed-crash", "orphan")
 			rotate("x", "a")
 			rotate("y", "y")
-			if err := anchors.Create("x", anchor("manual")); err != nil {
-				t.Fatal(err)
+			manual := anchor("manual")
+			if result := anchors.CreateResult("x", "", apiv1.TrustAnchorResult{Anchor: &manual}); result.Problem != nil {
+				t.Fatalf("create manual anchor: %+v", result.Problem)
 			}
 			rotate("x", "b")
 			rotate("x", "b")
