@@ -7,9 +7,16 @@ import (
 
 // JobCreateResult is the immutable first response for a create request.
 type JobCreateResult struct {
-	Job     *Job
-	Problem *Problem
+	Job     *Job     `json:"job,omitempty"`
+	Problem *Problem `json:"problem,omitempty"`
 }
+
+// JobReplayStore atomically records and replays the first create result.
+type JobReplayStore interface {
+	ReplayCreate(tenant, key string) (JobCreateResult, bool)
+	CreateResult(tenant, key string, r JobCreateResult) (JobCreateResult, error)
+}
+
 type jobReplay struct {
 	result  JobCreateResult
 	expires time.Time
@@ -34,7 +41,7 @@ func (s *memoryJobStore) ReplayJob(tenant, key string) (JobCreateResult, bool, e
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	r, ok := s.replays[tenant][key]
-	if !ok || !time.Now().Before(r.expires) {
+	if !ok || !s.replayClock().Before(r.expires) {
 		return JobCreateResult{}, false, nil
 	}
 	return cloneJobResult(r.result), true, nil
@@ -42,7 +49,7 @@ func (s *memoryJobStore) ReplayJob(tenant, key string) (JobCreateResult, bool, e
 func (s *memoryJobStore) CreateJobResult(tenant, key string, result JobCreateResult) (JobCreateResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := time.Now()
+	now := s.replayClock()
 	if key != "" {
 		if r, ok := s.replays[tenant][key]; ok && now.Before(r.expires) {
 			return cloneJobResult(r.result), nil

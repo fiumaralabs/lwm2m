@@ -43,8 +43,9 @@ func (s *Jobs) CreateJobResult(tenant, key string, r apiv1.JobCreateResult) (api
 		var b []byte
 		err = tx.QueryRow(`SELECT body FROM job_replays WHERE tenant=? AND key=? AND expires>?`, tenant, key, now.UnixNano()).Scan(&b)
 		if err == nil {
-			err = json.Unmarshal(b, &r)
-			return r, err
+			var stored apiv1.JobCreateResult
+			err = json.Unmarshal(b, &stored)
+			return stored, err
 		}
 		if err != sql.ErrNoRows {
 			return apiv1.JobCreateResult{}, err
