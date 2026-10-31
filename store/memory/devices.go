@@ -17,6 +17,7 @@ import (
 type Devices struct {
 	mu      sync.RWMutex
 	records map[string]map[string]store.Device
+	creates map[string]map[string]store.DeviceCreateOutcome
 }
 
 var _ store.Devices = (*Devices)(nil)
@@ -32,6 +33,10 @@ func clone(d store.Device) store.Device {
 func (s *Devices) Create(tenant string, d store.Device) (store.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.createLocked(tenant, d)
+}
+
+func (s *Devices) createLocked(tenant string, d store.Device) (store.Device, error) {
 	if s.records == nil {
 		s.records = map[string]map[string]store.Device{}
 	}
