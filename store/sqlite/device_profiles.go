@@ -161,6 +161,19 @@ func (s *DeviceProfiles) Replace(tenant string, p apiv1.DeviceProfile) bool {
 	result, err := s.db.Exec(`UPDATE device_profiles SET name=?,observations=?,attributes=?,on_register=?,timeseries=?,bootstrap_template=? WHERE tenant=? AND id=?`, p.Name, []byte(p.Observations), []byte(p.Attributes), []byte(p.OnRegister), []byte(p.Timeseries), []byte(p.BootstrapTemplate), tenant, p.ID)
 	return profileAffected(result, err, "replace")
 }
+func (s *DeviceProfiles) ReplaceIfMatch(tenant string, old, p apiv1.DeviceProfile) (bool, bool) {
+	if old.ID == p.ID {
+		result, err := s.db.Exec(`UPDATE device_profiles SET name=?,observations=?,attributes=?,on_register=?,timeseries=?,bootstrap_template=?
+			WHERE tenant=? AND id=? AND name=? AND observations IS ? AND attributes IS ? AND on_register IS ? AND timeseries IS ? AND bootstrap_template IS ?`,
+			p.Name, []byte(p.Observations), []byte(p.Attributes), []byte(p.OnRegister), []byte(p.Timeseries), []byte(p.BootstrapTemplate),
+			tenant, old.ID, old.Name, []byte(old.Observations), []byte(old.Attributes), []byte(old.OnRegister), []byte(old.Timeseries), []byte(old.BootstrapTemplate))
+		if profileAffected(result, err, "conditional replace") {
+			return true, true
+		}
+	}
+	_, found := s.Get(tenant, old.ID)
+	return found, false
+}
 func (s *DeviceProfiles) Delete(tenant, id string) (bool, bool) {
 	result, err := s.db.Exec(`DELETE FROM device_profiles WHERE tenant=? AND id=?`, tenant, id)
 	return profileAffected(result, err, "delete"), false

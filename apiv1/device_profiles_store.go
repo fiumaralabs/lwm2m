@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"sort"
@@ -30,6 +31,9 @@ type DeviceProfileStore interface {
 	List(tenant string) []DeviceProfile
 	Get(tenant, id string) (DeviceProfile, bool)
 	Replace(tenant string, profile DeviceProfile) bool
+	// ReplaceIfMatch compares a previously read snapshot atomically.
+	// It returns whether the profile exists and whether the replacement matched.
+	ReplaceIfMatch(tenant string, expected, replacement DeviceProfile) (found, matched bool)
 	Delete(tenant, id string) (found, inUse bool)
 }
 
@@ -151,6 +155,22 @@ func (s *memoryDeviceProfileStore) Replace(tenant string, p DeviceProfile) bool 
 	}
 	s.items[tenant][p.ID] = cloneDeviceProfile(p)
 	return true
+}
+func (s *memoryDeviceProfileStore) ReplaceIfMatch(tenant string, expected, replacement DeviceProfile) (bool, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, found := s.items[tenant][expected.ID]
+	if !found {
+		return false, false
+	}
+	if replacement.ID != expected.ID || current.Name != expected.Name ||
+		!bytes.Equal(current.Observations, expected.Observations) || !bytes.Equal(current.Attributes, expected.Attributes) ||
+		!bytes.Equal(current.OnRegister, expected.OnRegister) || !bytes.Equal(current.Timeseries, expected.Timeseries) ||
+		!bytes.Equal(current.BootstrapTemplate, expected.BootstrapTemplate) {
+		return true, false
+	}
+	s.items[tenant][expected.ID] = cloneDeviceProfile(replacement)
+	return true, true
 }
 func (s *memoryDeviceProfileStore) Delete(tenant, id string) (bool, bool) {
 	s.mu.Lock()
