@@ -104,6 +104,31 @@ func Jobs(t *testing.T, fresh func() apiv1.JobStore) {
 			t.Fatal("transition")
 		}
 	})
+	t.Run("CancelPendingTasks", func(t *testing.T) {
+		s := fresh()
+		for _, tenant := range []string{"a", "b"} {
+			j := apiv1.Job{ID: "job", Target: apiv1.JobTarget{Devices: []string{"d"}}, Action: apiv1.JobAction{Operation: []byte(`{}`)}, Rollout: apiv1.JobRollout{MaxConcurrent: 1}, TTLSeconds: 1}
+			if err := s.Create(tenant, j); err != nil {
+				t.Fatal(err)
+			}
+			for _, task := range []apiv1.JobTask{{Device: "pending", Status: "pending"}, {Device: "running", Status: "running", Operation: "op"}, {Device: "done", Status: "succeeded"}} {
+				if !s.PutTask(tenant, "job", task) {
+					t.Fatal(task)
+				}
+			}
+		}
+		if !s.UpdateStatus("a", "job", "cancelled") {
+			t.Fatal("cancel failed")
+		}
+		job, _ := s.Get("a", "job")
+		if job.Counts != (apiv1.JobCounts{Total: 3, Running: 1, Succeeded: 1, Cancelled: 1}) {
+			t.Fatalf("cancel counts: %+v", job.Counts)
+		}
+		other, _ := s.Get("b", "job")
+		if other.Counts.Pending != 1 || other.Status != "scheduled" {
+			t.Fatalf("other tenant: %+v", other)
+		}
+	})
 	t.Run("EmptyDevices", func(t *testing.T) {
 		s := fresh()
 		j := apiv1.Job{ID: "x", Target: apiv1.JobTarget{Devices: []string{}}, Action: apiv1.JobAction{Operation: []byte(`{}`)}, Rollout: apiv1.JobRollout{MaxConcurrent: 1}, TTLSeconds: 1}
