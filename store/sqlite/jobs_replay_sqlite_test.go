@@ -69,7 +69,7 @@ func TestSQLiteJobReplayConcurrentReopenAndMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var version int
-	if err := d.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 22 {
+	if err := d.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 23 {
 		t.Fatalf("migration version %d: %v", version, err)
 	}
 	stores := []any{d.Jobs(), d2.Jobs()}
@@ -163,7 +163,7 @@ func TestSQLiteJobReplayUpgradeFrom19(t *testing.T) {
 	}
 	defer d.Close()
 	var version int
-	if err = d.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 22 {
+	if err = d.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 23 {
 		t.Fatalf("upgrade version %d: %v", version, err)
 	}
 	if _, ok := d.Jobs().Get("tenant", "prior"); !ok {

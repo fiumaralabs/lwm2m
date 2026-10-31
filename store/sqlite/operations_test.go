@@ -86,10 +86,10 @@ func TestOperationsReopenAndMigration(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 22 {
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 23 {
 		t.Fatalf("version %d: %v", version, err)
 	}
-	if _, err := db.Exec("PRAGMA user_version=23"); err != nil {
+	if _, err := db.Exec("PRAGMA user_version=24"); err != nil {
 		t.Fatal(err)
 	}
 	if d, err := sqlite.Open(path); err == nil {
