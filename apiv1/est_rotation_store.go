@@ -26,17 +26,10 @@ func (s *memoryESTIssuerRotator) PutConfigRotatingIssuerAnchor(tenant string, c 
 	defer s.configs.mu.Unlock()
 	s.anchors.mu.Lock()
 	defer s.anchors.mu.Unlock()
-	previous, configExists := s.configs.items[tenant]
-	matching, unmarked := false, false
 	for _, a := range s.anchors.items[tenant] {
-		if a.ESTIssuer {
-			matching = matching || a.PEM == previous.Certificate
-		} else {
-			unmarked = true
+		if !a.ESTIssuer && !a.Manual {
+			return false, ErrESTIssuerOwnershipAmbiguous
 		}
-	}
-	if unmarked && (!configExists || !matching) {
-		return false, ErrESTIssuerOwnershipAmbiguous
 	}
 	old := make([]TrustAnchor, 0, 1)
 	for id, a := range s.anchors.items[tenant] {
@@ -47,6 +40,7 @@ func (s *memoryESTIssuerRotator) PutConfigRotatingIssuerAnchor(tenant string, c 
 		}
 	}
 	anchor.ESTIssuer = true
+	anchor.Manual = false
 	if err := s.anchors.create(tenant, anchor); err != nil {
 		for _, a := range old {
 			s.anchors.items[tenant][a.ID] = a

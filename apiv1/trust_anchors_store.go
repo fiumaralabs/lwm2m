@@ -15,7 +15,9 @@ import (
 // TrustAnchor is a named PEM bundle and its parsed certificate metadata.
 type TrustAnchor struct {
 	// ESTIssuer marks an automatically managed issuer, not a manual anchor.
-	ESTIssuer    bool                     `json:"-"`
+	ESTIssuer bool `json:"-"`
+	// Manual marks an anchor created through the manual trust-anchor endpoint.
+	Manual       bool                     `json:"-"`
 	ID           string                   `json:"id"`
 	Name         string                   `json:"name"`
 	PEM          string                   `json:"-"`
@@ -120,6 +122,9 @@ func (s *memoryTrustAnchorStore) CreateResult(tenant, key string, result TrustAn
 		}
 	}
 	if result.Problem == nil && result.Anchor != nil {
+		a := cloneTrustAnchor(*result.Anchor)
+		a.Manual, a.ESTIssuer = true, false
+		result.Anchor = &a
 		if err := s.create(tenant, *result.Anchor); err != nil {
 			result.Anchor = nil
 			if errors.Is(err, ErrTrustAnchorDuplicate) {

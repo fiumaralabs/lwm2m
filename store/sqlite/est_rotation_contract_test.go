@@ -27,6 +27,10 @@ func TestESTIssuerRotationReopen(t *testing.T) {
 	if _, err := db.TrustAnchors(10).PutConfigRotatingIssuerAnchor("x", apiv1.ESTConfig{Certificate: "a"}, anchor("a")); err != nil {
 		t.Fatal(err)
 	}
+	manual := anchor("manual")
+	if result := db.TrustAnchors(10).CreateResult("x", "", apiv1.TrustAnchorResult{Anchor: &manual}); result.Problem != nil {
+		t.Fatalf("create manual anchor: %+v", result.Problem)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +43,7 @@ func TestESTIssuerRotationReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	list := db.TrustAnchors(10).List("x")
-	if len(list) != 1 || list[0].ID != "b" {
+	if len(list) != 2 || list[0].ID != "b" || list[1].ID != "manual" {
 		t.Fatalf("rotation after reopen: %+v", list)
 	}
 }

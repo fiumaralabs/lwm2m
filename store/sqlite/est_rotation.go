@@ -1,10 +1,6 @@
 package sqlite
 
-import (
-	"database/sql"
-
-	"github.com/fiumaralabs/lwm2m/apiv1"
-)
+import "github.com/fiumaralabs/lwm2m/apiv1"
 
 var _ apiv1.ESTIssuerRotator = (*TrustAnchors)(nil)
 
@@ -18,18 +14,12 @@ func (s *TrustAnchors) PutConfigRotatingIssuerAnchor(tenant string, c apiv1.ESTC
 	if _, err = tx.Exec(`UPDATE trust_anchors SET id=id WHERE 0`); err != nil {
 		return false, err
 	}
-	var previous string
-	err = tx.QueryRow(`SELECT certificate FROM est_configs WHERE tenant=?`, tenant).Scan(&previous)
-	if err != nil && err != sql.ErrNoRows {
-		return false, err
-	}
-	configExists := err == nil
 	rows, err := tx.Query(`SELECT id,payload FROM trust_anchors WHERE tenant=?`, tenant)
 	if err != nil {
 		return false, err
 	}
 	var ids []string
-	unmarked, matching := false, false
+	unmarked := false
 	for rows.Next() {
 		var id string
 		var b []byte
@@ -43,8 +33,7 @@ func (s *TrustAnchors) PutConfigRotatingIssuerAnchor(tenant string, c apiv1.ESTC
 		}
 		if old.ESTIssuer {
 			ids = append(ids, id)
-			matching = matching || old.PEM == previous
-		} else {
+		} else if !old.Manual {
 			unmarked = true
 		}
 	}
@@ -53,7 +42,7 @@ func (s *TrustAnchors) PutConfigRotatingIssuerAnchor(tenant string, c apiv1.ESTC
 	if err != nil {
 		return false, err
 	}
-	if unmarked && (!configExists || !matching) {
+	if unmarked {
 		return false, apiv1.ErrESTIssuerOwnershipAmbiguous
 	}
 	for _, id := range ids {
@@ -65,6 +54,7 @@ func (s *TrustAnchors) PutConfigRotatingIssuerAnchor(tenant string, c apiv1.ESTC
 		}
 	}
 	a.ESTIssuer = true
+	a.Manual = false
 	if err = s.create(tx, tenant, a); err != nil {
 		return false, err
 	}

@@ -193,6 +193,9 @@ func (s *TrustAnchors) CreateResult(tenant, key string, r apiv1.TrustAnchorResul
 		}
 	}
 	if r.Problem == nil && r.Anchor != nil {
+		a := *r.Anchor
+		a.Manual, a.ESTIssuer = true, false
+		r.Anchor = &a
 		if err = s.create(tx, tenant, *r.Anchor); err != nil {
 			r.Anchor = nil
 			if errors.Is(err, apiv1.ErrTrustAnchorDuplicate) {
