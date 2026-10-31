@@ -1,11 +1,13 @@
 package apiv1
 
 import (
+	"errors"
 	"github.com/fiumaralabs/lwm2m/operations"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -16,6 +18,8 @@ type Options struct {
 	Models            ModelStore            `json:"-"`
 	Jobs              JobStore              `json:"-"`
 	Firmware          FirmwareStore         `json:"-"`
+	FirmwareUpdates   FirmwareUpdateStore   `json:"-"`
+	Gateway           GatewayReader         `json:"-"`
 	DeviceProfiles    DeviceProfileStore    `json:"-"`
 	BootstrapConfigs  BootstrapConfigStore  `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
@@ -85,6 +89,9 @@ func New(o Options) http.Handler {
 	if o.Firmware == nil {
 		o.Firmware = NewMemoryFirmwareStore()
 	}
+	if o.FirmwareUpdates == nil {
+		o.FirmwareUpdates = NewMemoryFirmwareUpdateStore()
+	}
 
 	events := o.eventHandler()
 	if o.Executor != nil {
@@ -98,6 +105,7 @@ func New(o Options) http.Handler {
 	ops := o.operationHandler()
 	models := o.modelHandler()
 	jobs := NewJobsHandler(o.Jobs)
+	updates := NewFirmwareUpdatesHandler(o.FirmwareUpdates, o.Firmware)
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
@@ -112,6 +120,34 @@ func New(o Options) http.Handler {
 		}
 		if r.URL.Path == "/v1/jobs" || strings.HasPrefix(r.URL.Path, "/v1/jobs/") {
 			jobs.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/firmware-updates/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/firmware-updates") && r.URL.EscapedPath() != "/v1/devices/firmware-updates" {
+			if strings.HasPrefix(r.URL.Path, "/v1/devices/") && (r.Method == http.MethodGet || r.Method == http.MethodPost) {
+				scope := "devices:read"
+				if r.Method == http.MethodPost {
+					scope = "firmware:write"
+				}
+				RequireScope(scope)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					raw := strings.TrimSuffix(strings.TrimPrefix(r.URL.EscapedPath(), "/v1/devices/"), "/firmware-updates")
+					ep, err := url.PathUnescape(raw)
+					if err != nil || ep == "" || strings.Contains(raw, "/") {
+						WriteProblem(w, 404, "not_found", "Unknown device path")
+						return
+					}
+					if _, err = o.Devices.Get(TenantFrom(r.Context()), ep); err != nil {
+						if errors.Is(err, store.ErrDeviceNotFound) {
+							WriteProblem(w, 404, "not_found", "Device not found")
+						} else {
+							WriteProblem(w, 500, "internal_error", "Cannot get device")
+						}
+						return
+					}
+					updates.ServeHTTP(w, r)
+				})).ServeHTTP(w, r)
+			} else {
+				updates.ServeHTTP(w, r)
+			}
 			return
 		}
 		if r.URL.Path == "/v1/firmware" || strings.HasPrefix(r.URL.Path, "/v1/firmware/") {
@@ -152,6 +188,10 @@ func New(o Options) http.Handler {
 		}
 		if r.URL.Path == "/v1/api-keys" || strings.HasPrefix(r.URL.Path, "/v1/api-keys/") {
 			RequireScope("admin")(http.HandlerFunc(serveAPIKeys)).ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/end-devices") && r.URL.EscapedPath() != "/v1/devices/end-devices" && o.Gateway != nil {
+			endDevicesHandler(o.Devices, o.Gateway).ServeHTTP(w, r)
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {

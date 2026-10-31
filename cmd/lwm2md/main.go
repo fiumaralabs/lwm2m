@@ -62,6 +62,7 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 	var observationStore apiv1.ObservationDeliveryStore = &memory.Observations{}
 	var jobStore apiv1.JobStore
 	var firmwareStore apiv1.FirmwareStore
+	var firmwareUpdates apiv1.FirmwareUpdateStore
 	var hooks store.Webhooks = &memory.Webhooks{}
 	var settings store.Settings
 	var models apiv1.ModelStore
@@ -74,6 +75,7 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 		observationStore = durable.Observations()
 		jobStore = durable.Jobs()
 		firmwareStore = durable.Firmware()
+		firmwareUpdates = durable.FirmwareUpdates()
 		hooks = durable.Webhooks()
 		settings = durable.Settings()
 		models = durable.Models()
@@ -112,7 +114,7 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 			series = durable.TimeSeries()
 		}
 	}
-	native := apiv1.New(apiv1.Options{Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})

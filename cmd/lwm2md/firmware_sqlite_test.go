@@ -13,6 +13,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/apiv1"
 	"github.com/fiumaralabs/lwm2m/leshanapi"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/sqlite"
 )
 
@@ -31,6 +32,9 @@ func TestSQLiteFirmwareDaemonReopen(t *testing.T) {
 		return d, h
 	}
 	d, h := open()
+	if _, err := d.Create("default", store.Device{Endpoint: "pump"}); err != nil {
+		t.Fatal(err)
+	}
 	r := httptest.NewRequest("POST", "/v1/firmware", strings.NewReader(`{"name":"pump","version":"1"}`))
 	r.Header.Set("Authorization", "Bearer lwm_test_secret")
 	w := httptest.NewRecorder()
@@ -42,11 +46,26 @@ func TestSQLiteFirmwareDaemonReopen(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
+	updateReq := httptest.NewRequest("POST", "/v1/devices/pump/firmware-updates", strings.NewReader(`{"uri":"coaps://example/fw"}`))
+	updateReq.Header.Set("Authorization", "Bearer lwm_test_secret")
+	updateResult := httptest.NewRecorder()
+	h.ServeHTTP(updateResult, updateReq)
+	var update apiv1.FirmwareUpdate
+	if updateResult.Code != 201 || json.Unmarshal(updateResult.Body.Bytes(), &update) != nil || update.ID == "" {
+		t.Fatalf("update create: %d %s", updateResult.Code, updateResult.Body)
+	}
 	if err := d.Close(); err != nil {
 		t.Fatal(err)
 	}
 	d, h = open()
 	defer d.Close()
+	updateReq = httptest.NewRequest("GET", "/v1/firmware-updates/"+update.ID, nil)
+	updateReq.Header.Set("Authorization", "Bearer lwm_test_secret")
+	updateResult = httptest.NewRecorder()
+	h.ServeHTTP(updateResult, updateReq)
+	if updateResult.Code != 200 {
+		t.Fatalf("update after reopen: %d %s", updateResult.Code, updateResult.Body)
+	}
 	r = httptest.NewRequest("GET", "/v1/firmware/"+created.ID, nil)
 	r.Header.Set("Authorization", "Bearer lwm_test_secret")
 	w = httptest.NewRecorder()
