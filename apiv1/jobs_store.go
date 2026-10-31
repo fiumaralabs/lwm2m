@@ -55,6 +55,8 @@ type JobTask struct {
 // JobStore keeps job and task operations tenant-scoped. IDs are supplied by the caller.
 type JobStore interface {
 	Create(string, Job) error
+	ReplayJob(string, string) (JobCreateResult, bool, error)
+	CreateJobResult(string, string, JobCreateResult) (JobCreateResult, error)
 	Get(string, string) (Job, bool)
 	List(string) []Job
 	UpdateStatus(string, string, string) bool
@@ -62,13 +64,14 @@ type JobStore interface {
 	ListTasks(string, string, string) []JobTask
 }
 type memoryJobStore struct {
-	mu    sync.RWMutex
-	jobs  map[string]map[string]Job
-	tasks map[string]map[string]map[string]JobTask
+	mu      sync.RWMutex
+	jobs    map[string]map[string]Job
+	tasks   map[string]map[string]map[string]JobTask
+	replays map[string]map[string]jobReplay
 }
 
 func NewMemoryJobStore() JobStore {
-	return &memoryJobStore{jobs: make(map[string]map[string]Job), tasks: make(map[string]map[string]map[string]JobTask)}
+	return &memoryJobStore{jobs: make(map[string]map[string]Job), tasks: make(map[string]map[string]map[string]JobTask), replays: make(map[string]map[string]jobReplay)}
 }
 
 // ValidateJob checks the create-time rollout and exclusive target and action fields.

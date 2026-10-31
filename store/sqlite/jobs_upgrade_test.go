@@ -62,7 +62,7 @@ func TestJobsUpgradeFromMainSchema16(t *testing.T) {
 	if string(body) != string([]byte{0, 127}) || expires != 123456789 {
 		t.Fatalf("replay changed: %x %d", body, expires)
 	}
-	if err = db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 19 {
+	if err = db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 20 {
 		t.Fatalf("upgraded version = %d, err = %v", version, err)
 	}
 }
