@@ -14,6 +14,8 @@ import (
 
 // TrustAnchor is a named PEM bundle and its parsed certificate metadata.
 type TrustAnchor struct {
+	// ESTIssuer marks an automatically managed issuer, not a manual anchor.
+	ESTIssuer    bool                     `json:"-"`
 	ID           string                   `json:"id"`
 	Name         string                   `json:"name"`
 	PEM          string                   `json:"-"`
