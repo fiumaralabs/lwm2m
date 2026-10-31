@@ -20,7 +20,32 @@ type GatewayReader interface {
 	ReadGateway(ctx context.Context, tenant, endpoint string) ([]link.Link, []gateway.Device, error)
 }
 
+// normalizeGatewayLinks applies the registered alternate root without mutating
+// the reader's snapshot. Links outside that root remain unchanged.
+func normalizeGatewayLinks(links []link.Link) []link.Link {
+	root := ""
+	for _, l := range links {
+		if rt, ok := l.Param("rt"); ok && slices.Contains(strings.Fields(rt.Value), "oma.lwm2m") {
+			root = strings.TrimSuffix(l.URI, "/")
+			break
+		}
+	}
+	if root == "" {
+		return links
+	}
+	out := slices.Clone(links)
+	for i := range out {
+		if out[i].URI == root {
+			out[i].URI = "/"
+		} else if strings.HasPrefix(out[i].URI, root+"/") {
+			out[i].URI = strings.TrimPrefix(out[i].URI, root)
+		}
+	}
+	return out
+}
+
 func prefixedObjects(links []link.Link) map[string][]link.Object {
+	links = normalizeGatewayLinks(links)
 	result := make(map[string][]link.Object)
 	for _, l := range links {
 		prefix, path, err := lwm2m.ParsePrefixedPath(l.URI)
@@ -92,11 +117,12 @@ func endDevicesHandler(devices store.Devices, source GatewayReader) http.Handler
 			WriteProblem(w, 500, "internal_error", "Cannot get gateway data")
 			return
 		}
+		links = normalizeGatewayLinks(links)
 		items := []endDeviceView{}
 		isGateway := false
 		for _, l := range links {
 			p, e := lwm2m.ParsePath(l.URI)
-			if e == nil && p.Len() <= 2 && p.Object() == gateway.ObjectGateway {
+			if e == nil && p.Len() >= 1 && p.Len() <= 2 && p.Object() == gateway.ObjectGateway {
 				isGateway = true
 				break
 			}
