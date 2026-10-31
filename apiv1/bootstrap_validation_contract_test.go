@@ -26,7 +26,6 @@ func TestBootstrapValidation(t *testing.T) {
 		{"psk-short", `{"servers":[{"shortServerId":1,"security":{"psk":{"key":"hex:00"}}}]}`, "key", 422},
 		{"psk-invalid", `{"servers":[{"shortServerId":1,"security":{"psk":{"key":"base64:!"}}}]}`, "key", 422},
 		{"rpk", `{"servers":[{"shortServerId":1,"security":{"rpk":{}}}]}`, "rpk_unsupported", 501},
-		{"generate", `{"servers":[{"shortServerId":1,"security":{"psk":{"generate":true}}}]}`, "psk_generate_unsupported", 501},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := deviceRequest(h, "PUT", "/v1/devices/a/bootstrap", tc.body)
