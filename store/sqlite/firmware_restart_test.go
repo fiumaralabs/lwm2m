@@ -55,7 +55,7 @@ func TestFirmwareMigrationFrom12(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`DROP TABLE job_tasks; DROP TABLE jobs; DROP TABLE device_profiles; DROP TABLE firmware; INSERT INTO devices(tenant,endpoint,payload) VALUES('a','preserved','{}'); ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=12`); err != nil {
+	if _, err := db.Exec(`DROP TABLE firmware_updates; DROP TABLE job_tasks; DROP TABLE jobs; DROP TABLE device_profiles; DROP TABLE firmware; INSERT INTO devices(tenant,endpoint,payload) VALUES('a','preserved','{}'); ALTER TABLE security DROP COLUMN updated_at; PRAGMA user_version=12`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

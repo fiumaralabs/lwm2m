@@ -134,7 +134,9 @@ func cloneFirmwareUpdate(u FirmwareUpdate) FirmwareUpdate {
 	}
 	return u
 }
-func terminalFirmwareUpdate(status string) bool {
+
+// TerminalFirmwareUpdate reports whether a firmware update is final.
+func TerminalFirmwareUpdate(status string) bool {
 	return status == "succeeded" || status == "failed" || status == "cancelled"
 }
 func (s *memoryFirmwareUpdateStore) Create(tenant string, u FirmwareUpdate) error {
@@ -150,7 +152,7 @@ func (s *memoryFirmwareUpdateStore) Create(tenant string, u FirmwareUpdate) erro
 		return errors.New("firmware update already exists")
 	}
 	for _, existing := range s.updates[tenant] {
-		if existing.Device == u.Device && !terminalFirmwareUpdate(existing.Status) {
+		if existing.Device == u.Device && !TerminalFirmwareUpdate(existing.Status) {
 			return ErrUpdateInProgress
 		}
 	}
@@ -188,8 +190,10 @@ func (s *memoryFirmwareUpdateStore) ListForDevice(tenant, device string) []Firmw
 	})
 	return out
 }
-func validFirmwareUpdateTransition(from, to string) bool {
-	if terminalFirmwareUpdate(from) {
+
+// ValidFirmwareUpdateTransition reports whether a status change is allowed.
+func ValidFirmwareUpdateTransition(from, to string) bool {
+	if TerminalFirmwareUpdate(from) {
 		return false
 	}
 	switch from {
@@ -210,7 +214,7 @@ func (s *memoryFirmwareUpdateStore) UpdateObserved(tenant, id, status string, ob
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u, ok := s.updates[tenant][id]
-	if !ok || terminalFirmwareUpdate(u.Status) || (status != u.Status && !validFirmwareUpdateTransition(u.Status, status)) {
+	if !ok || TerminalFirmwareUpdate(u.Status) || (status != u.Status && !ValidFirmwareUpdateTransition(u.Status, status)) {
 		return false
 	}
 	if observed.Method != "auto" && observed.Method != "push" && observed.Method != "pull" {
@@ -223,7 +227,7 @@ func (s *memoryFirmwareUpdateStore) UpdateObserved(tenant, id, status string, ob
 	u.UpdateResult = observed.UpdateResult
 	u.Progress = observed.Progress
 	u.Outcome = observed.Outcome
-	if terminalFirmwareUpdate(status) {
+	if TerminalFirmwareUpdate(status) {
 		now := time.Now().UTC()
 		u.CompletedAt = &now
 	}
@@ -235,11 +239,11 @@ func (s *memoryFirmwareUpdateStore) UpdateStatus(tenant, id, status string) bool
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u, ok := s.updates[tenant][id]
-	if !ok || !validFirmwareUpdateTransition(u.Status, status) {
+	if !ok || !ValidFirmwareUpdateTransition(u.Status, status) {
 		return false
 	}
 	u.Status = status
-	if terminalFirmwareUpdate(status) {
+	if TerminalFirmwareUpdate(status) {
 		now := time.Now().UTC()
 		u.CompletedAt = &now
 	}
