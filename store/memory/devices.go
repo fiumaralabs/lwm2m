@@ -15,9 +15,11 @@ import (
 
 // Devices stores tenant-isolated metadata. Its zero value is usable.
 type Devices struct {
-	mu      sync.RWMutex
-	records map[string]map[string]store.Device
-	creates map[string]map[string]store.DeviceCreateOutcome
+	mu       sync.RWMutex
+	records  map[string]map[string]store.Device
+	creates  map[string]map[string]store.DeviceCreateOutcome
+	replayMu sync.Mutex
+	replays  map[deviceReplayKey]*deviceReplay
 }
 
 var _ store.Devices = (*Devices)(nil)
