@@ -45,7 +45,7 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 		if _, exists := devices[d.Endpoint]; exists {
 			o := newOutcome(tenant, id, fingerprint, "not-created", "endpoint-conflict")
 			s.saveOutcome(o)
-			return o, false, nil
+			return o, true, nil
 		}
 	}
 	_, err := s.createLocked(tenant, d)
@@ -58,18 +58,19 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 	return o, true, nil
 }
 
-func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, fingerprint, reason string) (store.DeviceCreateOutcome, error) {
+func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, fingerprint, reason string) (store.DeviceCreateOutcome, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return store.DeviceCreateOutcome{}, err
+		return store.DeviceCreateOutcome{}, false, err
 	}
 	if o, ok := s.creates[tenant][id]; ok {
-		return replayOutcome(o, fingerprint)
+		o, err := replayOutcome(o, fingerprint)
+		return o, false, err
 	}
 	o := newOutcome(tenant, id, fingerprint, "not-created", reason)
 	s.saveOutcome(o)
-	return o, nil
+	return o, true, nil
 }
 
 func (s *Devices) GetOrFenceDeviceCreate(ctx context.Context, tenant, id string) (store.DeviceCreateOutcome, error) {

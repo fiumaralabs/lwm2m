@@ -70,6 +70,10 @@ func TestDeviceCreateCommittedReopen(t *testing.T) {
 	if err != nil || !created {
 		t.Fatalf("create=%v err=%v", created, err)
 	}
+	invalid, inserted, err := s.RecordDeviceCreateNotCreated(ctx, "t", "invalid", "hash", "invalid")
+	if err != nil || !inserted {
+		t.Fatalf("record invalid inserted=%v err=%v", inserted, err)
+	}
 	if err = s.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +82,10 @@ func TestDeviceCreateCommittedReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
+	invalidReplay, inserted, err := s.RecordDeviceCreateNotCreated(ctx, "t", "invalid", "hash", "invalid")
+	if err != nil || inserted || !reflect.DeepEqual(invalid, invalidReplay) {
+		t.Fatalf("invalid replay=%+v inserted=%v err=%v", invalidReplay, inserted, err)
+	}
 	replay, created, err := s.CreateDeviceWithOutcome(ctx, "t", "id", "hash", store.Device{Endpoint: "other"})
 	if err != nil || created || !reflect.DeepEqual(first, replay) {
 		t.Fatalf("replay=%+v created=%v err=%v", replay, created, err)
