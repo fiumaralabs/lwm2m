@@ -17,6 +17,15 @@ import (
 	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
+// tickUnrestricted preserves the isolated runner unit tests' explicit stub executor.
+// Integration tests exercise admission through the handler.
+func tickUnrestricted(r JobRunner, ctx context.Context) error {
+	if r.Executor != nil {
+		r.submit = r.Executor.Submit
+	}
+	return r.Tick(ctx)
+}
+
 type jobSubmitterFunc func(context.Context, string, operations.Operation) (operations.Operation, error)
 
 func (f jobSubmitterFunc) Submit(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
@@ -48,7 +57,7 @@ func TestJobRunnerDispatchesClaimedOperation(t *testing.T) {
 		return op, nil
 	})
 	runner := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: submit}
-	if err := runner.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(runner, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	tasks := jobs.ListTasks("tenant", "job", "")
@@ -72,7 +81,7 @@ func TestJobRunnerPassesOperationOptions(t *testing.T) {
 		}
 		return op, nil
 	})}
-	if err := r.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(r, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -92,7 +101,7 @@ func TestJobRunnerSubmitErrorFailsTaskWithoutRetry(t *testing.T) {
 		return operations.Operation{}, errors.New("submit failed")
 	})}
 	for i := 0; i < 2; i++ {
-		if err := r.Tick(context.Background()); err != nil {
+		if err := tickUnrestricted(r, context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -115,7 +124,7 @@ func TestJobRunnerReconcilesTerminalOperation(t *testing.T) {
 	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: jobSubmitterFunc(func(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
 		return op, ops.Create(ctx, tenant, op)
 	})}
-	if err := r.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(r, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	task := jobs.ListTasks("tenant", "job", "")[0]
@@ -126,7 +135,7 @@ func TestJobRunnerReconcilesTerminalOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
-		if err := r.Tick(context.Background()); err != nil {
+		if err := tickUnrestricted(r, context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -160,7 +169,7 @@ func TestJobRunnerConcurrentTicksRespectMaxConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := r.Tick(context.Background()); err != nil {
+			if err := tickUnrestricted(r, context.Background()); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -200,19 +209,19 @@ func TestJobRunnerClaimBeforePauseMaySubmit(t *testing.T) {
 		<-release
 		return op, nil
 	})}
-	go func() { done <- r.Tick(context.Background()) }()
+	go func() { done <- tickUnrestricted(r, context.Background()) }()
 	<-entered
 	if !jobs.UpdateStatus("tenant", "job", "paused") {
 		t.Fatal("pause")
 	}
-	if err := r.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(r, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	close(release)
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(r, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if calls.Load() != 1 {
@@ -248,7 +257,7 @@ func TestJobRunnerRealExecutorDelivery(t *testing.T) {
 	runner := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: ex}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := runner.Tick(ctx); err != nil {
+	if err := tickUnrestricted(runner, ctx); err != nil {
 		t.Fatal(err)
 	}
 	task := jobs.ListTasks("tenant", "job", "")[0]
@@ -264,7 +273,7 @@ func TestJobRunnerRealExecutorDelivery(t *testing.T) {
 	if err != nil || op.Status != operations.Succeeded {
 		t.Fatalf("op=%+v err=%v", op, err)
 	}
-	if err := runner.Tick(ctx); err != nil {
+	if err := tickUnrestricted(runner, ctx); err != nil {
 		t.Fatal(err)
 	}
 	task = jobs.ListTasks("tenant", "job", "")[0]
@@ -288,7 +297,7 @@ func TestJobRunnerRejectsUnknownOperationFields(t *testing.T) {
 		calls++
 		return op, nil
 	})}
-	if err := r.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(r, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	task := jobs.ListTasks("tenant", "job", "")[0]

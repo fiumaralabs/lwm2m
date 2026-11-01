@@ -9,14 +9,9 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
 	"github.com/fiumaralabs/lwm2m/operations"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store/sqlite"
 )
-
-type sqliteSubmitter struct{ ops *sqlite.Operations }
-
-func (s sqliteSubmitter) Submit(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
-	return op, s.ops.Create(ctx, tenant, op)
-}
 
 func TestJobRunnerSQLiteTenantPauseResumeAndReconcile(t *testing.T) {
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "jobs.db"))
@@ -37,7 +32,12 @@ func TestJobRunnerSQLiteTenantPauseResumeAndReconcile(t *testing.T) {
 	if !jobs.UpdateStatus("b", "same", "paused") {
 		t.Fatal("pause")
 	}
-	runner := apiv1.JobRunner{ServerTenant: "a", Jobs: jobs, Operations: ops, Executor: sqliteSubmitter{ops}}
+	srv := server.New(server.Config{})
+	defer srv.Close()
+	executor := operations.NewExecutor(srv, ops, operations.ExecutorOptions{})
+	defer executor.Close()
+	runner := apiv1.JobRunner{}
+	apiv1.New(apiv1.Options{Jobs: jobs, Executor: executor, ServerTenant: "a", JobRunner: &runner})
 	if err := runner.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestJobRunnerSQLiteTenantPauseResumeAndReconcile(t *testing.T) {
 	if !jobs.UpdateStatus("b", "same", "running") {
 		t.Fatal("resume")
 	}
-	runner.ServerTenant = "b"
+	apiv1.New(apiv1.Options{Jobs: jobs, Executor: executor, ServerTenant: "b", JobRunner: &runner})
 	if err := runner.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}

@@ -23,7 +23,7 @@ func TestCancelledJobReconcilesSubmittedOperation(t *testing.T) {
 	runner := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: jobSubmitterFunc(func(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
 		return op, ops.Create(ctx, tenant, op)
 	})}
-	if err := runner.Tick(ctx); err != nil {
+	if err := tickUnrestricted(runner, ctx); err != nil {
 		t.Fatal(err)
 	}
 	task := jobs.ListTasks("tenant", "job", "running")[0]
@@ -36,7 +36,7 @@ func TestCancelledJobReconcilesSubmittedOperation(t *testing.T) {
 	if err := ops.Update(ctx, "tenant", task.Operation, operations.Sent, operations.Change{Status: operations.Succeeded}); err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.Tick(ctx); err != nil {
+	if err := tickUnrestricted(runner, ctx); err != nil {
 		t.Fatal(err)
 	}
 	j, _ := jobs.Get("tenant", "job")

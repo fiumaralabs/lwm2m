@@ -19,11 +19,14 @@ type Options struct {
 	BootstrapSessions    BootstrapSessionStore    `json:"-"`
 	Models               ModelStore               `json:"-"`
 	Jobs                 JobStore                 `json:"-"`
-	Firmware             FirmwareStore            `json:"-"`
-	FirmwareUpdates      FirmwareUpdateStore      `json:"-"`
-	Gateway              GatewayReader            `json:"-"`
-	DeviceProfiles       DeviceProfileStore       `json:"-"`
-	BootstrapConfigs     BootstrapConfigStore     `json:"-"`
+	// JobRunner, when provided, shares this handler's operation admission.
+	// Configure it before starting concurrent ticks.
+	JobRunner        *JobRunner           `json:"-"`
+	Firmware         FirmwareStore        `json:"-"`
+	FirmwareUpdates  FirmwareUpdateStore  `json:"-"`
+	Gateway          GatewayReader        `json:"-"`
+	DeviceProfiles   DeviceProfileStore   `json:"-"`
+	BootstrapConfigs BootstrapConfigStore `json:"-"`
 	// When supplying Executor, also pass this store in its ExecutorOptions.State.
 	State    store.State    `json:"-"`
 	Settings store.Settings `json:"-"`
@@ -109,6 +112,14 @@ func New(o Options) http.Handler {
 	}
 	if o.Executor == nil && o.Server != nil {
 		o.Executor = operations.NewExecutor(o.Server, o.Operations, operations.ExecutorOptions{State: o.State})
+	}
+	if o.JobRunner != nil && o.Executor != nil {
+		o.JobRunner.Jobs = o.Jobs
+		o.JobRunner.Devices = o.Devices
+		o.JobRunner.Executor = o.Executor
+		o.JobRunner.Operations = o.Operations
+		o.JobRunner.ServerTenant = o.ServerTenant
+		o.JobRunner.submit = o.submitOperation
 	}
 	ops := o.operationHandler()
 	models := o.modelHandler()

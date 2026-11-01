@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +12,9 @@ import (
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
-// JobRunner starts due jobs. Delivery and completion are handled separately.
+// JobRunner starts due jobs and reconciles submitted operations. To dispatch,
+// pass it as Options.JobRunner to New before calling Tick; standalone runners
+// without shared admission fail closed rather than bypassing tenant limits.
 type JobRunner struct {
 	Jobs    JobStore
 	Devices store.Devices
@@ -23,7 +26,8 @@ type JobRunner struct {
 	Operations interface {
 		Get(context.Context, string, string) (operations.Operation, error)
 	}
-	Clock func() time.Time
+	Clock  func() time.Time
+	submit func(context.Context, string, operations.Operation) (operations.Operation, error)
 }
 
 // Tick discovers tenants from the job store and snapshots each due job once.
@@ -85,6 +89,9 @@ func (r JobRunner) Tick(ctx context.Context) error {
 				serverTenant = "default"
 			}
 			if job.Status == "running" && r.Executor != nil && tenant == serverTenant && len(job.Action.Operation) > 0 {
+				if r.submit == nil {
+					return fmt.Errorf("job runner requires handler operation admission")
+				}
 				claimer, ok := r.Jobs.(interface {
 					ClaimTasks(string, string) ([]JobTask, error)
 				})
@@ -96,7 +103,15 @@ func (r JobRunner) Tick(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
+				var admissionErr error
 				for _, task := range claimed {
+					if admissionErr != nil {
+						task.Status = "pending"
+						if !r.Jobs.PutTask(tenant, job.ID, task) {
+							return fmt.Errorf("cannot release task")
+						}
+						continue
+					}
 					var input struct {
 						Type        string            `json:"type"`
 						TTL         *int              `json:"ttlSeconds"`
@@ -133,9 +148,14 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						err = parseErr
 						op = operations.Operation{}
 					} else {
-						op, err = r.Executor.Submit(ctx, tenant, op)
+						op, err = r.submit(ctx, tenant, op)
 					}
-					if err != nil && op.ID == "" {
+					if errors.Is(err, errOperationLimit) || errors.Is(err, errOperationAdmission) {
+						task.Status = "pending"
+						if errors.Is(err, errOperationAdmission) {
+							admissionErr = err
+						}
+					} else if err != nil && op.ID == "" {
 						task.Status, task.Error = "failed", err.Error()
 					} else {
 						task.Status, task.Operation = "running", op.ID
@@ -143,6 +163,9 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					if !r.Jobs.PutTask(tenant, job.ID, task) {
 						return fmt.Errorf("cannot record task")
 					}
+				}
+				if admissionErr != nil {
+					return admissionErr
 				}
 			}
 			if job.Status != "scheduled" || (job.Rollout.StartAt != nil && job.Rollout.StartAt.After(now)) {

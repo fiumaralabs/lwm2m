@@ -39,7 +39,7 @@ func TestJobRunnerRetainsPersistedOperationAfterSubmitError(t *testing.T) {
 	ex := operations.NewExecutor(srv, ops, operations.ExecutorOptions{})
 	defer ex.Close()
 	runner := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: ex}
-	if err := runner.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(runner, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	task := jobs.ListTasks("tenant", "job", "")[0]
@@ -50,7 +50,7 @@ func TestJobRunnerRetainsPersistedOperationAfterSubmitError(t *testing.T) {
 	if err != nil || op.Status != operations.Queued {
 		t.Fatalf("operation=%+v error=%v", op, err)
 	}
-	if err := runner.Tick(context.Background()); err != nil {
+	if err := tickUnrestricted(runner, context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	j, _ := jobs.Get("tenant", "job")
