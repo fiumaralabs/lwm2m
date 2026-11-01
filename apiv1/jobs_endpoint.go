@@ -7,14 +7,23 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/internal/id"
+	"github.com/fiumaralabs/lwm2m/operations"
 	"github.com/fiumaralabs/lwm2m/selector"
 )
 
 // NewJobsHandler serves the fleet jobs API without installing routes. Authentication is provided by the caller.
 func NewJobsHandler(store JobStore) http.Handler {
+	return newJobsHandler(store, nil, nil)
+}
+
+func newJobsHandler(store JobStore, executor *operations.Executor, runner *JobRunner) http.Handler {
+	if runner != nil {
+		runner.cancelMu = &sync.Mutex{}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		scope := "devices:read"
 		if r.Method == http.MethodPost {
@@ -26,7 +35,11 @@ func NewJobsHandler(store JobStore) http.Handler {
 				return
 			}
 			if r.Method == http.MethodPost && r.URL.Path != "/v1/jobs" {
-				serveJobAction(store, w, r)
+				var canceller jobCanceller
+				if executor != nil {
+					canceller = executor
+				}
+				serveJobAction(store, canceller, runner, w, r)
 				return
 			}
 			if r.URL.Path != "/v1/jobs" || r.Method != http.MethodPost {
