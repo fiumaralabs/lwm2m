@@ -41,7 +41,7 @@ func (r JobRunner) Tick(ctx context.Context) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if r.Operations != nil && (job.Status == "running" || job.Status == "paused") {
+			if r.Operations != nil && (job.Status == "running" || job.Status == "paused" || job.Status == "cancelled") {
 				for _, task := range r.Jobs.ListTasks(tenant, job.ID, "running") {
 					if task.Operation == "" {
 						continue
