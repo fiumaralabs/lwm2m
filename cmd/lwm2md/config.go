@@ -13,23 +13,24 @@ import (
 
 // Pointer fields distinguish an omitted setting from an explicit zero value.
 type fileConfig struct {
-	CoAP       *string `json:"coap"`
-	CoAPS      *string `json:"coaps"`
-	TCP        *string `json:"tcp"`
-	HTTP       *string `json:"http"`
-	Metrics    *bool   `json:"metrics"`
-	TimeSeries *bool   `json:"timeseries"`
-	Store      *string `json:"store"`
-	Prefix     *string `json:"prefix"`
-	APIKeys    *string `json:"api-keys"`
-	BSCoAP     *string `json:"bs-coap"`
-	BSCoAPS    *string `json:"bs-coaps"`
-	BSHTTP     *string `json:"bs-http"`
-	CID        *int    `json:"cid"`
-	FWDir      *string `json:"fw-dir"`
-	FWCoAP     *string `json:"fw-coap"`
-	FWCoAPS    *string `json:"fw-coaps"`
-	Verbose    *bool   `json:"v"`
+	CoAP            *string `json:"coap"`
+	CoAPS           *string `json:"coaps"`
+	TCP             *string `json:"tcp"`
+	HTTP            *string `json:"http"`
+	Metrics         *bool   `json:"metrics"`
+	TimeSeries      *bool   `json:"timeseries"`
+	JobTickInterval *string `json:"job-tick-interval"`
+	Store           *string `json:"store"`
+	Prefix          *string `json:"prefix"`
+	APIKeys         *string `json:"api-keys"`
+	BSCoAP          *string `json:"bs-coap"`
+	BSCoAPS         *string `json:"bs-coaps"`
+	BSHTTP          *string `json:"bs-http"`
+	CID             *int    `json:"cid"`
+	FWDir           *string `json:"fw-dir"`
+	FWCoAP          *string `json:"fw-coap"`
+	FWCoAPS         *string `json:"fw-coaps"`
+	Verbose         *bool   `json:"v"`
 }
 
 // applyConfig runs after flag parsing, preserving every explicitly set flag.

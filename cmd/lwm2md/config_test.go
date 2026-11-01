@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigUnknownKeyAtStartup(t *testing.T) {
@@ -30,6 +31,8 @@ func TestConfigPrecedence(t *testing.T) {
 		err            string
 	}{
 		{name: "defaults", want: map[string]string{"coap": ":5683", "metrics": "true", "cid": "6"}},
+		{name: "job interval file", contents: `{"job-tick-interval":"25ms"}`, want: map[string]string{"job-tick-interval": "25ms"}},
+		{name: "job interval flag overrides file", contents: `{"job-tick-interval":"25ms"}`, args: []string{"-job-tick-interval=50ms"}, want: map[string]string{"job-tick-interval": "50ms"}},
 		{name: "file only", contents: `{"coap":"","coaps":"a","tcp":"b","http":"c","metrics":false,"timeseries":false,"store":"sqlite:x","prefix":"/x","api-keys":"k","bs-coap":"d","bs-coaps":"e","bs-http":"f","cid":0,"fw-dir":"g","fw-coap":"h","fw-coaps":"i","v":true}`, want: map[string]string{"coap": "", "coaps": "a", "tcp": "b", "http": "c", "metrics": "false", "timeseries": "false", "store": "sqlite:x", "prefix": "/x", "api-keys": "k", "bs-coap": "d", "bs-coaps": "e", "bs-http": "f", "cid": "0", "fw-dir": "g", "fw-coap": "h", "fw-coaps": "i", "v": "true"}},
 		{name: "explicit flags override including defaults", contents: `{"coap":"file","metrics":false,"cid":0,"prefix":"/file"}`, args: []string{"-coap=:5683", "-metrics=true", "-cid=6"}, want: map[string]string{"coap": ":5683", "metrics": "true", "cid": "6", "prefix": "/file"}},
 		{name: "unknown key", contents: `{"bad-key":true}`, err: "bad-key"},
@@ -49,6 +52,7 @@ func TestConfigPrecedence(t *testing.T) {
 			fs.Bool("metrics", true, "")
 			fs.Bool("timeseries", true, "")
 			fs.Bool("v", false, "")
+			fs.Duration("job-tick-interval", time.Second, "")
 			fs.Int("cid", 6, "")
 			if err := fs.Parse(tt.args); err != nil {
 				t.Fatal(err)

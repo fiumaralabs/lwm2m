@@ -52,6 +52,10 @@ func newDaemonWithTimeSeries(cfg server.Config, api *leshanapi.API, keys apiv1.K
 }
 
 func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	return newDaemonWithRunner(cfg, api, keys, enabled, sessions, nil, stores...)
+}
+
+func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
@@ -122,7 +126,7 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 		}
 	}
 	deviceCreates, _ := devices.(store.DeviceCreateStore)
-	native := apiv1.New(apiv1.Options{ESTConfigs: estConfigs, ESTIssuerRotator: estRotator, TrustAnchors: trustAnchors, BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, DeviceCreates: deviceCreates, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{JobRunner: runner, ESTConfigs: estConfigs, ESTIssuerRotator: estRotator, TrustAnchors: trustAnchors, BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, DeviceCreates: deviceCreates, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
@@ -174,6 +178,7 @@ func main() {
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
 	timeSeries := flag.Bool("timeseries", true, "enable time series (persistent with SQLite)")
+	jobInterval := flag.Duration("job-tick-interval", time.Second, "fleet job runner tick interval")
 	storeFlag := flag.String("store", "memory", "device metadata and operations store: memory or sqlite:<path>")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
@@ -191,6 +196,9 @@ func main() {
 		if err := applyConfig(flag.CommandLine, *configPath); err != nil {
 			log.Fatal(err)
 		}
+	}
+	if *jobInterval <= 0 {
+		log.Fatal("job-tick-interval must be positive")
 	}
 	var devices store.Devices = &memory.Devices{}
 	if strings.HasPrefix(*storeFlag, "sqlite:") && strings.TrimPrefix(*storeFlag, "sqlite:") != "" {
@@ -239,7 +247,8 @@ func main() {
 	}
 	security := coap.NewRevokingSecurityStore(securityStore, func(id string) { cb.RevokePSKIdentity(id) })
 	sessions := apiv1.NewMemoryBootstrapSessionStore()
-	srv, native, executor, dispatcher := newDaemonWithSessions(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, devices)
+	runner := &apiv1.JobRunner{}
+	srv, native, executor, dispatcher := newDaemonWithRunner(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, devices)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)
@@ -247,6 +256,22 @@ func main() {
 	if err := executor.Start(ctx); err != nil {
 		log.Fatal(err)
 	}
+	runnerDone := make(chan struct{})
+	go func() {
+		defer close(runnerDone)
+		ticker := time.NewTicker(*jobInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := runner.Tick(ctx); err != nil && ctx.Err() == nil {
+					log.Printf("job runner: %v", err)
+				}
+			}
+		}
+	}()
 
 	listen := func(name, addr string, f func(string) (net.Addr, error)) {
 		if addr == "" {
@@ -346,6 +371,7 @@ func main() {
 	probes.SetReady(true)
 
 	<-ctx.Done()
+	<-runnerDone
 	probes.SetReady(false)
 	log.Print("shutting down")
 	for _, hs := range servers {
