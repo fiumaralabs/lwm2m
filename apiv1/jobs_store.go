@@ -242,8 +242,12 @@ func (s *memoryJobStore) UpdateStatus(tenant, id, status string) bool {
 func (s *memoryJobStore) PutTask(tenant, id string, t JobTask) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.jobs[tenant][id]; !ok {
+	j, ok := s.jobs[tenant][id]
+	if !ok {
 		return false
+	}
+	if t.Status == "pending" && j.Status == "cancelled" {
+		t.Status = "cancelled"
 	}
 	switch t.Status {
 	case "pending", "running", "succeeded", "failed", "expired", "cancelled":
