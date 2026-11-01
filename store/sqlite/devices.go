@@ -81,7 +81,10 @@ var estConfigMigration string
 //go:embed 023_bootstrap_credentials.sql
 var bootstrapCredentialsMigration string
 
-type Devices struct{ db *sql.DB }
+type Devices struct {
+	db               *sql.DB
+	deviceCreateHook func(string) error
+}
 type deviceCursor struct {
 	Tenant, Q, Status *string
 	After             string
@@ -266,6 +269,11 @@ func (s *Devices) migrate() error {
 		if _, err = tx.Exec(bootstrapCredentialsMigration); err != nil {
 			return err
 		}
+	}
+	// Migration 026 is additive. Leave user_version at 23 until the reserved
+	// migrations 024 and 025 land, so they cannot be skipped on upgrade.
+	if _, err = tx.Exec(deviceCreateMigration); err != nil {
+		return err
 	}
 	return tx.Commit()
 }
