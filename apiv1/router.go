@@ -139,7 +139,7 @@ func New(o Options) http.Handler {
 	}
 	ops := o.operationHandler()
 	models := o.modelHandler()
-	jobs := NewJobsHandler(o.Jobs)
+	jobs := newJobsHandler(o.Jobs, o.Executor, o.JobRunner)
 	updates := NewFirmwareUpdatesHandler(o.FirmwareUpdates, o.Firmware)
 	anchors := NewTrustAnchorHandler(o.TrustAnchors)
 	est := NewESTConfigHandler(o.ESTConfigs, o.TrustAnchors, o.ESTIssuerRotator)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/operations"
@@ -16,8 +17,9 @@ import (
 // pass it as Options.JobRunner to New before calling Tick; standalone runners
 // without shared admission fail closed rather than bypassing tenant limits.
 type JobRunner struct {
-	Jobs    JobStore
-	Devices store.Devices
+	cancelMu sync.Locker
+	Jobs     JobStore
+	Devices  store.Devices
 	// ServerTenant is the sole tenant served by the executor (default: default).
 	ServerTenant string
 	Executor     interface {
@@ -32,6 +34,10 @@ type JobRunner struct {
 
 // Tick discovers tenants from the job store and snapshots each due job once.
 func (r JobRunner) Tick(ctx context.Context) error {
+	if r.cancelMu != nil {
+		r.cancelMu.Lock()
+		defer r.cancelMu.Unlock()
+	}
 	now := time.Now().UTC()
 	if r.Clock != nil {
 		now = r.Clock().UTC()
