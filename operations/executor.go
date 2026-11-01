@@ -205,6 +205,11 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		}
 	}
 	got, getErr := e.st.Get(ctx, tenant, o.ID)
+	if getErr != nil {
+		// Create succeeded: preserve the operation identity even if the final
+		// lookup fails, because delivery may already be in progress.
+		got = o
+	}
 	return got, errors.Join(err, getErr)
 }
 func (e *Executor) kick(k deviceKey) {

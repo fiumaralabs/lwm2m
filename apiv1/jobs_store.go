@@ -47,6 +47,7 @@ type Job struct {
 type JobTask struct {
 	Device         string `json:"device"`
 	Status         string `json:"status"`
+	Error          string `json:"error,omitempty"`
 	Operation      string `json:"operation,omitempty"`
 	Observation    string `json:"observation,omitempty"`
 	FirmwareUpdate string `json:"firmwareUpdate,omitempty"`

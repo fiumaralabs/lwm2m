@@ -2,6 +2,8 @@ package apiv1
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -62,6 +64,24 @@ func (o Options) deviceLimitReached(tenant string, limit int64) (bool, error) {
 		}
 		cursor = next
 	}
+}
+
+var errOperationLimit = errors.New("operation limit exceeded")
+var errOperationAdmission = errors.New("operation admission failed")
+
+func (o Options) submitOperation(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
+	unlock := o.limits.lock(tenant)
+	defer unlock()
+	if t, ok := o.limits.tenants.Get(tenant); ok && t.Limits.OperationsPerMinute > 0 {
+		reached, err := o.operationLimitReached(ctx, tenant, t.Limits.OperationsPerMinute, time.Now())
+		if err != nil {
+			return operations.Operation{}, fmt.Errorf("%w: %v", errOperationAdmission, err)
+		}
+		if reached {
+			return operations.Operation{}, errOperationLimit
+		}
+	}
+	return o.Executor.Submit(ctx, tenant, op)
 }
 
 func (o Options) operationLimitReached(ctx context.Context, tenant string, limit int64, now time.Time) (bool, error) {
