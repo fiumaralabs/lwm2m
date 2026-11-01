@@ -40,7 +40,7 @@ func TestCancelledJobReconcilesSubmittedOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	j, _ := jobs.Get("tenant", "job")
-	if j.Status != "cancelled" || j.Counts.Succeeded != 1 || j.Counts.Running != 0 || j.Counts.Pending != 1 {
+	if j.Status != "cancelled" || j.Counts.Succeeded != 1 || j.Counts.Running != 0 || j.Counts.Pending != 0 || j.Counts.Cancelled != 1 {
 		t.Fatalf("job: %+v tasks: %+v", j, jobs.ListTasks("tenant", "job", ""))
 	}
 }

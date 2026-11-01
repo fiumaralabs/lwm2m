@@ -157,6 +157,30 @@ func (s *Jobs) UpdateStatus(tenant, id, status string) bool {
 		j.CompletedAt = &now
 	}
 	j.Status = status
+	if status == "cancelled" {
+		rows, err := conn.QueryContext(ctx, `SELECT device,payload FROM job_tasks WHERE tenant=? AND job_id=?`, tenant, id)
+		failJob(err)
+		var pending []apiv1.JobTask
+		for rows.Next() {
+			var device string
+			var data []byte
+			failJob(rows.Scan(&device, &data))
+			var task apiv1.JobTask
+			failJob(gob.NewDecoder(bytes.NewReader(data)).Decode(&task))
+			if task.Status == "pending" {
+				task.Device, task.Status = device, "cancelled"
+				pending = append(pending, task)
+			}
+		}
+		failJob(rows.Err())
+		failJob(rows.Close())
+		for _, task := range pending {
+			var data bytes.Buffer
+			failJob(gob.NewEncoder(&data).Encode(task))
+			_, err = conn.ExecContext(ctx, `UPDATE job_tasks SET payload=? WHERE tenant=? AND job_id=? AND device=?`, data.Bytes(), tenant, id, task.Device)
+			failJob(err)
+		}
+	}
 	b, err = encodeJob(j)
 	failJob(err)
 	_, err = conn.ExecContext(ctx, `UPDATE jobs SET payload=? WHERE tenant=? AND id=?`, b, tenant, id)

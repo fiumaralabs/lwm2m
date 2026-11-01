@@ -228,6 +228,14 @@ func (s *memoryJobStore) UpdateStatus(tenant, id, status string) bool {
 		j.CompletedAt = &now
 	}
 	j.Status = status
+	if status == "cancelled" {
+		for device, task := range s.tasks[tenant][id] {
+			if task.Status == "pending" {
+				task.Status = "cancelled"
+				s.tasks[tenant][id][device] = task
+			}
+		}
+	}
 	s.jobs[tenant][id] = j
 	return true
 }
