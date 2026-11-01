@@ -16,6 +16,7 @@ type Options struct {
 	limits               *tenantLimiter
 	TrustAnchors         TrustAnchorStore         `json:"-"`
 	ESTConfigs           ESTConfigStore           `json:"-"`
+	ESTIssuerRotator     ESTIssuerRotator         `json:"-"`
 	BootstrapCredentials BootstrapCredentialStore `json:"-"`
 	BootstrapSessions    BootstrapSessionStore    `json:"-"`
 	Models               ModelStore               `json:"-"`
@@ -55,6 +56,13 @@ func New(o Options) http.Handler {
 	}
 	if o.ESTConfigs == nil {
 		o.ESTConfigs = NewMemoryESTConfigStore()
+	}
+	if o.ESTIssuerRotator == nil {
+		_, memoryConfigs := o.ESTConfigs.(*memoryESTConfigStore)
+		_, memoryAnchors := o.TrustAnchors.(*memoryTrustAnchorStore)
+		if memoryConfigs && memoryAnchors {
+			o.ESTIssuerRotator = NewMemoryESTIssuerRotator(o.ESTConfigs, o.TrustAnchors)
+		}
 	}
 	if o.BootstrapCredentials == nil {
 		o.BootstrapCredentials = NewMemoryBootstrapCredentialStore()
@@ -119,7 +127,7 @@ func New(o Options) http.Handler {
 	jobs := NewJobsHandler(o.Jobs)
 	updates := NewFirmwareUpdatesHandler(o.FirmwareUpdates, o.Firmware)
 	anchors := NewTrustAnchorHandler(o.TrustAnchors)
-	est := NewESTConfigHandler(o.ESTConfigs, o.TrustAnchors)
+	est := NewESTConfigHandler(o.ESTConfigs, o.TrustAnchors, o.ESTIssuerRotator)
 	bootstrapCredentials := NewBootstrapCredentialsHandler(o.Devices, o.BootstrapCredentials)
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}

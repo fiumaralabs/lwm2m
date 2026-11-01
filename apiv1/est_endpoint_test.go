@@ -36,7 +36,8 @@ func estTestPair(t *testing.T) (string, string) {
 }
 func TestESTConfigLifecycle(t *testing.T) {
 	anchors := NewMemoryTrustAnchorStore(20)
-	h := NewESTConfigHandler(NewMemoryESTConfigStore(), anchors)
+	configs := NewMemoryESTConfigStore()
+	h := NewESTConfigHandler(configs, anchors)
 	call := func(method, tenant, scope string, body any) *httptest.ResponseRecorder {
 		b, _ := json.Marshal(body)
 		r := httptest.NewRequest(method, "/v1/est", bytes.NewReader(b))
