@@ -26,6 +26,10 @@ func (s createAuditStore) Append(tenant string, e AuditEntry) error {
 	if *s.skip {
 		return nil
 	}
+	if e.Status == http.StatusCreated {
+		e.Action = "device.create"
+		e.Resource = "/v1/devices"
+	}
 	return s.AuditStore.Append(tenant, e)
 }
 func deviceCreateAudit(s AuditStore, next http.Handler) http.Handler {

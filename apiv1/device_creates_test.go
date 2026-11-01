@@ -24,4 +24,7 @@ func TestDeviceCreateOutcomeReplay(t *testing.T) {
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("audit entries: %d, %v", len(entries), err)
 	}
+	if entries[0].Action != "device.create" || entries[0].Resource != "/v1/devices" {
+		t.Errorf("create audit: action=%q resource=%q", entries[0].Action, entries[0].Resource)
+	}
 }
