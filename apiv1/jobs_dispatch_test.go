@@ -47,7 +47,7 @@ func TestJobRunnerDispatchesClaimedOperation(t *testing.T) {
 		}
 		return op, nil
 	})
-	runner := JobRunner{Jobs: jobs, Executor: submit}
+	runner := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: submit}
 	if err := runner.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestJobRunnerPassesOperationOptions(t *testing.T) {
 	if _, err := jobs.StartJob("tenant", "job", []string{"dev"}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	r := JobRunner{Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
 		if op.TTLSeconds != 7 || op.WhenOffline != "reject" || op.Prefix != "d1" || op.Format != "a" || op.Accept != "b" {
 			t.Fatalf("options: %+v", op)
 		}
@@ -87,7 +87,7 @@ func TestJobRunnerSubmitErrorFailsTaskWithoutRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	r := JobRunner{Jobs: jobs, Executor: jobSubmitterFunc(func(context.Context, string, operations.Operation) (operations.Operation, error) {
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: jobSubmitterFunc(func(context.Context, string, operations.Operation) (operations.Operation, error) {
 		calls++
 		return operations.Operation{}, errors.New("submit failed")
 	})}
@@ -112,7 +112,7 @@ func TestJobRunnerReconcilesTerminalOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	ops := memory.NewOperations()
-	r := JobRunner{Jobs: jobs, Operations: ops, Executor: jobSubmitterFunc(func(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: jobSubmitterFunc(func(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
 		return op, ops.Create(ctx, tenant, op)
 	})}
 	if err := r.Tick(context.Background()); err != nil {
@@ -151,7 +151,7 @@ func TestJobRunnerConcurrentTicksRespectMaxConcurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count atomic.Int32
-	r := JobRunner{Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
 		count.Add(1)
 		return op, nil
 	})}
@@ -194,7 +194,7 @@ func TestJobRunnerClaimBeforePauseMaySubmit(t *testing.T) {
 	release := make(chan struct{})
 	done := make(chan error, 1)
 	var calls atomic.Int32
-	r := JobRunner{Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
 		calls.Add(1)
 		close(entered)
 		<-release
@@ -245,7 +245,7 @@ func TestJobRunnerRealExecutorDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner := JobRunner{Jobs: jobs, Operations: ops, Executor: ex}
+	runner := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: ex}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := runner.Tick(ctx); err != nil {
@@ -284,7 +284,7 @@ func TestJobRunnerRejectsUnknownOperationFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	r := JobRunner{Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Executor: jobSubmitterFunc(func(_ context.Context, _ string, op operations.Operation) (operations.Operation, error) {
 		calls++
 		return op, nil
 	})}

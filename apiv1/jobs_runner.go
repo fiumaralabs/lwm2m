@@ -13,9 +13,11 @@ import (
 
 // JobRunner starts due jobs. Delivery and completion are handled separately.
 type JobRunner struct {
-	Jobs     JobStore
-	Devices  store.Devices
-	Executor interface {
+	Jobs    JobStore
+	Devices store.Devices
+	// ServerTenant is the sole tenant served by the executor (default: default).
+	ServerTenant string
+	Executor     interface {
 		Submit(context.Context, string, operations.Operation) (operations.Operation, error)
 	}
 	Operations interface {
@@ -78,7 +80,11 @@ func (r JobRunner) Tick(ctx context.Context) error {
 				r.Jobs.UpdateStatus(tenant, job.ID, status)
 				continue
 			}
-			if job.Status == "running" && r.Executor != nil && len(job.Action.Operation) > 0 {
+			serverTenant := r.ServerTenant
+			if serverTenant == "" {
+				serverTenant = "default"
+			}
+			if job.Status == "running" && r.Executor != nil && tenant == serverTenant && len(job.Action.Operation) > 0 {
 				claimer, ok := r.Jobs.(interface {
 					ClaimTasks(string, string) ([]JobTask, error)
 				})
@@ -125,10 +131,11 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					op.Prefix, op.Format, op.Accept = input.Prefix, input.Format, input.Accept
 					if parseErr != nil {
 						err = parseErr
+						op = operations.Operation{}
 					} else {
 						op, err = r.Executor.Submit(ctx, tenant, op)
 					}
-					if err != nil {
+					if err != nil && op.ID == "" {
 						task.Status, task.Error = "failed", err.Error()
 					} else {
 						task.Status, task.Operation = "running", op.ID

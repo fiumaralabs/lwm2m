@@ -37,7 +37,7 @@ func TestJobRunnerSQLiteTenantPauseResumeAndReconcile(t *testing.T) {
 	if !jobs.UpdateStatus("b", "same", "paused") {
 		t.Fatal("pause")
 	}
-	runner := apiv1.JobRunner{Jobs: jobs, Operations: ops, Executor: sqliteSubmitter{ops}}
+	runner := apiv1.JobRunner{ServerTenant: "a", Jobs: jobs, Operations: ops, Executor: sqliteSubmitter{ops}}
 	if err := runner.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +51,7 @@ func TestJobRunnerSQLiteTenantPauseResumeAndReconcile(t *testing.T) {
 	if !jobs.UpdateStatus("b", "same", "running") {
 		t.Fatal("resume")
 	}
+	runner.ServerTenant = "b"
 	if err := runner.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
