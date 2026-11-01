@@ -81,6 +81,16 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tenant := TenantFrom(r.Context())
+	// A slow client must not hold the tenant admission lock while sending data.
+	var body any
+	var invalidJSON bool
+	if r.Method == http.MethodPut {
+		dec := json.NewDecoder(r.Body)
+		dec.UseNumber()
+		decodeErr := dec.Decode(&body)
+		var extra any
+		invalidJSON = decodeErr != nil || dec.Decode(&extra) != io.EOF
+	}
 	// Serialize outcomes with normal device creation and outcome deletion so a
 	// replay cannot become a new create after the capacity check is skipped.
 	unlock := o.limits.lock(tenant)
@@ -101,12 +111,7 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case http.MethodPut:
-		var body any
-		dec := json.NewDecoder(r.Body)
-		dec.UseNumber()
-		decodeErr := dec.Decode(&body)
-		var extra any
-		if decodeErr != nil || dec.Decode(&extra) != io.EOF {
+		if invalidJSON {
 			existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
 			if lookupErr == nil && existing.Reason == "fenced" {
 				if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
