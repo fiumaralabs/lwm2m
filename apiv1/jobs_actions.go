@@ -37,6 +37,9 @@ func serveJobAction(store JobStore, executor jobCanceller, runner *JobRunner, w 
 	}
 	if status == "cancelled" && validJobTransition(existing.Status, status) {
 		for _, task := range store.ListTasks(tenant, parts[0], "running") {
+			if task.Operation == "" && task.FirmwareUpdate != "" {
+				continue
+			}
 			if task.Operation == "" || executor == nil {
 				WriteProblem(w, 500, "internal_error", "Cannot cancel job operation")
 				return
