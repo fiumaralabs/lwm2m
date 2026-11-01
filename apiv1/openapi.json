@@ -1,0 +1,8 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "LwM2M native API", "version": "1"},
+  "paths": {
+    "/v1/openapi.json": {"get": {"summary": "Get the OpenAPI document", "tags": ["Server"], "responses": {"200": {"description": "OpenAPI document"}}}}
+  },
+  "components": {"schemas": {}}
+}
