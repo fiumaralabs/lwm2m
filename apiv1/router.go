@@ -38,10 +38,11 @@ type Options struct {
 	Observations store.Observations `json:"-"`
 	TimeSeries   TimeSeriesStore    `json:"-"`
 	// When Executor is supplied, its store is authoritative and Operations is ignored.
-	Operations store.Operations     `json:"-"`
-	Executor   *operations.Executor `json:"-"`
-	Devices    store.Devices        `json:"-"`
-	Server     *server.Server       `json:"-"`
+	Operations    store.Operations        `json:"-"`
+	Executor      *operations.Executor    `json:"-"`
+	Devices       store.Devices           `json:"-"`
+	DeviceCreates store.DeviceCreateStore `json:"-"`
+	Server        *server.Server          `json:"-"`
 	// ServerTenant identifies the sole tenant served by Server (default: default).
 	ServerTenant  string                       `json:"-"`
 	Keys          Keys                         `json:"-"`
@@ -99,6 +100,9 @@ func New(o Options) http.Handler {
 	if o.Devices == nil {
 		o.Devices = &memory.Devices{}
 	}
+	if o.DeviceCreates == nil {
+		o.DeviceCreates, _ = o.Devices.(store.DeviceCreateStore)
+	}
 	if o.ServerTenant == "" {
 		o.ServerTenant = "default"
 	}
@@ -143,7 +147,11 @@ func New(o Options) http.Handler {
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
-	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return Authenticate(o.Keys, deviceCreateAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v1/device-creates/") {
+			o.deviceCreates(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/est" {
 			est.ServeHTTP(w, r)
 			return

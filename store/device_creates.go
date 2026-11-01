@@ -23,10 +23,13 @@ var ErrOperationIDReused = errors.New("store: operation id reused with a differe
 // a different fingerprint returns ErrOperationIDReused unless fenced. A fence
 // is inserted atomically on a missing lookup and prevents a subsequent create.
 // The boolean reports whether this call inserted an outcome. Delete returns
-// ErrNotFound for an absent outcome. Callers validate input before creating.
+// ErrNotFound for an absent outcome. GetDeviceCreate is a non-mutating,
+// tenant-scoped lookup that returns ErrNotFound when absent. Callers validate
+// input before creating.
 type DeviceCreateStore interface {
 	CreateDeviceWithOutcome(ctx context.Context, tenant, operationID, fingerprint string, d Device) (DeviceCreateOutcome, bool, error)
 	RecordDeviceCreateNotCreated(ctx context.Context, tenant, operationID, fingerprint, reason string) (DeviceCreateOutcome, bool, error)
+	GetDeviceCreate(ctx context.Context, tenant, operationID string) (DeviceCreateOutcome, error)
 	GetOrFenceDeviceCreate(ctx context.Context, tenant, operationID string) (DeviceCreateOutcome, error)
 	DeleteDeviceCreate(ctx context.Context, tenant, operationID string) error
 }

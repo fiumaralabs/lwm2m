@@ -14,6 +14,23 @@ import (
 func DeviceCreates(t *testing.T, factory func(*testing.T) (store.DeviceCreateStore, store.Devices)) {
 	t.Helper()
 	ctx := context.Background()
+	t.Run("non-mutating lookup", func(t *testing.T) {
+		s, _ := factory(t)
+		if _, err := s.GetDeviceCreate(ctx, "a", "id"); !errors.Is(err, store.ErrNotFound) {
+			t.Fatalf("missing: %v", err)
+		}
+		fence, err := s.GetOrFenceDeviceCreate(ctx, "a", "id")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.GetDeviceCreate(ctx, "a", "id")
+		if err != nil || !reflect.DeepEqual(fence, got) {
+			t.Fatalf("lookup: %+v %v", got, err)
+		}
+		if _, err := s.GetDeviceCreate(ctx, "b", "id"); !errors.Is(err, store.ErrNotFound) {
+			t.Fatalf("tenant isolation: %v", err)
+		}
+	})
 	t.Run("replay and tenant isolation", func(t *testing.T) {
 		s, devices := factory(t)
 		d := store.Device{Endpoint: "one"}

@@ -147,6 +147,22 @@ func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, 
 	return out, inserted, nil
 }
 
+func (s *Devices) GetDeviceCreate(ctx context.Context, tenant, id string) (store.DeviceCreateOutcome, error) {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return store.DeviceCreateOutcome{}, err
+	}
+	defer conn.Close()
+	o, ok, err := readDeviceCreate(ctx, conn, tenant, id)
+	if err != nil {
+		return store.DeviceCreateOutcome{}, err
+	}
+	if !ok {
+		return store.DeviceCreateOutcome{}, store.ErrNotFound
+	}
+	return o, nil
+}
+
 func (s *Devices) GetOrFenceDeviceCreate(ctx context.Context, tenant, id string) (store.DeviceCreateOutcome, error) {
 	var out store.DeviceCreateOutcome
 	err := s.withDeviceCreate(ctx, func(conn *sql.Conn) error {

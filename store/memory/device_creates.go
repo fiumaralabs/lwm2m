@@ -73,6 +73,19 @@ func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, 
 	return o, true, nil
 }
 
+func (s *Devices) GetDeviceCreate(ctx context.Context, tenant, id string) (store.DeviceCreateOutcome, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return store.DeviceCreateOutcome{}, err
+	}
+	o, ok := s.creates[tenant][id]
+	if !ok {
+		return store.DeviceCreateOutcome{}, store.ErrNotFound
+	}
+	return o, nil
+}
+
 func (s *Devices) GetOrFenceDeviceCreate(ctx context.Context, tenant, id string) (store.DeviceCreateOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
