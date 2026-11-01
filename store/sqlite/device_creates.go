@@ -109,9 +109,12 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 			}
 			out = newDeviceCreateOutcome(tenant, id, fingerprint, "committed", "")
 			out.Endpoint = d.Endpoint
-			created = true
 		}
-		return writeDeviceCreate(ctx, conn, out)
+		if err := writeDeviceCreate(ctx, conn, out); err != nil {
+			return err
+		}
+		created = true
+		return nil
 	})
 	if err != nil {
 		return store.DeviceCreateOutcome{}, false, err
@@ -119,8 +122,9 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 	return out, created, nil
 }
 
-func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, fingerprint, reason string) (store.DeviceCreateOutcome, error) {
+func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, fingerprint, reason string) (store.DeviceCreateOutcome, bool, error) {
 	var out store.DeviceCreateOutcome
+	var inserted bool
 	err := s.withDeviceCreate(ctx, func(conn *sql.Conn) error {
 		existing, ok, err := readDeviceCreate(ctx, conn, tenant, id)
 		if err != nil {
@@ -131,12 +135,16 @@ func (s *Devices) RecordDeviceCreateNotCreated(ctx context.Context, tenant, id, 
 			return checkDeviceCreateReplay(out, fingerprint)
 		}
 		out = newDeviceCreateOutcome(tenant, id, fingerprint, "not-created", reason)
-		return writeDeviceCreate(ctx, conn, out)
+		if err := writeDeviceCreate(ctx, conn, out); err != nil {
+			return err
+		}
+		inserted = true
+		return nil
 	})
 	if err != nil {
-		return store.DeviceCreateOutcome{}, err
+		return store.DeviceCreateOutcome{}, false, err
 	}
-	return out, nil
+	return out, inserted, nil
 }
 
 func (s *Devices) GetOrFenceDeviceCreate(ctx context.Context, tenant, id string) (store.DeviceCreateOutcome, error) {

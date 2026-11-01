@@ -37,7 +37,7 @@ func DeviceCreates(t *testing.T, factory func(*testing.T) (store.DeviceCreateSto
 			t.Fatalf("foreign: %+v %v %v", foreign, created, err)
 		}
 		conflict, created, err := s.CreateDeviceWithOutcome(ctx, "b", "conflict", "x", d)
-		if err != nil || created || conflict.Status != "not-created" || conflict.Reason != "endpoint-conflict" || conflict.Endpoint != "" {
+		if err != nil || !created || conflict.Status != "not-created" || conflict.Reason != "endpoint-conflict" || conflict.Endpoint != "" {
 			t.Fatalf("conflict: %+v %v %v", conflict, created, err)
 		}
 		if _, err := devices.Get("a", "one"); err != nil {
@@ -67,28 +67,64 @@ func DeviceCreates(t *testing.T, factory func(*testing.T) (store.DeviceCreateSto
 		if err != nil || created || !reflect.DeepEqual(fence, got) {
 			t.Fatalf("fenced create: %+v %v %v", got, created, err)
 		}
-		got, err = s.RecordDeviceCreateNotCreated(ctx, "a", "id", "other", "invalid")
-		if err != nil || !reflect.DeepEqual(fence, got) {
+		got, created, err = s.RecordDeviceCreateNotCreated(ctx, "a", "id", "other", "invalid")
+		if err != nil || created || !reflect.DeepEqual(fence, got) {
 			t.Fatalf("fenced record: %+v %v", got, err)
 		}
 		if _, err := devices.Get("a", "one"); !errors.Is(err, store.ErrDeviceNotFound) {
 			t.Fatalf("fenced device: %v", err)
 		}
-		invalid, err := s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "hash", "invalid")
-		if err != nil || invalid.Status != "not-created" || invalid.Reason != "invalid" || invalid.Endpoint != "" {
+		invalid, inserted, err := s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "hash", "invalid")
+		if err != nil || !inserted || invalid.Status != "not-created" || invalid.Reason != "invalid" || invalid.Endpoint != "" {
 			t.Fatalf("invalid: %+v %v", invalid, err)
 		}
-		replay, err := s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "hash", "invalid")
-		if err != nil || !reflect.DeepEqual(invalid, replay) {
+		replay, inserted, err := s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "hash", "invalid")
+		if err != nil || inserted || !reflect.DeepEqual(invalid, replay) {
 			t.Fatalf("invalid replay: %+v %v", replay, err)
 		}
-		_, err = s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "other", "invalid")
-		if !errors.Is(err, store.ErrOperationIDReused) {
+		_, inserted, err = s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "other", "invalid")
+		if inserted || !errors.Is(err, store.ErrOperationIDReused) {
 			t.Fatalf("invalid reuse: %v", err)
 		}
 		other, err := s.GetOrFenceDeviceCreate(ctx, "b", "invalid")
 		if err != nil || other.Reason != "fenced" || other.Tenant != "b" {
 			t.Fatalf("foreign fence: %+v %v", other, err)
+		}
+	})
+	t.Run("concurrent invalid retry", func(t *testing.T) {
+		s, _ := factory(t)
+		const n = 32
+		type result struct {
+			out      store.DeviceCreateOutcome
+			inserted bool
+			err      error
+		}
+		results := make(chan result, n)
+		for range n {
+			go func() {
+				o, inserted, err := s.RecordDeviceCreateNotCreated(ctx, "a", "invalid", "hash", "invalid")
+				results <- result{o, inserted, err}
+			}()
+		}
+		var first store.DeviceCreateOutcome
+		winners := 0
+		for range n {
+			r := <-results
+			if r.err != nil {
+				t.Fatal(r.err)
+			}
+			if first.Status == "" {
+				first = r.out
+			}
+			if !reflect.DeepEqual(first, r.out) {
+				t.Fatalf("different outcomes: %+v %+v", first, r.out)
+			}
+			if r.inserted {
+				winners++
+			}
+		}
+		if winners != 1 || first.Reason != "invalid" {
+			t.Fatalf("winners=%d outcome=%+v", winners, first)
 		}
 	})
 	t.Run("concurrent retry", func(t *testing.T) {
