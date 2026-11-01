@@ -100,12 +100,21 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		var body any
 		dec := json.NewDecoder(r.Body)
 		dec.UseNumber()
-		if dec.Decode(&body) != nil {
-			WriteProblem(w, 400, "invalid_json", "Expected one JSON value")
-			return
-		}
+		decodeErr := dec.Decode(&body)
 		var extra any
-		if dec.Decode(&extra) != io.EOF {
+		if decodeErr != nil || dec.Decode(&extra) != io.EOF {
+			existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
+			if lookupErr == nil && existing.Reason == "fenced" {
+				if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
+					*skip = true
+				}
+				deviceJSON(w, http.StatusOK, outcomeJSON(existing))
+				return
+			}
+			if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
+				WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
+				return
+			}
 			WriteProblem(w, 400, "invalid_json", "Expected one JSON value")
 			return
 		}
