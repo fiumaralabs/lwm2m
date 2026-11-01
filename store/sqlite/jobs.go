@@ -157,6 +157,30 @@ func (s *Jobs) UpdateStatus(tenant, id, status string) bool {
 		j.CompletedAt = &now
 	}
 	j.Status = status
+	if status == "cancelled" {
+		rows, err := conn.QueryContext(ctx, `SELECT device,payload FROM job_tasks WHERE tenant=? AND job_id=?`, tenant, id)
+		failJob(err)
+		var pending []apiv1.JobTask
+		for rows.Next() {
+			var device string
+			var data []byte
+			failJob(rows.Scan(&device, &data))
+			var task apiv1.JobTask
+			failJob(gob.NewDecoder(bytes.NewReader(data)).Decode(&task))
+			if task.Status == "pending" {
+				task.Device, task.Status = device, "cancelled"
+				pending = append(pending, task)
+			}
+		}
+		failJob(rows.Err())
+		failJob(rows.Close())
+		for _, task := range pending {
+			var data bytes.Buffer
+			failJob(gob.NewEncoder(&data).Encode(task))
+			_, err = conn.ExecContext(ctx, `UPDATE job_tasks SET payload=? WHERE tenant=? AND job_id=? AND device=?`, data.Bytes(), tenant, id, task.Device)
+			failJob(err)
+		}
+	}
 	b, err = encodeJob(j)
 	failJob(err)
 	_, err = conn.ExecContext(ctx, `UPDATE jobs SET payload=? WHERE tenant=? AND id=?`, b, tenant, id)
@@ -174,13 +198,30 @@ func (s *Jobs) PutTask(tenant, id string, t apiv1.JobTask) bool {
 	default:
 		return false
 	}
+	ctx := context.Background()
+	conn, err := s.db.Conn(ctx)
+	failJob(err)
+	defer conn.Close()
+	// Serialize the status check with cancellation and its pending-task scan.
+	_, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE")
+	failJob(err)
+	defer conn.ExecContext(ctx, "ROLLBACK")
+	var jobData []byte
+	err = conn.QueryRowContext(ctx, `SELECT payload FROM jobs WHERE tenant=? AND id=?`, tenant, id).Scan(&jobData)
+	if err == sql.ErrNoRows {
+		return false
+	}
+	failJob(err)
+	if t.Status == "pending" && decodeJob(jobData).Status == "cancelled" {
+		t.Status = "cancelled"
+	}
 	var b bytes.Buffer
 	failJob(gob.NewEncoder(&b).Encode(t))
-	result, err := s.db.Exec(`INSERT INTO job_tasks(tenant,job_id,device,payload) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM jobs WHERE tenant=? AND id=?) ON CONFLICT(tenant,job_id,device) DO UPDATE SET payload=excluded.payload`, tenant, id, t.Device, b.Bytes(), tenant, id)
+	_, err = conn.ExecContext(ctx, `INSERT INTO job_tasks(tenant,job_id,device,payload) VALUES(?,?,?,?) ON CONFLICT(tenant,job_id,device) DO UPDATE SET payload=excluded.payload`, tenant, id, t.Device, b.Bytes())
 	failJob(err)
-	n, err := result.RowsAffected()
+	_, err = conn.ExecContext(ctx, "COMMIT")
 	failJob(err)
-	return n > 0
+	return true
 }
 func (s *Jobs) ListTasks(tenant, id, status string) []apiv1.JobTask {
 	rows, err := s.db.Query(`SELECT payload FROM job_tasks WHERE tenant=? AND job_id=? ORDER BY device`, tenant, id)

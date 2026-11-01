@@ -7,6 +7,29 @@ import (
 	"testing"
 )
 
+func TestJobCancelMarksPendingTasks(t *testing.T) {
+	store := NewMemoryJobStore()
+	j := validJob()
+	j.ID = "job_cancel"
+	if err := store.Create("a", j); err != nil {
+		t.Fatal(err)
+	}
+	if !store.PutTask("a", j.ID, JobTask{Device: "a", Status: "pending"}) {
+		t.Fatal("put task")
+	}
+	w := jobRequest(NewJobsHandler(store), "POST", "/v1/jobs/job_cancel/cancel", "", "a", "jobs:write")
+	if w.Code != 200 {
+		t.Fatalf("cancel: %d %s", w.Code, w.Body.String())
+	}
+	var got Job
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "cancelled" || got.Counts.Cancelled != 1 || got.Counts.Pending != 0 {
+		t.Fatalf("job: %+v", got)
+	}
+}
+
 func TestJobsRouterCreate(t *testing.T) {
 	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",jobs:write,devices:read,", tenant: "default"}}}
 	h := New(Options{Keys: keys})

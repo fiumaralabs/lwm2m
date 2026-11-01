@@ -87,6 +87,21 @@ func JobClaims(t *testing.T, s apiv1.JobStore) {
 	if !s.UpdateStatus("a", job.ID, "cancelled") {
 		t.Fatal("cancel")
 	}
+	// The runner can release a claim after cancellation, e.g. on admission failure.
+	dispatching := s.ListTasks("a", job.ID, "dispatching")
+	if len(dispatching) != 3 {
+		t.Fatalf("dispatching: %+v", dispatching)
+	}
+	for _, task := range dispatching {
+		task.Status = "pending"
+		if !s.PutTask("a", job.ID, task) {
+			t.Fatal("release claim")
+		}
+	}
+	j, _ = s.Get("a", job.ID)
+	if j.Status != "cancelled" || j.Counts.Pending != 0 || j.Counts.Cancelled != 9 || j.Counts.Running != 0 {
+		t.Fatalf("cancelled release counts: status=%s counts=%+v", j.Status, j.Counts)
+	}
 	tasks, err = claim.ClaimTasks("a", job.ID)
 	if err != nil || len(tasks) != 0 {
 		t.Fatalf("cancelled claim: %v %v", tasks, err)
