@@ -15,6 +15,8 @@ import (
 type Options struct {
 	limits               *tenantLimiter
 	TrustAnchors         TrustAnchorStore         `json:"-"`
+	ESTConfigs           ESTConfigStore           `json:"-"`
+	ESTIssuerRotator     ESTIssuerRotator         `json:"-"`
 	BootstrapCredentials BootstrapCredentialStore `json:"-"`
 	BootstrapSessions    BootstrapSessionStore    `json:"-"`
 	Models               ModelStore               `json:"-"`
@@ -51,6 +53,16 @@ func New(o Options) http.Handler {
 	o.limits = &tenantLimiter{tenants: newTenantStore()}
 	if o.TrustAnchors == nil {
 		o.TrustAnchors = NewMemoryTrustAnchorStore(0)
+	}
+	if o.ESTConfigs == nil {
+		o.ESTConfigs = NewMemoryESTConfigStore()
+	}
+	if o.ESTIssuerRotator == nil {
+		_, memoryConfigs := o.ESTConfigs.(*memoryESTConfigStore)
+		_, memoryAnchors := o.TrustAnchors.(*memoryTrustAnchorStore)
+		if memoryConfigs && memoryAnchors {
+			o.ESTIssuerRotator = NewMemoryESTIssuerRotator(o.ESTConfigs, o.TrustAnchors)
+		}
 	}
 	if o.BootstrapCredentials == nil {
 		o.BootstrapCredentials = NewMemoryBootstrapCredentialStore()
@@ -115,11 +127,16 @@ func New(o Options) http.Handler {
 	jobs := NewJobsHandler(o.Jobs)
 	updates := NewFirmwareUpdatesHandler(o.FirmwareUpdates, o.Firmware)
 	anchors := NewTrustAnchorHandler(o.TrustAnchors)
+	est := NewESTConfigHandler(o.ESTConfigs, o.TrustAnchors, o.ESTIssuerRotator)
 	bootstrapCredentials := NewBootstrapCredentialsHandler(o.Devices, o.BootstrapCredentials)
 	if o.Audit == nil {
 		o.Audit = &MemoryAuditStore{}
 	}
 	return Authenticate(o.Keys, recordAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/est" {
+			est.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/v1/trust-anchors" || strings.HasPrefix(r.URL.Path, "/v1/trust-anchors/") {
 			anchors.ServeHTTP(w, r)
 			return

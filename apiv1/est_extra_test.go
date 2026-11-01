@@ -38,11 +38,14 @@ func TestESTIsolationAndFailures(t *testing.T) {
 	if w := call("GET", "a", "credentials:write", nil); w.Code != 200 || !strings.Contains(w.Body.String(), `"selector":"a"`) || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("get response: %d %s cache=%s", w.Code, w.Body.String(), w.Header().Get("Cache-Control"))
 	}
-	if w := call("PUT", "a", "credentials:write", data(c3, k3, "new")); w.Code != 500 {
+	if w := call("PUT", "a", "credentials:write", data(c3, k3, "new")); w.Code != 200 {
+		t.Fatalf("replacement at capacity: %d", w.Code)
+	}
+	if w := call("PUT", "c", "credentials:write", data(c, k, "c")); w.Code != 500 {
 		t.Fatalf("anchor limit: %d", w.Code)
 	}
-	if w := call("GET", "a", "credentials:write", nil); !strings.Contains(w.Body.String(), `"selector":"a"`) {
-		t.Fatalf("changed on failure: %s", w.Body.String())
+	if w := call("GET", "a", "credentials:write", nil); !strings.Contains(w.Body.String(), `"selector":"new"`) {
+		t.Fatalf("unexpected config: %s", w.Body.String())
 	}
 	if len(anchors.List("a")) != 1 || len(anchors.List("b")) != 1 {
 		t.Fatal("anchor isolation failed")

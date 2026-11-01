@@ -2,7 +2,6 @@ package apiv1
 
 import (
 	"crypto/tls"
-	"errors"
 	"net/http"
 
 	"github.com/fiumaralabs/lwm2m/internal/id"
@@ -37,8 +36,16 @@ func estPublic(c ESTConfig) estResponse {
 }
 
 // NewESTConfigHandler requires an authenticated context and enforces credentials scope.
-// It deliberately does not wire the endpoint into the router.
-func NewESTConfigHandler(configs ESTConfigStore, anchors TrustAnchorStore) http.Handler {
+// Non-memory stores must supply a rotator bound to the same stores.
+func NewESTConfigHandler(configs ESTConfigStore, anchors TrustAnchorStore, rotators ...ESTIssuerRotator) http.Handler {
+	var rotator ESTIssuerRotator
+	if len(rotators) != 0 {
+		rotator = rotators[0]
+	} else if _, ok := configs.(*memoryESTConfigStore); ok {
+		if _, ok := anchors.(*memoryTrustAnchorStore); ok {
+			rotator = NewMemoryESTIssuerRotator(configs, anchors)
+		}
+	}
 	return RequireScope("credentials:write")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/est" {
 			WriteProblem(w, 404, "not_found", "Unknown EST path")
@@ -72,13 +79,18 @@ func NewESTConfigHandler(configs ESTConfigStore, anchors TrustAnchorStore) http.
 				return
 			}
 			anchor := TrustAnchor{ID: id.New("ta"), Name: "EST issuer", PEM: in.Issuer.Certificate, Certificates: certs}
-			if err := anchors.Create(tenant, anchor); err != nil && !errors.Is(err, ErrTrustAnchorDuplicate) {
+			c := ESTConfig{Enabled: in.Enabled, Certificate: in.Issuer.Certificate, PrivateKey: in.Issuer.PrivateKey, ValidityDays: in.ValidityDays, Selector: in.Selector}
+			if rotator == nil {
+				WriteProblem(w, 500, "internal_error", "EST issuer rotation is not configured")
+				return
+			}
+			existed, err := rotator.PutConfigRotatingIssuerAnchor(tenant, c, anchor)
+			if err != nil {
 				WriteProblem(w, 500, "internal_error", "Cannot register EST issuer")
 				return
 			}
-			c := ESTConfig{Enabled: in.Enabled, Certificate: in.Issuer.Certificate, PrivateKey: in.Issuer.PrivateKey, ValidityDays: in.ValidityDays, Selector: in.Selector}
 			status := 201
-			if configs.Put(tenant, c) {
+			if existed {
 				status = 200
 			}
 			w.Header().Set("Cache-Control", "no-store")

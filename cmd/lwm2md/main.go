@@ -67,6 +67,9 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 	var settings store.Settings
 	var models apiv1.ModelStore
 	var profiles apiv1.DeviceProfileStore
+	var estConfigs apiv1.ESTConfigStore
+	var trustAnchors apiv1.TrustAnchorStore
+	var estRotator apiv1.ESTIssuerRotator
 	if durable, ok := devices.(*sqlite.Devices); ok {
 		keys = keys.WithStore(durable.APIKeys())
 		auditStore = durable.Audit()
@@ -80,6 +83,10 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 		settings = durable.Settings()
 		models = durable.Models()
 		profiles = durable.DeviceProfiles()
+		estConfigs = durable.ESTConfigs()
+		anchors := durable.TrustAnchors(0)
+		trustAnchors = anchors
+		estRotator = anchors
 	}
 	var executor *operations.Executor
 	var observations *apiv1.ObservationDelivery
@@ -114,7 +121,7 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 			series = durable.TimeSeries()
 		}
 	}
-	native := apiv1.New(apiv1.Options{TrustAnchors: apiv1.NewMemoryTrustAnchorStore(0), BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{ESTConfigs: estConfigs, ESTIssuerRotator: estRotator, TrustAnchors: trustAnchors, BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
