@@ -18,6 +18,17 @@ type cancelFailureStore struct {
 	fail bool
 }
 
+type observedCancelLock struct {
+	mu       sync.Mutex
+	attempts chan struct{}
+}
+
+func (l *observedCancelLock) Lock() {
+	l.attempts <- struct{}{}
+	l.mu.Lock()
+}
+func (l *observedCancelLock) Unlock() { l.mu.Unlock() }
+
 func (s *cancelFailureStore) Update(ctx context.Context, tenant, id string, from operations.Status, c operations.Change) error {
 	if c.Status == operations.Cancelled && s.fail {
 		s.fail = false
@@ -95,7 +106,8 @@ func TestJobCancelConcurrentSubmission(t *testing.T) {
 	ex := operations.NewExecutor(srv, ops, operations.ExecutorOptions{})
 	defer ex.Close()
 	entered, release := make(chan struct{}), make(chan struct{})
-	runner := JobRunner{Jobs: jobs, Executor: ex, Operations: ops, cancelMu: &sync.Mutex{}}
+	lock := &observedCancelLock{attempts: make(chan struct{}, 2)}
+	runner := JobRunner{Jobs: jobs, Executor: ex, Operations: ops, cancelMu: lock}
 	runner.submit = func(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
 		close(entered)
 		<-release
@@ -104,8 +116,20 @@ func TestJobCancelConcurrentSubmission(t *testing.T) {
 	tickDone := make(chan error, 1)
 	go func() { tickDone <- runner.Tick(ctx) }()
 	<-entered
+	<-lock.attempts // Tick owns the lock while submission is paused.
 	cancelDone := make(chan int, 1)
 	go func() { cancelDone <- cancelTestRequest(jobs, ex, &runner) }()
+	select {
+	case <-lock.attempts: // Cancellation has attempted the same lock.
+	case code := <-cancelDone:
+		close(release)
+		<-tickDone
+		t.Fatalf("cancellation bypassed lock, response %d", code)
+	case <-time.After(5 * time.Second):
+		close(release)
+		<-tickDone
+		t.Fatal("cancellation did not reach lock")
+	}
 	close(release)
 	if err := <-tickDone; err != nil {
 		t.Fatal(err)

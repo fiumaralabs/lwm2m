@@ -17,7 +17,7 @@ import (
 // pass it as Options.JobRunner to New before calling Tick; standalone runners
 // without shared admission fail closed rather than bypassing tenant limits.
 type JobRunner struct {
-	cancelMu *sync.Mutex
+	cancelMu sync.Locker
 	Jobs     JobStore
 	Devices  store.Devices
 	// ServerTenant is the sole tenant served by the executor (default: default).
