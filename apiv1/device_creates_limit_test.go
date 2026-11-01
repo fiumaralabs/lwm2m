@@ -3,11 +3,13 @@ package apiv1_test
 import (
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
 	"github.com/fiumaralabs/lwm2m/store"
@@ -46,6 +48,51 @@ func limitRequest(h http.Handler, method, path, body, token string) *httptest.Re
 	h.ServeHTTP(w, r)
 	return w
 }
+func TestDeviceCreateOutcomeStalledBodyDoesNotBlockTenant(t *testing.T) {
+	for _, backend := range []string{"memory", "sqlite"} {
+		t.Run(backend, func(t *testing.T) {
+			h := limitRouter(t, backend)
+			reader, writer := io.Pipe()
+			defer reader.Close()
+			defer writer.Close()
+			r := httptest.NewRequest("PUT", "/v1/device-creates/op", reader)
+			r.Header.Set("Authorization", "Bearer lwm_test_secret")
+			putDone := make(chan *httptest.ResponseRecorder, 1)
+			go func() { w := httptest.NewRecorder(); h.ServeHTTP(w, r); putDone <- w }()
+			if _, err := writer.Write([]byte("{")); err != nil {
+				t.Fatal(err)
+			}
+			responses := make(chan *httptest.ResponseRecorder, 2)
+			go func() { responses <- limitRequest(h, "GET", "/v1/device-creates/op", "", "lwm_test_secret") }()
+			go func() { responses <- limitRequest(h, "POST", "/v1/devices", `{"endpoint":"one"}`, "lwm_test_secret") }()
+			var fence *httptest.ResponseRecorder
+			for i := 0; i < 2; i++ {
+				select {
+				case w := <-responses:
+					if w.Code == 200 {
+						fence = w
+					} else if w.Code != 201 {
+						t.Errorf("unexpected response: %d %s", w.Code, w.Body)
+					}
+				case <-time.After(time.Second):
+					t.Error("stalled PUT blocked tenant request")
+					writer.Close()
+					for ; i < 2; i++ {
+						<-responses
+					}
+					<-putDone
+					return
+				}
+			}
+			writer.Close()
+			put := <-putDone
+			if fence == nil || put.Code != 200 || put.Body.String() != fence.Body.String() {
+				t.Fatalf("PUT did not replay concurrent fence: %d %s", put.Code, put.Body)
+			}
+		})
+	}
+}
+
 func TestDeviceCreateOutcomeConcurrentPostLimit(t *testing.T) {
 	for _, backend := range []string{"memory", "sqlite"} {
 		t.Run(backend, func(t *testing.T) {
