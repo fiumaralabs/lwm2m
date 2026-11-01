@@ -132,6 +132,10 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 	if collection {
 		switch r.Method {
 		case "POST":
+			if key := r.Header.Get("Idempotency-Key"); key != "" {
+				o.replayDeviceCreate(w, r, tenant, key)
+				return
+			}
 			var input struct {
 				Endpoint string            `json:"endpoint"`
 				Name     string            `json:"name"`
