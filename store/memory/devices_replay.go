@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"net/http"
 	"time"
 )
@@ -15,7 +16,7 @@ type deviceReplay struct {
 }
 
 // ReplayDeviceCreate serializes requests for one tenant and key and retains the first response.
-func (s *Devices) ReplayDeviceCreate(tenant, key string, run func() (int, http.Header, []byte)) (int, http.Header, []byte) {
+func (s *Devices) ReplayDeviceCreate(ctx context.Context, tenant, key string, run func() (int, http.Header, []byte)) (int, http.Header, []byte, error) {
 	k := deviceReplayKey{tenant, key}
 	for {
 		s.replayMu.Lock()
@@ -32,11 +33,15 @@ func (s *Devices) ReplayDeviceCreate(tenant, key string, run func() (int, http.H
 			if !entry.at.IsZero() {
 				status, header, body := entry.status, entry.header.Clone(), append([]byte(nil), entry.body...)
 				s.replayMu.Unlock()
-				return status, header, body
+				return status, header, body, nil
 			}
 			done := entry.done
 			s.replayMu.Unlock()
-			<-done
+			select {
+			case <-done:
+			case <-ctx.Done():
+				return 0, nil, nil, ctx.Err()
+			}
 			continue
 		}
 		entry := &deviceReplay{done: make(chan struct{})}
@@ -58,6 +63,6 @@ func (s *Devices) ReplayDeviceCreate(tenant, key string, run func() (int, http.H
 			completed = true
 			s.replayMu.Unlock()
 		}()
-		return entry.status, entry.header.Clone(), append([]byte(nil), entry.body...)
+		return entry.status, entry.header.Clone(), append([]byte(nil), entry.body...), nil
 	}
 }

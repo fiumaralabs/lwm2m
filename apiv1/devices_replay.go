@@ -2,11 +2,12 @@ package apiv1
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 )
 
 type deviceCreateReplayStore interface {
-	ReplayDeviceCreate(tenant, key string, run func() (int, http.Header, []byte)) (int, http.Header, []byte)
+	ReplayDeviceCreate(ctx context.Context, tenant, key string, run func() (int, http.Header, []byte)) (int, http.Header, []byte, error)
 }
 
 type deviceReplayWriter struct {
@@ -34,7 +35,7 @@ func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tena
 		WriteProblem(w, 501, "not_implemented", "Device create idempotency is not supported by this store")
 		return
 	}
-	status, header, body := s.ReplayDeviceCreate(tenant, key, func() (int, http.Header, []byte) {
+	status, header, body, err := s.ReplayDeviceCreate(r.Context(), tenant, key, func() (int, http.Header, []byte) {
 		recorder := &deviceReplayWriter{header: make(http.Header)}
 		request := r.Clone(r.Context())
 		request.Header.Del("Idempotency-Key")
@@ -44,6 +45,9 @@ func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tena
 		}
 		return recorder.status, recorder.header, recorder.body.Bytes()
 	})
+	if err != nil {
+		return
+	}
 	for k, values := range header {
 		w.Header()[k] = values
 	}
