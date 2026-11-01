@@ -81,6 +81,10 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tenant := TenantFrom(r.Context())
+	// Serialize outcomes with normal device creation and outcome deletion so a
+	// replay cannot become a new create after the capacity check is skipped.
+	unlock := o.limits.lock(tenant)
+	defer unlock()
 	var result store.DeviceCreateOutcome
 	status := 200
 	switch r.Method {
@@ -136,6 +140,25 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		if e := inputDecoder.Decode(&input); e != nil || strings.TrimSpace(input.Endpoint) == "" {
 			result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
 		} else {
+			_, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
+			if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
+				WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
+				return
+			}
+			if errors.Is(lookupErr, store.ErrNotFound) {
+				if t, ok := o.limits.tenants.Get(tenant); ok && t.Limits.Devices > 0 {
+					reached, err := o.deviceLimitReached(tenant, t.Limits.Devices)
+					if err != nil {
+						WriteProblem(w, 500, "internal_error", "Cannot list devices")
+						return
+					}
+					if reached {
+						w.Header().Set("Retry-After", "60")
+						WriteProblem(w, 429, "limit_exceeded", "Device limit exceeded")
+						return
+					}
+				}
+			}
 			result, inserted, err = s.CreateDeviceWithOutcome(r.Context(), tenant, id, fingerprint, store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels})
 			if inserted && err == nil && result.Status == "committed" {
 				status = 201
