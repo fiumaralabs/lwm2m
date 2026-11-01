@@ -9,6 +9,8 @@ import (
 	"github.com/fiumaralabs/lwm2m/operations"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store/memory"
+	"github.com/fiumaralabs/lwm2m/testclient"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
 func TestJobCancelImmediatelyCancelsQueuedOperation(t *testing.T) {
@@ -21,11 +23,18 @@ func TestJobCancelImmediatelyCancelsQueuedOperation(t *testing.T) {
 	if _, err := jobs.StartJob("default", "job", []string{"dev"}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	srv := server.New(server.Config{})
+	var ex *operations.Executor
+	srv := server.New(server.Config{OnEvent: func(ev server.Event) { ex.HandleEvent(ev) }})
 	defer srv.Close()
 	ops := memory.NewOperations()
-	ex := operations.NewExecutor(srv, ops, operations.ExecutorOptions{})
+	ex = operations.NewExecutor(srv, ops, operations.ExecutorOptions{})
 	defer ex.Close()
+	listener := coap.New(srv)
+	defer listener.Close()
+	addr, err := listener.ListenUDP("127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	runner := JobRunner{}
 	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",jobs:write,", tenant: "default"}}}
 	handler := New(Options{Keys: keys, Server: srv, Executor: ex, Jobs: jobs, JobRunner: &runner})
@@ -57,5 +66,27 @@ func TestJobCancelImmediatelyCancelsQueuedOperation(t *testing.T) {
 	op, err = ops.Get(ctx, "default", tasks[0].Operation)
 	if err != nil || op.Status != operations.Cancelled {
 		t.Fatalf("operation after tick: %+v, %v", op, err)
+	}
+	client := testclient.New(testclient.Config{Endpoint: "dev"})
+	defer client.Close()
+	if err := client.Dial(addr.String()); err != nil {
+		t.Fatal(err)
+	}
+	wakeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := client.Register(wakeCtx); err != nil {
+		t.Fatal(err)
+	}
+	control := operations.New("default", "dev", "execute", []byte(`{"path":"/3/0/4"}`), nil, time.Now())
+	control, err = ex.Submit(wakeCtx, "default", control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err = ex.Wait(wakeCtx, "default", control.ID)
+	if err != nil || control.Status != operations.Succeeded {
+		t.Fatalf("control operation: %+v, %v", control, err)
+	}
+	if requests := client.Requests(); len(requests) != 1 {
+		t.Fatalf("expected only the control request, got %+v", requests)
 	}
 }
