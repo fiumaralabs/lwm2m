@@ -1,0 +1,24 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "LwM2M native API", "version": "1"},
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/v1/openapi.json": {"get": {"summary": "Get the OpenAPI document", "tags": ["Server"], "responses": {"200": {"description": "OpenAPI document", "content": {"application/json": {"schema": {"type": "object"}}}}}, "security": []}},
+    "/v1/info": {"get": {"summary": "Get server information", "tags": ["Server"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/events": {"get": {"summary": "Stream events", "tags": ["Events"], "responses": {"200": {"description": "Event stream", "content": {"text/event-stream": {"schema": {"type": "string"}}}}}}},
+    "/v1/devices": {"get": {"summary": "List devices", "tags": ["Devices"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create a device", "tags": ["Devices"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/device-creates/{id}": {"parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}], "get": {"summary": "Get or fence a device create outcome", "tags": ["Devices"], "responses": {"default": {"description": "Response"}}}, "put": {"summary": "Create a device with an operation ID", "tags": ["Devices"], "responses": {"default": {"description": "Response"}}}, "delete": {"summary": "Delete a device create outcome", "tags": ["Devices"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/device-profiles": {"get": {"summary": "List device profiles", "tags": ["Device profiles"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create a device profile", "tags": ["Device profiles"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/jobs": {"get": {"summary": "List fleet jobs", "tags": ["Fleet jobs"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create a fleet job", "tags": ["Fleet jobs"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/firmware": {"get": {"summary": "List firmware artifacts", "tags": ["Firmware"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create firmware metadata", "tags": ["Firmware"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/trust-anchors": {"get": {"summary": "List trust anchors", "tags": ["Credentials"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create a trust anchor", "tags": ["Credentials"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/est": {"get": {"summary": "Get EST settings", "tags": ["Credentials"], "responses": {"default": {"description": "Response"}}}, "put": {"summary": "Update EST settings", "tags": ["Credentials"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/models": {"get": {"summary": "List object models", "tags": ["Object models"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Upload an object model", "tags": ["Object models"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/webhooks": {"get": {"summary": "List webhooks", "tags": ["Events"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create a webhook", "tags": ["Events"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/api-keys": {"get": {"summary": "List API keys", "tags": ["Tenancy and access"], "responses": {"default": {"description": "Response"}}}, "post": {"summary": "Create an API key", "tags": ["Tenancy and access"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/settings": {"get": {"summary": "Get settings", "tags": ["Tenancy and access"], "responses": {"default": {"description": "Response"}}}, "patch": {"summary": "Update settings", "tags": ["Tenancy and access"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/audit-log": {"get": {"summary": "List audit events", "tags": ["Tenancy and access"], "responses": {"default": {"description": "Response"}}}},
+    "/v1/operations": {"get": {"summary": "List operations", "tags": ["Operations"], "responses": {"default": {"description": "Response"}}}}
+  },
+  "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}}, "schemas": {"Problem": {"type": "object", "properties": {"type": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "integer"}, "detail": {"type": "string"}, "code": {"type": "string"}}}}}
+}
