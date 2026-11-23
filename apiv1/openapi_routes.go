@@ -4,6 +4,7 @@ package apiv1
 var openAPIRoutes = []struct{ Method, Path string }{
 	{"GET", "/v1/openapi.json"},
 	{"GET", "/v1/info"},
+	{"GET", "/v1/events"},
 	{"GET", "/v1/devices"},
 	{"POST", "/v1/devices"},
 	{"GET", "/v1/device-creates/{id}"},

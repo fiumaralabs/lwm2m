@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -73,6 +74,11 @@ func TestOpenAPIInventoryRoutes(t *testing.T) {
 	for _, route := range openAPIRoutes {
 		t.Run(route.Method+" "+route.Path, func(t *testing.T) {
 			r := httptest.NewRequest(route.Method, strings.ReplaceAll(route.Path, "{id}", "probe"), nil)
+			if route.Path == "/v1/events" {
+				ctx, cancel := context.WithCancel(r.Context())
+				cancel()
+				r = r.WithContext(ctx)
+			}
 			r.Header.Set("Authorization", "Bearer lwm_test_secret")
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
