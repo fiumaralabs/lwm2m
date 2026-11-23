@@ -127,17 +127,18 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var input struct {
-			Type        string            `json:"type"`
-			TTL         *int              `json:"ttlSeconds"`
-			WhenOffline string            `json:"whenOffline"`
-			Prefix      string            `json:"prefix"`
-			Format      string            `json:"format"`
-			Accept      string            `json:"accept"`
-			Paths       []string          `json:"paths,omitempty"`
-			Path        string            `json:"path,omitempty"`
-			Values      []json.RawMessage `json:"values,omitempty"`
-			Mode        string            `json:"mode,omitempty"`
-			Arguments   string            `json:"arguments,omitempty"`
+			Type        string                     `json:"type"`
+			Attributes  map[string]json.RawMessage `json:"attributes,omitempty"`
+			TTL         *int                       `json:"ttlSeconds"`
+			WhenOffline string                     `json:"whenOffline"`
+			Prefix      string                     `json:"prefix"`
+			Format      string                     `json:"format"`
+			Accept      string                     `json:"accept"`
+			Paths       []string                   `json:"paths,omitempty"`
+			Path        string                     `json:"path,omitempty"`
+			Values      []json.RawMessage          `json:"values,omitempty"`
+			Mode        string                     `json:"mode,omitempty"`
+			Arguments   string                     `json:"arguments,omitempty"`
 		}
 		if !DecodeJSON(w, r, &input) {
 			return
@@ -147,12 +148,13 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		request, _ := json.Marshal(struct {
-			Paths     []string          `json:"paths,omitempty"`
-			Path      string            `json:"path,omitempty"`
-			Values    []json.RawMessage `json:"values,omitempty"`
-			Mode      string            `json:"mode,omitempty"`
-			Arguments string            `json:"arguments,omitempty"`
-		}{input.Paths, input.Path, input.Values, input.Mode, input.Arguments})
+			Attributes map[string]json.RawMessage `json:"attributes,omitempty"`
+			Paths      []string                   `json:"paths,omitempty"`
+			Path       string                     `json:"path,omitempty"`
+			Values     []json.RawMessage          `json:"values,omitempty"`
+			Mode       string                     `json:"mode,omitempty"`
+			Arguments  string                     `json:"arguments,omitempty"`
+		}{input.Attributes, input.Paths, input.Path, input.Values, input.Mode, input.Arguments})
 		op := operations.New(tenant, ep, input.Type, request, input.TTL, time.Now().UTC())
 		keyID := strings.SplitN(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer lwm_"), "_", 2)[0]
 		op.CreatedBy = operations.Actor{Kind: "apiKey", ID: "key_" + keyID}
