@@ -947,11 +947,9 @@ The response includes `secret` once. Each delivery is a `POST` of one event, sig
 | `GET` | `/v1/webhooks/{id}/deliveries` | Attempts: event, time, HTTP status, latency, error |
 | `POST` | `/v1/webhooks/{id}/deliveries/{deliveryId}/retry` | Re-send one |
 
-The in-memory delivery log retains at most 1,000 attempts per webhook and
-histories for at most 1,000 webhooks across all tenants. When that global limit
-is reached, a new history evicts the history least recently written,
-including histories for webhooks that still exist. A cursor into an evicted
-history is invalid. In-memory histories are lost on restart.
+The in-memory delivery log retains at most 1,000 attempts per webhook.
+Deleting a webhook removes its history, and attempts completing after deletion
+are not recorded. In-memory histories are lost on restart.
 
 A message bus sink (MQTT, NATS, Kafka) for the same events is deployment configuration, not API.
 
