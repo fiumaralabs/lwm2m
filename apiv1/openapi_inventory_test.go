@@ -33,6 +33,9 @@ func TestOpenAPIInventory(t *testing.T) {
 	}
 	for path, methods := range doc.Paths {
 		for method := range methods {
+			if method == "parameters" {
+				continue
+			}
 			key := strings.ToUpper(method) + " " + path
 			if !want[key] {
 				t.Errorf("documented operation missing from inventory: %s", key)
@@ -42,6 +45,20 @@ func TestOpenAPIInventory(t *testing.T) {
 	}
 	for key := range want {
 		t.Errorf("inventory operation missing from document: %s", key)
+	}
+}
+
+func TestOpenAPIDeviceCreateRoutesDocumented(t *testing.T) {
+	var doc struct {
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(openAPIDocument, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{"get", "put", "delete"} {
+		if _, ok := doc.Paths["/v1/device-creates/{id}"][method]; !ok {
+			t.Errorf("missing %s /v1/device-creates/{id}", method)
+		}
 	}
 }
 
@@ -55,7 +72,7 @@ func TestOpenAPIInventoryRoutes(t *testing.T) {
 	h := New(Options{Keys: keys, ESTConfigs: configs})
 	for _, route := range openAPIRoutes {
 		t.Run(route.Method+" "+route.Path, func(t *testing.T) {
-			r := httptest.NewRequest(route.Method, route.Path, nil)
+			r := httptest.NewRequest(route.Method, strings.ReplaceAll(route.Path, "{id}", "probe"), nil)
 			r.Header.Set("Authorization", "Bearer lwm_test_secret")
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)

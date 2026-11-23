@@ -1,14 +1,26 @@
 package apiv1
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
 func TestOpenAPIUnauthenticated(t *testing.T) {
-	h := New(Options{})
+	keys, err := LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x admin", sha256.Sum256([]byte("lwm_test_secret")))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(Options{Keys: keys})
+	secured := httptest.NewRecorder()
+	h.ServeHTTP(secured, httptest.NewRequest(http.MethodGet, "/v1/info", nil))
+	if secured.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated control: status %d, want 401", secured.Code)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/openapi.json", nil))
 	if w.Code != http.StatusOK {
