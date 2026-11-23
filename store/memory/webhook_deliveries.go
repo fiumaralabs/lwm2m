@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"container/list"
 	"encoding/base64"
 	"encoding/json"
 	"sync"
@@ -9,14 +8,40 @@ import (
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
-// WebhookDeliveries retains up to 1000 attempts for each of the 1000 most
-// recently written webhook histories, across all tenants. Late writes after
-// deletion are bounded by the same global limit.
+// WebhookDeliveries stores attempts only for existing webhooks. Construct it
+// with NewWebhookDeliveryStores and use the returned wrapper for all mutations.
 type WebhookDeliveries struct {
-	mu        sync.Mutex
-	entries   map[[2]string][]store.WebhookDelivery
-	order     list.List
-	positions map[[2]string]*list.Element
+	mu      sync.Mutex
+	hooks   store.Webhooks
+	entries map[[2]string][]store.WebhookDelivery
+}
+
+type webhookDeliveryHooks struct {
+	store.Webhooks
+	log *WebhookDeliveries
+}
+
+// NewWebhookDeliveryStores coordinates deletion with late delivery attempts.
+// All webhook mutations must use the returned store, not the underlying store.
+func NewWebhookDeliveryStores(hooks store.Webhooks) (store.Webhooks, *WebhookDeliveries) {
+	log := &WebhookDeliveries{hooks: hooks}
+	return &webhookDeliveryHooks{Webhooks: hooks, log: log}, log
+}
+
+func (s *webhookDeliveryHooks) Create(tenant string, hook store.Webhook, key string) (store.Webhook, error) {
+	s.log.mu.Lock()
+	defer s.log.mu.Unlock()
+	return s.Webhooks.Create(tenant, hook, key)
+}
+
+func (s *webhookDeliveryHooks) Delete(tenant, id string, match store.WebhookMatch) error {
+	s.log.mu.Lock()
+	defer s.log.mu.Unlock()
+	if err := s.Webhooks.Delete(tenant, id, match); err != nil {
+		return err
+	}
+	delete(s.log.entries, [2]string{tenant, id})
+	return nil
 }
 
 func copyDelivery(d store.WebhookDelivery) store.WebhookDelivery {
@@ -30,23 +55,16 @@ func copyDelivery(d store.WebhookDelivery) store.WebhookDelivery {
 func (s *WebhookDeliveries) Append(tenant, webhook string, d store.WebhookDelivery) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.hooks == nil {
+		return
+	}
+	if _, err := s.hooks.Get(tenant, webhook); err != nil {
+		return
+	}
 	if s.entries == nil {
 		s.entries = make(map[[2]string][]store.WebhookDelivery)
-		s.positions = make(map[[2]string]*list.Element)
 	}
 	k := [2]string{tenant, webhook}
-	if pos := s.positions[k]; pos != nil {
-		s.order.MoveToBack(pos)
-	} else {
-		if s.order.Len() == 1000 {
-			oldest := s.order.Front()
-			key := oldest.Value.([2]string)
-			delete(s.entries, key)
-			delete(s.positions, key)
-			s.order.Remove(oldest)
-		}
-		s.positions[k] = s.order.PushBack(k)
-	}
 	a := append(s.entries[k], copyDelivery(d))
 	if len(a) > 1000 {
 		a = append([]store.WebhookDelivery(nil), a[len(a)-1000:]...)

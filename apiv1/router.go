@@ -95,11 +95,11 @@ func New(o Options) http.Handler {
 	if o.Settings == nil {
 		o.Settings = &memory.Settings{}
 	}
-	if o.WebhookDeliveries == nil {
-		o.WebhookDeliveries = &memory.WebhookDeliveries{}
-	}
 	if o.Webhooks == nil {
 		o.Webhooks = &memory.Webhooks{}
+	}
+	if o.WebhookDeliveries == nil {
+		o.Webhooks, o.WebhookDeliveries = memory.NewWebhookDeliveryStores(o.Webhooks)
 	}
 	if o.Devices == nil {
 		o.Devices = &memory.Devices{}

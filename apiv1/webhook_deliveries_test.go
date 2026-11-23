@@ -26,7 +26,8 @@ func TestWebhookDeliveriesIntegration(t *testing.T) {
 		"other":  {hash: sha256.Sum256([]byte("lwm_other_synthetic")), tenant: "other", scopes: ",admin,"},
 		"reader": {hash: sha256.Sum256([]byte("lwm_reader_synthetic")), tenant: "default", scopes: ",devices:read,"},
 	}}
-	hooks, events, log := &memory.Webhooks{}, &memory.Events{}, &memory.WebhookDeliveries{}
+	hooks, log := memory.NewWebhookDeliveryStores(&memory.Webhooks{})
+	events := &memory.Events{}
 	h := New(Options{Keys: keys, Webhooks: hooks, WebhookDeliveries: log})
 	created := keyRequest(h, "POST", "/v1/webhooks", "lwm_root_synthetic", fmt.Sprintf(`{"url":%q,"types":["lwm2m.registration.*"]}`, receiver.URL))
 	if created.Code != 201 {
@@ -120,6 +121,16 @@ func TestWebhookDeliveriesIntegration(t *testing.T) {
 	}
 	if len(network.Items) != 1 || network.Items[0].Status != nil || network.Items[0].Error == "" {
 		t.Fatalf("network failure: %s", newest.Body)
+	}
+
+	deleted := keyRequest(h, "DELETE", base, "lwm_root_synthetic", "")
+	if deleted.Code != 204 {
+		t.Fatalf("delete: %d %s", deleted.Code, deleted.Body)
+	}
+	log.Append("default", hook.ID, store.WebhookDelivery{ID: "late"})
+	remaining, _, err := log.List("default", hook.ID, "", 10)
+	if err != nil || len(remaining) != 0 {
+		t.Fatalf("history after delete and late write: %v %v", remaining, err)
 	}
 
 }

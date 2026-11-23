@@ -9,8 +9,7 @@ import (
 )
 
 func TestWebhookDeliveriesBoundedAfterDeletionAndLateAttempt(t *testing.T) {
-	var log WebhookDeliveries
-	var hooks Webhooks
+	hooks, log := NewWebhookDeliveryStores(&Webhooks{})
 	for i := 0; i < 1001; i++ {
 		id := fmt.Sprint(i)
 		if _, err := hooks.Create("tenant", store.Webhook{ID: id}, ""); err != nil {
@@ -20,42 +19,17 @@ func TestWebhookDeliveriesBoundedAfterDeletionAndLateAttempt(t *testing.T) {
 		if err := hooks.Delete("tenant", id, store.WebhookMatch{}); err != nil {
 			t.Fatal(err)
 		}
-		// A request started before deletion can finish afterwards.
 		log.Append("tenant", id, store.WebhookDelivery{ID: "late"})
 	}
-	if len(log.entries) > 1000 {
-		t.Fatalf("retained %d webhook histories, want at most 1000", len(log.entries))
-	}
-	old, _, err := log.List("tenant", "0", "", 10)
-	if err != nil || len(old) != 0 {
-		t.Fatalf("oldest history not evicted: %v, %v", old, err)
-	}
-	latest, _, err := log.List("tenant", "1000", "", 10)
-	if err != nil || len(latest) != 2 || latest[0].ID != "late" {
-		t.Fatalf("latest history missing: %v, %v", latest, err)
-	}
-}
-
-func TestWebhookDeliveriesEvictsLeastRecentlyWritten(t *testing.T) {
-	var log WebhookDeliveries
-	for i := 0; i < 1000; i++ {
-		log.Append("tenant", fmt.Sprint(i), store.WebhookDelivery{ID: "one"})
-	}
-	log.Append("tenant", "0", store.WebhookDelivery{ID: "two"})
-	log.Append("other", "new", store.WebhookDelivery{ID: "three"})
-	kept, _, _ := log.List("tenant", "0", "", 10)
-	evicted, _, _ := log.List("tenant", "1", "", 10)
-	if len(kept) != 2 || len(evicted) != 0 {
-		t.Fatalf("refreshed history: %v, evicted history: %v", kept, evicted)
+	if len(log.entries) != 0 {
+		t.Fatalf("retained %d orphan histories", len(log.entries))
 	}
 }
 
 func TestWebhookDeliveriesConcurrentDeletionAndAttempts(t *testing.T) {
-	var log WebhookDeliveries
-	var hooks Webhooks
+	hooks, log := NewWebhookDeliveryStores(&Webhooks{})
 	for i := 0; i < 1100; i++ {
-		id := fmt.Sprint(i)
-		if _, err := hooks.Create("tenant", store.Webhook{ID: id}, ""); err != nil {
+		if _, err := hooks.Create("tenant", store.Webhook{ID: fmt.Sprint(i)}, ""); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -63,10 +37,7 @@ func TestWebhookDeliveriesConcurrentDeletionAndAttempts(t *testing.T) {
 	for i := 0; i < 1100; i++ {
 		id := fmt.Sprint(i)
 		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			log.Append("tenant", id, store.WebhookDelivery{ID: "attempt"})
-		}()
+		go func() { defer wg.Done(); log.Append("tenant", id, store.WebhookDelivery{ID: "attempt"}) }()
 		go func() {
 			defer wg.Done()
 			if err := hooks.Delete("tenant", id, store.WebhookMatch{}); err != nil {
@@ -75,13 +46,16 @@ func TestWebhookDeliveriesConcurrentDeletionAndAttempts(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if len(log.entries) != 1000 {
-		t.Fatalf("retained %d histories, want 1000", len(log.entries))
+	if len(log.entries) != 0 {
+		t.Fatalf("retained %d orphan histories", len(log.entries))
 	}
 }
 
 func TestWebhookDeliveriesRetentionAndCursors(t *testing.T) {
-	var log WebhookDeliveries
+	hooks, log := NewWebhookDeliveryStores(&Webhooks{})
+	if _, err := hooks.Create("tenant", store.Webhook{ID: "hook"}, ""); err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 1001; i++ {
 		n := i
 		log.Append("tenant", "hook", store.WebhookDelivery{ID: fmt.Sprint(i), Status: &n})
@@ -119,13 +93,45 @@ func TestWebhookDeliveriesRetentionAndCursors(t *testing.T) {
 }
 
 func TestWebhookDeliveriesLiveHistorySurvivesOtherTenantChurn(t *testing.T) {
-	var log WebhookDeliveries
+	hooks, log := NewWebhookDeliveryStores(&Webhooks{})
+	if _, err := hooks.Create("victim", store.Webhook{ID: "hook"}, ""); err != nil {
+		t.Fatal(err)
+	}
 	log.Append("victim", "hook", store.WebhookDelivery{ID: "victim"})
 	for i := 0; i < 1001; i++ {
+		if _, err := hooks.Create("other", store.Webhook{ID: fmt.Sprint(i)}, ""); err != nil {
+			t.Fatal(err)
+		}
 		log.Append("other", fmt.Sprint(i), store.WebhookDelivery{ID: "other"})
 	}
 	got, _, err := log.List("victim", "hook", "", 10)
 	if err != nil || len(got) != 1 || got[0].ID != "victim" {
 		t.Fatalf("victim history lost: %v, %v", got, err)
+	}
+}
+
+func TestWebhookDeliveriesDeletionIsolationAndFailedPrecondition(t *testing.T) {
+	hooks, log := NewWebhookDeliveryStores(&Webhooks{})
+	for _, tenant := range []string{"a", "b"} {
+		if _, err := hooks.Create(tenant, store.Webhook{ID: "shared"}, ""); err != nil {
+			t.Fatal(err)
+		}
+		log.Append(tenant, "shared", store.WebhookDelivery{ID: tenant})
+	}
+	if err := hooks.Delete("a", "shared", store.WebhookMatch{Required: true, Tags: []string{"bad"}}); err != store.ErrWebhookPrecondition {
+		t.Fatalf("delete: %v", err)
+	}
+	a, _, _ := log.List("a", "shared", "", 10)
+	if len(a) != 1 {
+		t.Fatalf("failed delete lost history: %v", a)
+	}
+	if err := hooks.Delete("a", "shared", store.WebhookMatch{}); err != nil {
+		t.Fatal(err)
+	}
+	log.Append("a", "shared", store.WebhookDelivery{ID: "late"})
+	a, _, _ = log.List("a", "shared", "", 10)
+	b, _, _ := log.List("b", "shared", "", 10)
+	if len(a) != 0 || len(b) != 1 || b[0].ID != "b" {
+		t.Fatalf("histories after delete: a=%v b=%v", a, b)
 	}
 }

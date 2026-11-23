@@ -68,7 +68,6 @@ func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys,
 	var firmwareStore apiv1.FirmwareStore
 	var firmwareUpdates apiv1.FirmwareUpdateStore
 	var hooks store.Webhooks = &memory.Webhooks{}
-	deliveries := &memory.WebhookDeliveries{}
 	var settings store.Settings
 	var models apiv1.ModelStore
 	var profiles apiv1.DeviceProfileStore
@@ -93,6 +92,7 @@ func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys,
 		trustAnchors = anchors
 		estRotator = anchors
 	}
+	hooks, deliveries := memory.NewWebhookDeliveryStores(hooks)
 	var executor *operations.Executor
 	var observations *apiv1.ObservationDelivery
 	state := &memory.State{}
