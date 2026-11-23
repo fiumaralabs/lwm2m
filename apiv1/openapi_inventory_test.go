@@ -54,6 +54,37 @@ func TestOpenAPIInventory(t *testing.T) {
 	}
 }
 
+// Every operation must have a meaningful resource grouping for OpenAPI consumers.
+func TestOpenAPIOperationTags(t *testing.T) {
+	var doc struct {
+		Paths map[string]map[string]json.RawMessage `json:"paths"`
+	}
+	if err := json.Unmarshal(openAPIDocument, &doc); err != nil {
+		t.Fatal(err)
+	}
+	for path, methods := range doc.Paths {
+		for method, raw := range methods {
+			if method == "parameters" {
+				continue
+			}
+			var operation struct {
+				Tags []string `json:"tags"`
+			}
+			if err := json.Unmarshal(raw, &operation); err != nil {
+				t.Fatalf("%s %s: %v", method, path, err)
+			}
+			if len(operation.Tags) == 0 {
+				t.Errorf("%s %s has no resource tag", method, path)
+			}
+			for _, tag := range operation.Tags {
+				if strings.TrimSpace(tag) == "" {
+					t.Errorf("%s %s has empty resource tag", method, path)
+				}
+			}
+		}
+	}
+}
+
 func TestOpenAPIDeviceCreateRoutesDocumented(t *testing.T) {
 	var doc struct {
 		Paths map[string]map[string]json.RawMessage `json:"paths"`
