@@ -9,6 +9,7 @@ import (
 	"log"
 	"maps"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/store"
@@ -84,6 +85,8 @@ var bootstrapCredentialsMigration string
 type Devices struct {
 	db               *sql.DB
 	deviceCreateHook func(string) error
+	replayMu         sync.Mutex
+	replayPending    map[deviceReplayKey]chan struct{}
 }
 type deviceCursor struct {
 	Tenant, Q, Status *string
@@ -273,6 +276,10 @@ func (s *Devices) migrate() error {
 	// Migration 026 is additive. Leave user_version at 23 until the reserved
 	// migrations 024 and 025 land, so they cannot be skipped on upgrade.
 	if _, err = tx.Exec(deviceCreateMigration); err != nil {
+		return err
+	}
+	// 027 is also additive while migrations 024 and 025 remain reserved.
+	if _, err = tx.Exec(deviceReplayMigration); err != nil {
 		return err
 	}
 	return tx.Commit()
