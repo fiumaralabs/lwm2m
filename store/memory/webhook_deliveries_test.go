@@ -2,8 +2,10 @@ package memory
 
 import (
 	"fmt"
-	"github.com/fiumaralabs/lwm2m/store"
+	"sync"
 	"testing"
+
+	"github.com/fiumaralabs/lwm2m/store"
 )
 
 func TestWebhookDeliveriesBoundedAfterDeletionAndLateAttempt(t *testing.T) {
@@ -31,6 +33,50 @@ func TestWebhookDeliveriesBoundedAfterDeletionAndLateAttempt(t *testing.T) {
 	latest, _, err := log.List("tenant", "1000", "", 10)
 	if err != nil || len(latest) != 2 || latest[0].ID != "late" {
 		t.Fatalf("latest history missing: %v, %v", latest, err)
+	}
+}
+
+func TestWebhookDeliveriesEvictsLeastRecentlyWritten(t *testing.T) {
+	var log WebhookDeliveries
+	for i := 0; i < 1000; i++ {
+		log.Append("tenant", fmt.Sprint(i), store.WebhookDelivery{ID: "one"})
+	}
+	log.Append("tenant", "0", store.WebhookDelivery{ID: "two"})
+	log.Append("other", "new", store.WebhookDelivery{ID: "three"})
+	kept, _, _ := log.List("tenant", "0", "", 10)
+	evicted, _, _ := log.List("tenant", "1", "", 10)
+	if len(kept) != 2 || len(evicted) != 0 {
+		t.Fatalf("refreshed history: %v, evicted history: %v", kept, evicted)
+	}
+}
+
+func TestWebhookDeliveriesConcurrentDeletionAndAttempts(t *testing.T) {
+	var log WebhookDeliveries
+	var hooks Webhooks
+	for i := 0; i < 1100; i++ {
+		id := fmt.Sprint(i)
+		if _, err := hooks.Create("tenant", store.Webhook{ID: id}, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 1100; i++ {
+		id := fmt.Sprint(i)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			log.Append("tenant", id, store.WebhookDelivery{ID: "attempt"})
+		}()
+		go func() {
+			defer wg.Done()
+			if err := hooks.Delete("tenant", id, store.WebhookMatch{}); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if len(log.entries) != 1000 {
+		t.Fatalf("retained %d histories, want 1000", len(log.entries))
 	}
 }
 
