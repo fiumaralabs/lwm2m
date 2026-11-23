@@ -99,7 +99,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test -race -count=20 ./server ./transport/coap ./bootstrap ./fota ./transport/mqtt ./leshanapi
+      # CoAP's repeated real-network timing tests exceed Go's 10m package
+      # deadline even with cached model parsing; keep the other packages at 10m.
+      - run: go test -race -count=20 ./server ./bootstrap ./fota ./transport/mqtt ./leshanapi
+      - run: go test -race -count=20 -timeout=20m ./transport/coap
 
   consumer:
     # Builds a throwaway module that requires this commit, importing every

@@ -30,11 +30,25 @@ type Registry struct {
 // NewRegistry returns an empty registry.
 func NewRegistry() *Registry { return &Registry{objs: map[uint16]map[Version]*Object{}} }
 
-// Default returns a new registry preloaded with the embedded core objects.
-func Default() *Registry {
+// The cached definitions are immutable. Registry maps are copied for each caller
+// so registering an object in one registry cannot affect another.
+var defaultRegistry = sync.OnceValue(func() *Registry {
 	r := NewRegistry()
 	if err := r.LoadFS(coreFS); err != nil {
 		panic(err) // embedded data is tested
+	}
+	return r
+})
+
+// Default returns a new registry preloaded with the embedded core objects.
+func Default() *Registry {
+	cached := defaultRegistry()
+	r := NewRegistry()
+	for id, versions := range cached.objs {
+		r.objs[id] = make(map[Version]*Object, len(versions))
+		for version, object := range versions {
+			r.objs[id][version] = object
+		}
 	}
 	return r
 }
