@@ -139,6 +139,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			var input struct {
 				Endpoint string            `json:"endpoint"`
 				Name     string            `json:"name"`
+				Profile  string            `json:"profile"`
 				Labels   map[string]string `json:"labels"`
 			}
 			if !DecodeJSON(w, r, &input) {
@@ -147,6 +148,12 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			if strings.TrimSpace(input.Endpoint) == "" {
 				WriteProblem(w, 400, "invalid_endpoint", "endpoint is required")
 				return
+			}
+			if input.Profile != "" {
+				if _, ok := o.DeviceProfiles.Get(tenant, input.Profile); !ok {
+					WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
+					return
+				}
 			}
 			unlock := o.limits.lock(tenant)
 			defer unlock()
@@ -165,7 +172,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			}
 			unlockLifecycle := bootstrapLifecycle.lock(tenant)
 			defer unlockLifecycle()
-			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels})
+			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
 			if err != nil {
 				if errors.Is(err, store.ErrDeviceExists) {
 					WriteProblem(w, 409, "device_exists", "Device already exists")
@@ -227,9 +234,9 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 404, "not_found", "Unknown device path")
 		return
 	}
-	if r.Method != "GET" && r.Method != "DELETE" {
-		w.Header().Set("Allow", "GET, DELETE")
-		WriteProblem(w, 405, "method_not_allowed", "Expected GET or DELETE")
+	if r.Method != "GET" && r.Method != "DELETE" && r.Method != "PATCH" {
+		w.Header().Set("Allow", "GET, PATCH, DELETE")
+		WriteProblem(w, 405, "method_not_allowed", "Expected GET, PATCH or DELETE")
 		return
 	}
 	if r.Method == "DELETE" {
@@ -248,6 +255,45 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
+		deviceJSON(w, 200, o.view(tenant, d))
+		return
+	}
+	if r.Method == "PATCH" {
+		var input struct {
+			Profile json.RawMessage `json:"profile"`
+		}
+		if !DecodeJSON(w, r, &input) {
+			return
+		}
+		if input.Profile == nil {
+			deviceJSON(w, 200, o.view(tenant, d))
+			return
+		}
+		var profile string
+		if err := json.Unmarshal(input.Profile, &profile); err != nil {
+			WriteProblem(w, 400, "invalid_profile", "profile must be a string or null")
+			return
+		}
+		if profile != "" {
+			if _, ok := o.DeviceProfiles.Get(tenant, profile); !ok {
+				WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
+				return
+			}
+		}
+		writer, ok := o.Devices.(store.DeviceProfileWriter)
+		if !ok {
+			WriteProblem(w, 501, "not_implemented", "Device profile updates are not supported by this store")
+			return
+		}
+		d, err = writer.SetProfile(tenant, ep, profile)
+		if errors.Is(err, store.ErrDeviceNotFound) {
+			WriteProblem(w, 404, "not_found", "Device not found")
+			return
+		}
+		if err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot update device")
+			return
+		}
 		deviceJSON(w, 200, o.view(tenant, d))
 		return
 	}

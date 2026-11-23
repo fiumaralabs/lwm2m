@@ -66,6 +66,18 @@ func (s *Devices) Get(tenant, ep string) (store.Device, error) {
 	}
 	return clone(d), nil
 }
+func (s *Devices) SetProfile(tenant, ep, profile string) (store.Device, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.records[tenant][ep]
+	if !ok {
+		return store.Device{}, store.ErrDeviceNotFound
+	}
+	d.Profile = profile
+	d.UpdatedAt = time.Now().UTC()
+	s.records[tenant][ep] = d
+	return clone(d), nil
+}
 func (s *Devices) Delete(tenant, ep string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

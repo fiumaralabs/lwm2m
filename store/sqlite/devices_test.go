@@ -37,3 +37,33 @@ func TestSQLiteDevices(t *testing.T) {
 		t.Fatalf("reopen: got %+v, want %+v", after, before)
 	}
 }
+
+func TestDeviceProfileReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "devices.db")
+	s, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Create("a", store.Device{Endpoint: "one", Profile: "first"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SetProfile("a", "one", "second"); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	d, err := s.Get("a", "one")
+	if err != nil || d.Profile != "second" {
+		t.Fatalf("got %+v, %v", d, err)
+	}
+	list, _, err := s.List("a", store.DeviceFilter{}, "", 10)
+	if err != nil || len(list) != 1 || list[0].Profile != "second" {
+		t.Fatalf("list %+v, %v", list, err)
+	}
+}

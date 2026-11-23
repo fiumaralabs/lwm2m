@@ -16,6 +16,7 @@ var (
 type Device struct {
 	Endpoint   string            `json:"endpoint"`
 	Name       string            `json:"name"`
+	Profile    string            `json:"profile"`
 	Labels     map[string]string `json:"labels"`
 	CreatedAt  time.Time         `json:"createdAt"`
 	UpdatedAt  time.Time         `json:"updatedAt"`
@@ -38,4 +39,9 @@ type Devices interface {
 	Delete(tenant, endpoint string) error
 	// Seen records successful registration/update history without provisioning.
 	Seen(tenant, endpoint string, at time.Time)
+}
+
+// DeviceProfileWriter atomically updates a device's profile.
+type DeviceProfileWriter interface {
+	SetProfile(tenant, endpoint, profile string) (Device, error)
 }

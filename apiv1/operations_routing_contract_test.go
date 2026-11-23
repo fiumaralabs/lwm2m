@@ -14,7 +14,7 @@ func TestOperationsNamedDeviceResource(t *testing.T) {
 		status int
 	}{
 		{"GET", 200},
-		{"PATCH", 405}, // Device PATCH is not implemented; preserve the device handler's response.
+		{"PATCH", 200},
 		{"DELETE", 204},
 	} {
 		t.Run(tc.method, func(t *testing.T) {
@@ -24,7 +24,11 @@ func TestOperationsNamedDeviceResource(t *testing.T) {
 			if w.Code != 201 || w.Header().Get("Location") != "/v1/devices/operations" {
 				t.Fatalf("create: %d %s", w.Code, w.Body.String())
 			}
-			w = deviceRequest(h, tc.method, "/v1/devices/operations", "")
+			body := ""
+			if tc.method == "PATCH" {
+				body = `{}`
+			}
+			w = deviceRequest(h, tc.method, "/v1/devices/operations", body)
 			if w.Code != tc.status {
 				t.Fatalf("%s: %d %s", tc.method, w.Code, w.Body.String())
 			}
@@ -34,10 +38,7 @@ func TestOperationsNamedDeviceResource(t *testing.T) {
 				if err := json.Unmarshal(w.Body.Bytes(), &device); err != nil || device.Endpoint != "operations" {
 					t.Fatalf("device: %s", w.Body.String())
 				}
-			case "PATCH":
-				if got := w.Header().Get("Allow"); got != "GET, DELETE" {
-					t.Fatalf("Allow = %q, want device methods", got)
-				}
+
 			case "DELETE":
 				if w := deviceRequest(h, "GET", "/v1/devices/operations", ""); w.Code != 404 {
 					t.Fatalf("deleted device: %d %s", w.Code, w.Body.String())
