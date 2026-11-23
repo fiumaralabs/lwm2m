@@ -291,11 +291,11 @@ func New(o Options) http.Handler {
 		}
 		WriteProblem(w, 404, "not_found", "Unknown API path")
 	}))))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return openAPIGate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/openapi.json" {
 			serveOpenAPI(w, r)
 			return
 		}
 		secured.ServeHTTP(w, r)
-	})
+	}))
 }

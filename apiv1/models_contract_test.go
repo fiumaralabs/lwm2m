@@ -74,9 +74,10 @@ func TestModelsDetails(t *testing.T) {
 }
 func TestModelsNotFoundAndMethods(t *testing.T) {
 	h := New(Options{Keys: deviceKeys()})
-	for _, path := range []string{"/v1/models/65000", "/v1/models/3?version=1.99", "/v1/models/3?version=bogus", "/v1/models/nope", "/v1/models/3/versions/1.0"} {
+	for _, path := range []string{"/v1/models/65000", "/v1/models/3?version=1.99", "/v1/models/3?version=bogus", "/v1/models/nope"} {
 		registrationProblem(t, h, "GET", path, "not_found", 404)
 	}
+	registrationProblem(t, h, "GET", "/v1/models/3/versions/1.0", "method_not_allowed", 405)
 	for _, path := range []string{"/v1/models/3"} {
 		w := deviceRequest(h, "POST", path, "")
 		if w.Code != 405 || w.Header().Get("Allow") != "GET" {
