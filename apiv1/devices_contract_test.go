@@ -65,10 +65,11 @@ func TestDevicePaginationAndTenants(t *testing.T) {
 	entry.tenant = "default"
 	entry.scopes = ",devices:read,"
 	keys.entries["test"] = entry
-	for _, method := range []string{"POST", "DELETE"} {
-		if w := deviceRequest(h, method, "/v1/devices/a", `{}`); w.Code != 403 {
-			t.Fatal(w.Code)
-		}
+	if w := deviceRequest(h, "POST", "/v1/devices/a", `{}`); w.Code != 405 {
+		t.Fatal(w.Code)
+	}
+	if w := deviceRequest(h, "DELETE", "/v1/devices/a", `{}`); w.Code != 403 {
+		t.Fatal(w.Code)
 	}
 	entry.scopes = ",devices:write,"
 	keys.entries["test"] = entry
