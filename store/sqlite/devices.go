@@ -9,7 +9,6 @@ import (
 	"log"
 	"maps"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/store"
@@ -85,8 +84,6 @@ var bootstrapCredentialsMigration string
 type Devices struct {
 	db               *sql.DB
 	deviceCreateHook func(string) error
-	replayMu         sync.Mutex
-	replayPending    map[deviceReplayKey]chan struct{}
 }
 type deviceCursor struct {
 	Tenant, Q, Status *string

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -15,16 +16,20 @@ var deviceReplayMigration string
 
 type deviceReplayKey struct{ tenant, key string }
 
-// ReplayDeviceCreate serializes same-key requests within this store instance.
+// Coordinate all SQLite handles in this process, including aliases for the same
+// database. Keys for unrelated databases may briefly serialize as well.
+var deviceReplays = struct {
+	sync.Mutex
+	pending map[deviceReplayKey]chan struct{}
+}{pending: make(map[deviceReplayKey]chan struct{})}
+
+// ReplayDeviceCreate serializes same-key requests across SQLite handles in-process.
 func (s *Devices) ReplayDeviceCreate(ctx context.Context, tenant, key string, run func() (int, http.Header, []byte)) (int, http.Header, []byte, error) {
 	k := deviceReplayKey{tenant, key}
 	for {
-		s.replayMu.Lock()
-		if s.replayPending == nil {
-			s.replayPending = make(map[deviceReplayKey]chan struct{})
-		}
-		if pending := s.replayPending[k]; pending != nil {
-			s.replayMu.Unlock()
+		deviceReplays.Lock()
+		if pending := deviceReplays.pending[k]; pending != nil {
+			deviceReplays.Unlock()
 			select {
 			case <-pending:
 				continue
@@ -33,9 +38,9 @@ func (s *Devices) ReplayDeviceCreate(ctx context.Context, tenant, key string, ru
 			}
 		}
 		pending := make(chan struct{})
-		s.replayPending[k] = pending
-		s.replayMu.Unlock()
-		defer func() { s.replayMu.Lock(); delete(s.replayPending, k); close(pending); s.replayMu.Unlock() }()
+		deviceReplays.pending[k] = pending
+		deviceReplays.Unlock()
+		defer func() { deviceReplays.Lock(); delete(deviceReplays.pending, k); close(pending); deviceReplays.Unlock() }()
 		break
 	}
 	var status int
@@ -64,7 +69,8 @@ func (s *Devices) ReplayDeviceCreate(ctx context.Context, tenant, key string, ru
 	if body == nil {
 		body = []byte{}
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO device_replays(tenant,key,status,header,body,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(tenant,key) DO UPDATE SET status=excluded.status, header=excluded.header, body=excluded.body, expires=excluded.expires`, tenant, key, status, headerData, body, time.Now().Add(24*time.Hour).UnixNano())
+	// Once the callback has run, a disconnected client must not cancel replay persistence.
+	_, err = s.db.ExecContext(context.WithoutCancel(ctx), `INSERT INTO device_replays(tenant,key,status,header,body,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(tenant,key) DO UPDATE SET status=excluded.status, header=excluded.header, body=excluded.body, expires=excluded.expires`, tenant, key, status, headerData, body, time.Now().Add(24*time.Hour).UnixNano())
 	if err != nil {
 		return 0, nil, nil, err
 	}
