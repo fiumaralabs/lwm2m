@@ -18,6 +18,8 @@ type Firmware struct {
 	Description string            `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Status      string            `json:"status"`
+	Size        int64             `json:"size"`
+	SHA256      string            `json:"sha256,omitempty"`
 	CreatedAt   time.Time         `json:"createdAt"`
 }
 
@@ -39,14 +41,24 @@ type FirmwareStore interface {
 }
 
 type memoryFirmwareStore struct {
-	mu    sync.RWMutex
-	items map[string]map[string]Firmware
+	mu         sync.RWMutex
+	items      map[string]map[string]Firmware
+	content    map[string]map[string][]byte
+	maxContent int64
 }
 
 // NewMemoryFirmwareStore returns an ephemeral tenant-scoped firmware store.
 // Its in-use result is always false until update/job storage is implemented.
 func NewMemoryFirmwareStore() FirmwareStore {
-	return &memoryFirmwareStore{items: make(map[string]map[string]Firmware)}
+	return NewMemoryFirmwareStoreWithLimit(64 << 20)
+}
+
+// NewMemoryFirmwareStoreWithLimit sets the maximum upload size in bytes.
+func NewMemoryFirmwareStoreWithLimit(limit int64) FirmwareStore {
+	if limit <= 0 || limit == int64(^uint64(0)>>1) {
+		panic("firmware content limit must be positive and below MaxInt64")
+	}
+	return &memoryFirmwareStore{items: make(map[string]map[string]Firmware), content: make(map[string]map[string][]byte), maxContent: limit}
 }
 func cloneFirmware(f Firmware) Firmware {
 	if f.Labels != nil {
@@ -65,6 +77,7 @@ func (s *memoryFirmwareStore) Create(tenant string, f Firmware) error {
 		s.items[tenant] = make(map[string]Firmware)
 	}
 	s.items[tenant][f.ID] = cloneFirmware(f)
+	delete(s.content[tenant], f.ID)
 	return nil
 }
 func (s *memoryFirmwareStore) List(tenant string) []Firmware {
@@ -108,6 +121,7 @@ func (s *memoryFirmwareStore) Delete(tenant, id string) (bool, bool) {
 	_, ok := s.items[tenant][id]
 	if ok {
 		delete(s.items[tenant], id)
+		delete(s.content[tenant], id)
 	}
 	return ok, false
 }
@@ -115,6 +129,13 @@ func (s *memoryFirmwareStore) Delete(tenant, id string) (bool, bool) {
 func serveFirmware(s FirmwareStore, w http.ResponseWriter, r *http.Request) {
 	collection := r.URL.Path == "/v1/firmware"
 	id := strings.TrimPrefix(r.URL.Path, "/v1/firmware/")
+	if !collection && strings.HasSuffix(id, "/content") {
+		artifactID := strings.TrimSuffix(id, "/content")
+		if artifactID != "" && !strings.Contains(artifactID, "/") {
+			serveFirmwareContent(s, w, r, artifactID)
+			return
+		}
+	}
 	if !collection && (id == "" || strings.Contains(id, "/")) {
 		WriteProblem(w, 404, "not_found", "Unknown firmware artifact")
 		return
