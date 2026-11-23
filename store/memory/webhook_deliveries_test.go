@@ -6,6 +6,34 @@ import (
 	"testing"
 )
 
+func TestWebhookDeliveriesBoundedAfterDeletionAndLateAttempt(t *testing.T) {
+	var log WebhookDeliveries
+	var hooks Webhooks
+	for i := 0; i < 1001; i++ {
+		id := fmt.Sprint(i)
+		if _, err := hooks.Create("tenant", store.Webhook{ID: id}, ""); err != nil {
+			t.Fatal(err)
+		}
+		log.Append("tenant", id, store.WebhookDelivery{ID: "first"})
+		if err := hooks.Delete("tenant", id, store.WebhookMatch{}); err != nil {
+			t.Fatal(err)
+		}
+		// A request started before deletion can finish afterwards.
+		log.Append("tenant", id, store.WebhookDelivery{ID: "late"})
+	}
+	if len(log.entries) > 1000 {
+		t.Fatalf("retained %d webhook histories, want at most 1000", len(log.entries))
+	}
+	old, _, err := log.List("tenant", "0", "", 10)
+	if err != nil || len(old) != 0 {
+		t.Fatalf("oldest history not evicted: %v, %v", old, err)
+	}
+	latest, _, err := log.List("tenant", "1000", "", 10)
+	if err != nil || len(latest) != 2 || latest[0].ID != "late" {
+		t.Fatalf("latest history missing: %v, %v", latest, err)
+	}
+}
+
 func TestWebhookDeliveriesRetentionAndCursors(t *testing.T) {
 	var log WebhookDeliveries
 	for i := 0; i < 1001; i++ {
