@@ -138,7 +138,7 @@ func TestWebhooksAccessPagination(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
 		want         int
-	}{{"PUT", "/v1/webhooks", 405}, {"POST", path, 405}, {"GET", path + "/rotate-secret", 405}, {"GET", path + "/deliveries", 404}, {"GET", "/v1/webhooks/", 404}, {"PATCH", "/v1/webhooks/missing", 404}, {"DELETE", "/v1/webhooks/missing", 404}, {"POST", "/v1/webhooks/missing/rotate-secret", 404}} {
+	}{{"PUT", "/v1/webhooks", 405}, {"POST", path, 405}, {"GET", path + "/rotate-secret", 405}, {"GET", "/v1/webhooks/", 404}, {"PATCH", "/v1/webhooks/missing", 404}, {"DELETE", "/v1/webhooks/missing", 404}, {"POST", "/v1/webhooks/missing/rotate-secret", 404}} {
 		w := keyRequest(h, tc.method, tc.path, "lwm_root_synthetic", `{}`)
 		if w.Code != tc.want || w.Header().Get("Content-Type") != "application/problem+json" {
 			t.Error(fmt.Sprint(tc), w.Code, w.Body)
@@ -158,5 +158,14 @@ func TestWebhooksCreate(t *testing.T) {
 		if v[field] == nil {
 			t.Errorf("missing %s", field)
 		}
+	}
+}
+
+func TestWebhookDeliveriesEmpty(t *testing.T) {
+	h := keyHandler(t)
+	path := "/v1/webhooks/" + webhookCreate(t, h)["id"].(string) + "/deliveries"
+	w := keyRequest(h, "GET", path, "lwm_root_synthetic", "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"items":[]`) {
+		t.Fatalf("got %d %s", w.Code, w.Body)
 	}
 }

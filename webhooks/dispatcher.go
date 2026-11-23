@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/internal/id"
 	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/store"
 )
@@ -28,25 +29,27 @@ var ErrReset = errors.New("webhook event history reset")
 
 // Options must be configured before use. Now must be concurrency-safe.
 type Options struct {
-	Now    func() time.Time
-	Client *http.Client
+	Now        func() time.Time
+	Client     *http.Client
+	Deliveries store.WebhookDeliveries
 }
 type Dispatcher struct {
-	tenant    string
-	events    store.Events
-	hooks     store.Webhooks
-	devices   store.Devices
-	now       func() time.Time
-	client    *http.Client
-	after     string
-	lanes     map[[2]string][]*delivery
-	serial    sync.Mutex
-	life      context.Context
-	cancel    context.CancelFunc
-	worker    sync.WaitGroup
-	started   bool
-	failureMu sync.Mutex
-	failures  map[string]time.Time
+	deliveries store.WebhookDeliveries
+	tenant     string
+	events     store.Events
+	hooks      store.Webhooks
+	devices    store.Devices
+	now        func() time.Time
+	client     *http.Client
+	after      string
+	lanes      map[[2]string][]*delivery
+	serial     sync.Mutex
+	life       context.Context
+	cancel     context.CancelFunc
+	worker     sync.WaitGroup
+	started    bool
+	failureMu  sync.Mutex
+	failures   map[string]time.Time
 }
 type delivery struct {
 	event       store.Event
@@ -66,7 +69,7 @@ func New(tenant string, events store.Events, hooks store.Webhooks, devices store
 	client := *o.Client
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	life, cancel := context.WithCancel(context.Background())
-	return &Dispatcher{tenant: tenant, events: events, hooks: hooks, devices: devices, now: o.Now, client: &client, lanes: make(map[[2]string][]*delivery), life: life, cancel: cancel, failures: make(map[string]time.Time)}
+	return &Dispatcher{deliveries: o.Deliveries, tenant: tenant, events: events, hooks: hooks, devices: devices, now: o.Now, client: &client, lanes: make(map[[2]string][]*delivery), life: life, cancel: cancel, failures: make(map[string]time.Time)}
 }
 
 // Start idempotently starts polling until parent cancellation or Close.
@@ -287,8 +290,12 @@ type DeliveryResult struct {
 }
 
 // SendTest sends exactly one event using the same signing and timeout as normal deliveries.
-func SendTest(ctx context.Context, h store.Webhook, e store.Event) DeliveryResult {
-	d := New("", nil, nil, nil, Options{})
+func SendTest(ctx context.Context, h store.Webhook, e store.Event, opts ...Options) DeliveryResult {
+	var o Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	d := New(strings.TrimPrefix(e.Source, "/tenants/"), nil, nil, nil, o)
 	defer d.Close()
 	return d.sendAttempt(ctx, h, e)
 }
@@ -300,7 +307,17 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 
 func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e store.Event) (result DeliveryResult) {
 	start := time.Now()
-	defer func() { result.LatencyMS = float64(time.Since(start)) / float64(time.Millisecond) }()
+	defer func() {
+		result.LatencyMS = float64(time.Since(start)) / float64(time.Millisecond)
+		if d.deliveries != nil {
+			var status *int
+			if result.HTTPStatus != 0 {
+				n := result.HTTPStatus
+				status = &n
+			}
+			d.deliveries.Append(d.tenant, h.ID, store.WebhookDelivery{ID: id.New("del"), EventID: e.ID, EventType: e.Type, AttemptedAt: start.UTC(), Status: status, LatencyMS: result.LatencyMS, Error: result.Error})
+		}
+	}()
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
 	body, err := json.Marshal(e)

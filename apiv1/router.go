@@ -34,9 +34,10 @@ type Options struct {
 	Settings store.Settings `json:"-"`
 	EventOptions
 	AuditOptions
-	Webhooks     store.Webhooks     `json:"-"`
-	Observations store.Observations `json:"-"`
-	TimeSeries   TimeSeriesStore    `json:"-"`
+	WebhookDeliveries store.WebhookDeliveries `json:"-"`
+	Webhooks          store.Webhooks          `json:"-"`
+	Observations      store.Observations      `json:"-"`
+	TimeSeries        TimeSeriesStore         `json:"-"`
 	// When Executor is supplied, its store is authoritative and Operations is ignored.
 	Operations    store.Operations        `json:"-"`
 	Executor      *operations.Executor    `json:"-"`
@@ -93,6 +94,9 @@ func New(o Options) http.Handler {
 	}
 	if o.Settings == nil {
 		o.Settings = &memory.Settings{}
+	}
+	if o.WebhookDeliveries == nil {
+		o.WebhookDeliveries = &memory.WebhookDeliveries{}
 	}
 	if o.Webhooks == nil {
 		o.Webhooks = &memory.Webhooks{}
