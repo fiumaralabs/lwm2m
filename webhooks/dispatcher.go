@@ -307,6 +307,8 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 
 func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e store.Event) (result DeliveryResult) {
 	start := time.Now()
+	var body []byte
+	var err error
 	defer func() {
 		result.LatencyMS = float64(time.Since(start)) / float64(time.Millisecond)
 		if d.deliveries != nil {
@@ -315,12 +317,12 @@ func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e stor
 				n := result.HTTPStatus
 				status = &n
 			}
-			d.deliveries.Append(d.tenant, h.ID, store.WebhookDelivery{ID: id.New("del"), EventID: e.ID, EventType: e.Type, AttemptedAt: start.UTC(), Status: status, LatencyMS: result.LatencyMS, Error: result.Error})
+			d.deliveries.Append(d.tenant, h.ID, store.WebhookDelivery{Envelope: body, ID: id.New("del"), EventID: e.ID, EventType: e.Type, AttemptedAt: start.UTC(), Status: status, LatencyMS: result.LatencyMS, Error: result.Error})
 		}
 	}()
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
-	body, err := json.Marshal(e)
+	body, err = json.Marshal(e)
 	if err != nil {
 		return DeliveryResult{Error: "delivery failed"}
 	}

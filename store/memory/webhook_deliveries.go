@@ -45,6 +45,7 @@ func (s *webhookDeliveryHooks) Delete(tenant, id string, match store.WebhookMatc
 }
 
 func copyDelivery(d store.WebhookDelivery) store.WebhookDelivery {
+	d.Envelope = append([]byte(nil), d.Envelope...)
 	if d.Status != nil {
 		n := *d.Status
 		d.Status = &n
@@ -70,6 +71,17 @@ func (s *WebhookDeliveries) Append(tenant, webhook string, d store.WebhookDelive
 		a = append([]store.WebhookDelivery(nil), a[len(a)-1000:]...)
 	}
 	s.entries[k] = a
+}
+
+func (s *WebhookDeliveries) Get(tenant, webhook, deliveryID string) (store.WebhookDelivery, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, d := range s.entries[[2]string{tenant, webhook}] {
+		if d.ID == deliveryID {
+			return copyDelivery(d), nil
+		}
+	}
+	return store.WebhookDelivery{}, store.ErrWebhookDeliveryNotFound
 }
 
 func (s *WebhookDeliveries) List(tenant, webhook, cursor string, limit int) ([]store.WebhookDelivery, string, error) {
