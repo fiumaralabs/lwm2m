@@ -81,6 +81,9 @@ var estConfigMigration string
 //go:embed 023_bootstrap_credentials.sql
 var bootstrapCredentialsMigration string
 
+//go:embed 028_device_profile.sql
+var deviceProfileMigration string
+
 type Devices struct {
 	db               *sql.DB
 	deviceCreateHook func(string) error
@@ -279,6 +282,10 @@ func (s *Devices) migrate() error {
 	if _, err = tx.Exec(deviceReplayMigration); err != nil {
 		return err
 	}
+	// 028 is idempotent while 024 and 025 remain reserved.
+	if _, err = tx.Exec(deviceProfileMigration); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 func (s *Devices) Close() error { return s.db.Close() }
@@ -298,6 +305,18 @@ func (s *Devices) Get(tenant, endpoint string) (store.Device, error) {
 	var payload string
 	var d store.Device
 	err := s.db.QueryRow("SELECT payload FROM devices WHERE tenant=? AND endpoint=?", tenant, endpoint).Scan(&payload)
+	if err == sql.ErrNoRows {
+		return d, store.ErrDeviceNotFound
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(payload), &d)
+	}
+	return d, err
+}
+func (s *Devices) SetProfile(tenant, endpoint, profile string) (store.Device, error) {
+	var payload string
+	var d store.Device
+	err := s.db.QueryRow(`UPDATE devices SET payload=json_set(payload,'$.profile',?,'$.updatedAt',?) WHERE tenant=? AND endpoint=? RETURNING payload`, profile, time.Now().UTC().Format(time.RFC3339Nano), tenant, endpoint).Scan(&payload)
 	if err == sql.ErrNoRows {
 		return d, store.ErrDeviceNotFound
 	}
