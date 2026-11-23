@@ -117,3 +117,15 @@ func TestWebhookDeliveriesRetentionAndCursors(t *testing.T) {
 		t.Fatalf("got %d", count)
 	}
 }
+
+func TestWebhookDeliveriesLiveHistorySurvivesOtherTenantChurn(t *testing.T) {
+	var log WebhookDeliveries
+	log.Append("victim", "hook", store.WebhookDelivery{ID: "victim"})
+	for i := 0; i < 1001; i++ {
+		log.Append("other", fmt.Sprint(i), store.WebhookDelivery{ID: "other"})
+	}
+	got, _, err := log.List("victim", "hook", "", 10)
+	if err != nil || len(got) != 1 || got[0].ID != "victim" {
+		t.Fatalf("victim history lost: %v, %v", got, err)
+	}
+}
