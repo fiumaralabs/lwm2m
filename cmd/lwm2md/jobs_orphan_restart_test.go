@@ -97,7 +97,7 @@ func TestDaemonRecoversKilledJobDispatch(t *testing.T) {
 	if claims == 0 {
 		t.Fatal("process was not killed mid-dispatch")
 	}
-	start()
+	restarted := start()
 	client := &http.Client{Timeout: time.Second}
 	defer client.CloseIdleConnections()
 	deadline = time.Now().Add(30 * time.Second)
@@ -136,6 +136,15 @@ func TestDaemonRecoversKilledJobDispatch(t *testing.T) {
 		if task.Status != "succeeded" && task.Status != "failed" && task.Status != "expired" && task.Status != "cancelled" {
 			t.Fatalf("nonterminal task: %+v (killed with %d claims)", task, claims)
 		}
+	}
+	// Stop the owned daemon before inspecting the database with a raw connection.
+	// Unlike sqlite.Open, that connection has no busy timeout for concurrent writes.
+	if err := restarted.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	_ = restarted.Wait()
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
 	}
 	raw, err := sql.Open("sqlite", path)
 	if err != nil {
