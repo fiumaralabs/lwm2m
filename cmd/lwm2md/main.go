@@ -248,6 +248,11 @@ func main() {
 	security := coap.NewRevokingSecurityStore(securityStore, func(id string) { cb.RevokePSKIdentity(id) })
 	sessions := apiv1.NewMemoryBootstrapSessionStore()
 	runner := &apiv1.JobRunner{}
+	if durable, ok := devices.(*sqlite.Devices); ok {
+		if err := durable.Jobs().RecoverJobClaims(ctx); err != nil {
+			log.Fatalf("recover job claims: %v", err)
+		}
+	}
 	srv, native, executor, dispatcher := newDaemonWithRunner(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, devices)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
