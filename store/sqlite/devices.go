@@ -275,6 +275,10 @@ func (s *Devices) migrate() error {
 	if _, err = tx.Exec(deviceCreateMigration); err != nil {
 		return err
 	}
+	// 027 is also additive while migrations 024 and 025 remain reserved.
+	if _, err = tx.Exec(deviceReplayMigration); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 func (s *Devices) Close() error { return s.db.Close() }
