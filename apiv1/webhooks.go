@@ -8,11 +8,13 @@ import (
 	"github.com/fiumaralabs/lwm2m/internal/id"
 	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/store"
+	"github.com/fiumaralabs/lwm2m/webhooks"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type webhookInput struct {
@@ -26,7 +28,15 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 	tenant := TenantFrom(r.Context())
 	collection := r.URL.Path == "/v1/webhooks"
 	key := strings.TrimPrefix(r.URL.Path, "/v1/webhooks/")
-	rotate := strings.HasSuffix(key, "/rotate-secret")
+	deliveries := strings.HasSuffix(key, "/deliveries")
+	if deliveries {
+		key = strings.TrimSuffix(key, "/deliveries")
+	}
+	test := !deliveries && strings.HasSuffix(key, "/test")
+	if test {
+		key = strings.TrimSuffix(key, "/test")
+	}
+	rotate := !deliveries && !test && strings.HasSuffix(key, "/rotate-secret")
 	if rotate {
 		key = strings.TrimSuffix(key, "/rotate-secret")
 	}
@@ -38,7 +48,10 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 	if collection {
 		allow = "GET, POST"
 	}
-	if rotate {
+	if deliveries {
+		allow = "GET"
+	}
+	if rotate || test {
 		allow = "POST"
 	}
 	if !strings.Contains(","+strings.ReplaceAll(allow, " ", "")+",", ","+r.Method+",") {
@@ -89,12 +102,54 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 		}{items, next})
 		return
 	}
+	if deliveries {
+		if _, err := o.Webhooks.Get(tenant, key); fail(err) {
+			return
+		}
+		for _, name := range []string{"limit", "cursor"} {
+			if vals, ok := r.URL.Query()[name]; ok && (len(vals) != 1 || vals[0] == "") {
+				WriteProblem(w, 400, "invalid_"+name, "Expected one nonempty value")
+				return
+			}
+		}
+		limit := 50
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil || n < 1 || n > 500 {
+				WriteProblem(w, 400, "invalid_limit", "Expected limit from 1 to 500")
+				return
+			}
+			limit = n
+		}
+		items, next, err := o.WebhookDeliveries.List(tenant, key, r.URL.Query().Get("cursor"), limit)
+		if fail(err) {
+			return
+		}
+		deviceJSON(w, 200, struct {
+			Items []store.WebhookDelivery `json:"items"`
+			Next  string                  `json:"nextCursor,omitempty"`
+		}{items, next})
+		return
+	}
 	if r.Method == "GET" {
 		v, e := o.Webhooks.Get(tenant, key)
 		if !fail(e) {
 			w.Header().Set("ETag", v.ETag())
 			deviceJSON(w, 200, v)
 		}
+		return
+	}
+	if test {
+		hook, err := o.Webhooks.Get(tenant, key)
+		if fail(err) {
+			return
+		}
+		event := store.Event{SpecVersion: "1.0", ID: id.New("evt"), Source: "/tenants/" + tenant, Type: "lwm2m.webhook.test", Time: time.Now().UTC(), Subject: key, DataContentType: "application/json", Data: json.RawMessage(`{}`)}
+		result := webhooks.SendTest(r.Context(), hook, event, webhooks.Options{Deliveries: o.WebhookDeliveries})
+		deviceJSON(w, 200, struct {
+			EventID string `json:"eventId"`
+			webhooks.DeliveryResult
+		}{event.ID, result})
 		return
 	}
 	// A completed POST owns its response even if the retry body differs. This

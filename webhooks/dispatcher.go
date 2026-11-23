@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/internal/id"
 	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/store"
 )
@@ -28,25 +29,27 @@ var ErrReset = errors.New("webhook event history reset")
 
 // Options must be configured before use. Now must be concurrency-safe.
 type Options struct {
-	Now    func() time.Time
-	Client *http.Client
+	Now        func() time.Time
+	Client     *http.Client
+	Deliveries store.WebhookDeliveries
 }
 type Dispatcher struct {
-	tenant    string
-	events    store.Events
-	hooks     store.Webhooks
-	devices   store.Devices
-	now       func() time.Time
-	client    *http.Client
-	after     string
-	lanes     map[[2]string][]*delivery
-	serial    sync.Mutex
-	life      context.Context
-	cancel    context.CancelFunc
-	worker    sync.WaitGroup
-	started   bool
-	failureMu sync.Mutex
-	failures  map[string]time.Time
+	deliveries store.WebhookDeliveries
+	tenant     string
+	events     store.Events
+	hooks      store.Webhooks
+	devices    store.Devices
+	now        func() time.Time
+	client     *http.Client
+	after      string
+	lanes      map[[2]string][]*delivery
+	serial     sync.Mutex
+	life       context.Context
+	cancel     context.CancelFunc
+	worker     sync.WaitGroup
+	started    bool
+	failureMu  sync.Mutex
+	failures   map[string]time.Time
 }
 type delivery struct {
 	event       store.Event
@@ -66,7 +69,7 @@ func New(tenant string, events store.Events, hooks store.Webhooks, devices store
 	client := *o.Client
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	life, cancel := context.WithCancel(context.Background())
-	return &Dispatcher{tenant: tenant, events: events, hooks: hooks, devices: devices, now: o.Now, client: &client, lanes: make(map[[2]string][]*delivery), life: life, cancel: cancel, failures: make(map[string]time.Time)}
+	return &Dispatcher{deliveries: o.Deliveries, tenant: tenant, events: events, hooks: hooks, devices: devices, now: o.Now, client: &client, lanes: make(map[[2]string][]*delivery), life: life, cancel: cancel, failures: make(map[string]time.Time)}
 }
 
 // Start idempotently starts polling until parent cancellation or Close.
@@ -278,16 +281,52 @@ func (d *Dispatcher) run(ctx context.Context, key [2]string, q []*delivery) {
 		return
 	}
 }
+
+// DeliveryResult reports one attempt without exposing the destination URL or secret.
+type DeliveryResult struct {
+	HTTPStatus int     `json:"httpStatus"`
+	LatencyMS  float64 `json:"latencyMs"`
+	Error      string  `json:"error"`
+}
+
+// SendTest sends exactly one event using the same signing and timeout as normal deliveries.
+func SendTest(ctx context.Context, h store.Webhook, e store.Event, opts ...Options) DeliveryResult {
+	var o Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	d := New(strings.TrimPrefix(e.Source, "/tenants/"), nil, nil, nil, o)
+	defer d.Close()
+	return d.sendAttempt(ctx, h, e)
+}
+
 func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event) bool {
+	result := d.sendAttempt(parent, h, e)
+	return result.Error == ""
+}
+
+func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e store.Event) (result DeliveryResult) {
+	start := time.Now()
+	defer func() {
+		result.LatencyMS = float64(time.Since(start)) / float64(time.Millisecond)
+		if d.deliveries != nil {
+			var status *int
+			if result.HTTPStatus != 0 {
+				n := result.HTTPStatus
+				status = &n
+			}
+			d.deliveries.Append(d.tenant, h.ID, store.WebhookDelivery{ID: id.New("del"), EventID: e.ID, EventType: e.Type, AttemptedAt: start.UTC(), Status: status, LatencyMS: result.LatencyMS, Error: result.Error})
+		}
+	}()
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
 	body, err := json.Marshal(e)
 	if err != nil {
-		return false
+		return DeliveryResult{Error: "delivery failed"}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.URL, bytes.NewReader(body))
 	if err != nil {
-		return false
+		return DeliveryResult{Error: "delivery failed"}
 	}
 	now := d.now()
 	timestamp := strconv.FormatInt(now.Unix(), 10)
@@ -300,11 +339,11 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 	var signatures []string
 	for _, secret := range secrets {
 		if !strings.HasPrefix(secret, "whsec_") {
-			return false
+			return DeliveryResult{Error: "delivery failed"}
 		}
 		key, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(secret, "whsec_"))
 		if err != nil || len(key) == 0 {
-			return false
+			return DeliveryResult{Error: "delivery failed"}
 		}
 		mac := hmac.New(sha256.New, key)
 		mac.Write([]byte(e.ID + "." + timestamp + "."))
@@ -317,8 +356,12 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 	req.Header.Set("Webhook-Signature", strings.Join(signatures, " "))
 	res, err := d.client.Do(req)
 	if err != nil {
-		return false
+		return DeliveryResult{Error: "delivery failed"}
 	}
 	res.Body.Close()
-	return res.StatusCode >= 200 && res.StatusCode < 300
+	result.HTTPStatus = res.StatusCode
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		result.Error = "receiver returned non-2xx status"
+	}
+	return result
 }

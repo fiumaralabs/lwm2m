@@ -92,6 +92,7 @@ func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys,
 		trustAnchors = anchors
 		estRotator = anchors
 	}
+	hooks, deliveries := memory.NewWebhookDeliveryStores(hooks)
 	var executor *operations.Executor
 	var observations *apiv1.ObservationDelivery
 	state := &memory.State{}
@@ -126,10 +127,10 @@ func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys,
 		}
 	}
 	deviceCreates, _ := devices.(store.DeviceCreateStore)
-	native := apiv1.New(apiv1.Options{JobRunner: runner, ESTConfigs: estConfigs, ESTIssuerRotator: estRotator, TrustAnchors: trustAnchors, BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, DeviceCreates: deviceCreates, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
+	native := apiv1.New(apiv1.Options{WebhookDeliveries: deliveries, JobRunner: runner, ESTConfigs: estConfigs, ESTIssuerRotator: estRotator, TrustAnchors: trustAnchors, BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, DeviceCreates: deviceCreates, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
 		Endpoints: map[string]map[string]string{}})
-	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{})
+	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{Deliveries: deliveries})
 }
 
 // Expiration is a Deregistered event with ReasonExpired, not a distinct type.
