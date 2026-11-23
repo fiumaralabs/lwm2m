@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fiumaralabs/lwm2m"
+	"github.com/fiumaralabs/lwm2m/attr"
 	"github.com/fiumaralabs/lwm2m/codec"
 	"github.com/fiumaralabs/lwm2m/server"
 )
@@ -56,11 +57,12 @@ type Executor struct {
 	sessions   map[[2]string]string // reject operations belong to one registration
 }
 type request struct {
-	Arguments string   `json:"arguments"`
-	Paths     []string `json:"paths"`
-	Path      string   `json:"path"`
-	Mode      string   `json:"mode"`
-	Values    []struct {
+	Attributes map[string]json.RawMessage `json:"attributes"`
+	Arguments  string                     `json:"arguments"`
+	Paths      []string                   `json:"paths"`
+	Path       string                     `json:"path"`
+	Mode       string                     `json:"mode"`
+	Values     []struct {
 		Path  string          `json:"path"`
 		Type  string          `json:"type"`
 		Value json.RawMessage `json:"value"`
@@ -137,12 +139,27 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	if closed {
 		return Operation{}, ErrClosed
 	}
-	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" {
+	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" {
 		return Operation{}, ErrInvalid
 	}
 	var q request
 	if json.Unmarshal(o.Request, &q) != nil {
 		return Operation{}, ErrInvalid
+	}
+	if o.Type == "sync-clock" {
+		var body map[string]json.RawMessage
+		if json.Unmarshal(o.Request, &body) != nil || body == nil || len(body) != 0 {
+			return Operation{}, ErrInvalid
+		}
+	}
+	if o.Type == "write-attributes" {
+		p, err := lwm2m.ParsePath(q.Path)
+		if err != nil {
+			return Operation{}, ErrInvalid
+		}
+		if _, err = attributeQuery(p, q.Attributes); err != nil {
+			return Operation{}, ErrInvalid
+		}
 	}
 	paths := q.Paths
 	if o.Prefix != "" && (o.Type != "read" || len(paths) > 1) {
@@ -150,6 +167,9 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	}
 	if o.Type != "read" {
 		paths = []string{q.Path}
+		if o.Type == "sync-clock" {
+			paths = []string{"/3/0/13"}
+		}
 		if o.Type == "write" && q.Path == "" {
 			paths = []string{"/"}
 		}
@@ -410,6 +430,16 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		if err == nil && r != nil {
 			r.Nodes = nodes
 		}
+	} else if o.Type == "write-attributes" {
+		p, _ := lwm2m.ParsePath(q.Path)
+		query, qe := attributeQuery(p, q.Attributes)
+		if qe != nil {
+			return resultJSON{}, qe
+		}
+		r, err = e.srv.WriteAttributes(ctx, o.Device, p, query)
+	} else if o.Type == "sync-clock" {
+		p := lwm2m.MustParsePath("/3/0/13")
+		r, err = e.srv.Write(ctx, o.Device, p, []lwm2m.Node{lwm2m.ValueNode(p, lwm2m.Time(e.now().Unix()))}, server.WriteOptions{Mode: server.Replace})
 	} else if o.Type == "delete" {
 		p, pe := lwm2m.ParsePath(q.Path)
 		if pe != nil {
@@ -685,4 +715,31 @@ func (e *Executor) expireLocked(tenant, id string) (bool, error) {
 	}
 	e.stopTimer(tenant, id)
 	return true, nil
+}
+
+// attributeQuery validates notification attributes before enqueueing them.
+func attributeQuery(p lwm2m.Path, values map[string]json.RawMessage) ([]string, error) {
+	if len(values) == 0 {
+		return nil, ErrInvalid
+	}
+	query := make([]string, 0, len(values))
+	for name, raw := range values {
+		if !attr.IsNotification(name) {
+			return nil, ErrInvalid
+		}
+		if string(raw) == "null" {
+			query = append(query, name)
+			continue
+		}
+		var number json.Number
+		if err := json.Unmarshal(raw, &number); err != nil || len(raw) == 0 || raw[0] == '"' {
+			return nil, ErrInvalid
+		}
+		query = append(query, name+"="+string(number))
+	}
+	a, err := attr.ParseQuery(strings.Join(query, "&"))
+	if err == nil {
+		err = attr.Validate(p, lwm2m.TypeNone, a)
+	}
+	return query, err
 }
