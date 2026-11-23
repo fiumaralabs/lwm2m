@@ -278,16 +278,38 @@ func (d *Dispatcher) run(ctx context.Context, key [2]string, q []*delivery) {
 		return
 	}
 }
+
+// DeliveryResult reports one attempt without exposing the destination URL or secret.
+type DeliveryResult struct {
+	HTTPStatus int     `json:"httpStatus"`
+	LatencyMS  float64 `json:"latencyMs"`
+	Error      string  `json:"error"`
+}
+
+// SendTest sends exactly one event using the same signing and timeout as normal deliveries.
+func SendTest(ctx context.Context, h store.Webhook, e store.Event) DeliveryResult {
+	d := New("", nil, nil, nil, Options{})
+	defer d.Close()
+	return d.sendAttempt(ctx, h, e)
+}
+
 func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event) bool {
+	result := d.sendAttempt(parent, h, e)
+	return result.Error == ""
+}
+
+func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e store.Event) (result DeliveryResult) {
+	start := time.Now()
+	defer func() { result.LatencyMS = float64(time.Since(start)) / float64(time.Millisecond) }()
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
 	body, err := json.Marshal(e)
 	if err != nil {
-		return false
+		return DeliveryResult{Error: "delivery failed"}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.URL, bytes.NewReader(body))
 	if err != nil {
-		return false
+		return DeliveryResult{Error: "delivery failed"}
 	}
 	now := d.now()
 	timestamp := strconv.FormatInt(now.Unix(), 10)
@@ -300,11 +322,11 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 	var signatures []string
 	for _, secret := range secrets {
 		if !strings.HasPrefix(secret, "whsec_") {
-			return false
+			return DeliveryResult{Error: "delivery failed"}
 		}
 		key, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(secret, "whsec_"))
 		if err != nil || len(key) == 0 {
-			return false
+			return DeliveryResult{Error: "delivery failed"}
 		}
 		mac := hmac.New(sha256.New, key)
 		mac.Write([]byte(e.ID + "." + timestamp + "."))
@@ -317,8 +339,12 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 	req.Header.Set("Webhook-Signature", strings.Join(signatures, " "))
 	res, err := d.client.Do(req)
 	if err != nil {
-		return false
+		return DeliveryResult{Error: "delivery failed"}
 	}
 	res.Body.Close()
-	return res.StatusCode >= 200 && res.StatusCode < 300
+	result.HTTPStatus = res.StatusCode
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		result.Error = "receiver returned non-2xx status"
+	}
+	return result
 }
