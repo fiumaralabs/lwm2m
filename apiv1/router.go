@@ -152,16 +152,33 @@ func New(o Options) http.Handler {
 		o.Audit = &MemoryAuditStore{}
 	}
 	secured := Authenticate(o.Keys, deviceCreateAudit(o.Audit, tenantMiddleware(o, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Route on decoded segments without turning escaped slashes into separators.
+		// Downstream handlers still receive the original request and endpoint ID.
+		original := r
+		parts := strings.Split(r.URL.EscapedPath(), "/")
+		for i, part := range parts {
+			decoded, err := url.PathUnescape(part)
+			if err != nil {
+				WriteProblem(w, http.StatusNotFound, "not_found", "Unknown API path")
+				return
+			}
+			parts[i] = strings.ReplaceAll(decoded, "/", "%2F")
+		}
+		r = r.Clone(r.Context())
+		u := *r.URL
+		u.Path = strings.Join(parts, "/")
+		u.RawPath = ""
+		r.URL = &u
 		if strings.HasPrefix(r.URL.Path, "/v1/device-creates/") {
-			o.deviceCreates(w, r)
+			o.deviceCreates(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/est" {
-			est.ServeHTTP(w, r)
+			est.ServeHTTP(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/trust-anchors" || strings.HasPrefix(r.URL.Path, "/v1/trust-anchors/") {
-			anchors.ServeHTTP(w, r)
+			anchors.ServeHTTP(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/device-profiles" || strings.HasPrefix(r.URL.Path, "/v1/device-profiles/") {
@@ -169,14 +186,14 @@ func New(o Options) http.Handler {
 			if r.Method != http.MethodGet {
 				scope = "devices:write"
 			}
-			RequireScope(scope)(http.HandlerFunc(o.deviceProfiles)).ServeHTTP(w, r)
+			RequireScope(scope)(http.HandlerFunc(o.deviceProfiles)).ServeHTTP(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/jobs" || strings.HasPrefix(r.URL.Path, "/v1/jobs/") {
-			jobs.ServeHTTP(w, r)
+			jobs.ServeHTTP(w, original)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/v1/firmware-updates/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/firmware-updates") && r.URL.EscapedPath() != "/v1/devices/firmware-updates" {
+		if strings.HasPrefix(r.URL.Path, "/v1/firmware-updates/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(original.URL.EscapedPath(), "/firmware-updates") && original.URL.EscapedPath() != "/v1/devices/firmware-updates" {
 			if strings.HasPrefix(r.URL.Path, "/v1/devices/") && (r.Method == http.MethodGet || r.Method == http.MethodPost) {
 				scope := "devices:read"
 				if r.Method == http.MethodPost {
@@ -198,90 +215,90 @@ func New(o Options) http.Handler {
 						return
 					}
 					updates.ServeHTTP(w, r)
-				})).ServeHTTP(w, r)
+				})).ServeHTTP(w, original)
 			} else {
-				updates.ServeHTTP(w, r)
+				updates.ServeHTTP(w, original)
 			}
 			return
 		}
 		if r.URL.Path == "/v1/firmware" || strings.HasPrefix(r.URL.Path, "/v1/firmware/") {
-			serveFirmware(o.Firmware, w, r)
+			serveFirmware(o.Firmware, w, original)
 			return
 		}
 		if r.URL.Path == "/v1/audit-log" {
-			RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveAudit(o.Audit, w, r) })).ServeHTTP(w, r)
+			RequireScope("admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveAudit(o.Audit, w, r) })).ServeHTTP(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/models" || strings.HasPrefix(r.URL.Path, "/v1/models/") {
-			serveModels(o.Models, w, r)
+			serveModels(o.Models, w, original)
 			return
 		}
 		if r.URL.Path == "/v1/settings" {
-			o.settings(w, r)
+			o.settings(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/webhooks" || strings.HasPrefix(r.URL.Path, "/v1/webhooks/") {
-			RequireScope("admin")(http.HandlerFunc(o.webhooks)).ServeHTTP(w, r)
+			RequireScope("admin")(http.HandlerFunc(o.webhooks)).ServeHTTP(w, original)
 			return
 		}
-		if r.URL.Path == "/v1/operations" || strings.HasPrefix(r.URL.Path, "/v1/operations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/operations") && r.URL.EscapedPath() != "/v1/devices/operations" {
-			ops.ServeHTTP(w, r)
+		if r.URL.Path == "/v1/operations" || strings.HasPrefix(r.URL.Path, "/v1/operations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(original.URL.EscapedPath(), "/operations") && original.URL.EscapedPath() != "/v1/devices/operations" {
+			ops.ServeHTTP(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/events" {
-			events.ServeHTTP(w, r)
+			events.ServeHTTP(w, original)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/timeseries") && r.URL.EscapedPath() != "/v1/devices/timeseries" {
-			RequireScope("devices:read")(http.HandlerFunc(o.timeSeries)).ServeHTTP(w, r)
+		if strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(original.URL.EscapedPath(), "/timeseries") && original.URL.EscapedPath() != "/v1/devices/timeseries" {
+			RequireScope("devices:read")(http.HandlerFunc(o.timeSeries)).ServeHTTP(w, original)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/v1/observations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/observations") && r.URL.EscapedPath() != "/v1/devices/observations" {
-			o.observations(w, r)
+		if strings.HasPrefix(r.URL.Path, "/v1/observations/") || strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(original.URL.EscapedPath(), "/observations") && original.URL.EscapedPath() != "/v1/devices/observations" {
+			o.observations(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/api-keys" || strings.HasPrefix(r.URL.Path, "/v1/api-keys/") {
-			RequireScope("admin")(http.HandlerFunc(serveAPIKeys)).ServeHTTP(w, r)
+			RequireScope("admin")(http.HandlerFunc(serveAPIKeys)).ServeHTTP(w, original)
 			return
 		}
-		if strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(r.URL.EscapedPath(), "/end-devices") && r.URL.EscapedPath() != "/v1/devices/end-devices" && o.Gateway != nil {
-			endDevicesHandler(o.Devices, o.Gateway).ServeHTTP(w, r)
+		if strings.HasPrefix(r.URL.Path, "/v1/devices/") && strings.HasSuffix(original.URL.EscapedPath(), "/end-devices") && original.URL.EscapedPath() != "/v1/devices/end-devices" && o.Gateway != nil {
+			endDevicesHandler(o.Devices, o.Gateway).ServeHTTP(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/devices" || strings.HasPrefix(r.URL.Path, "/v1/devices/") {
-			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap/credentials") {
-				bootstrapCredentials.ServeHTTP(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/bootstrap/credentials") {
+				bootstrapCredentials.ServeHTTP(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap/sessions") {
-				RequireScope("devices:read")(http.HandlerFunc(o.serveBootstrapSessions)).ServeHTTP(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/bootstrap/sessions") {
+				RequireScope("devices:read")(http.HandlerFunc(o.serveBootstrapSessions)).ServeHTTP(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/credentials") && r.URL.EscapedPath() != "/v1/devices/credentials" {
-				o.credentials(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/credentials") && original.URL.EscapedPath() != "/v1/devices/credentials" {
+				o.credentials(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/bootstrap") && r.URL.EscapedPath() != "/v1/devices/bootstrap" {
-				o.bootstrap(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/bootstrap") && original.URL.EscapedPath() != "/v1/devices/bootstrap" {
+				o.bootstrap(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/state") && r.URL.EscapedPath() != "/v1/devices/state" {
-				o.state(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/state") && original.URL.EscapedPath() != "/v1/devices/state" {
+				o.state(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/model") && r.URL.EscapedPath() != "/v1/devices/model" {
-				models.ServeHTTP(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/model") && original.URL.EscapedPath() != "/v1/devices/model" {
+				models.ServeHTTP(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/registration") && r.URL.EscapedPath() != "/v1/devices/registration" {
-				o.registration(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/registration") && original.URL.EscapedPath() != "/v1/devices/registration" {
+				o.registration(w, original)
 				return
 			}
-			if strings.HasSuffix(r.URL.EscapedPath(), "/events") && r.URL.EscapedPath() != "/v1/devices/events" {
-				o.deviceEvents(w, r)
+			if strings.HasSuffix(original.URL.EscapedPath(), "/events") && original.URL.EscapedPath() != "/v1/devices/events" {
+				o.deviceEvents(w, original)
 				return
 			}
-			o.devices(w, r)
+			o.devices(w, original)
 			return
 		}
 		if r.URL.Path == "/v1/info" {
@@ -290,7 +307,7 @@ func New(o Options) http.Handler {
 				WriteProblem(w, 405, "method_not_allowed", "Expected GET")
 				return
 			}
-			o.info(w, r)
+			o.info(w, original)
 			return
 		}
 		WriteProblem(w, 404, "not_found", "Unknown API path")

@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/fiumaralabs/lwm2m/store"
+	"github.com/fiumaralabs/lwm2m/store/memory"
 )
 
 // Run the real handler with an extra secured route, injected only at compile time.
@@ -25,6 +28,7 @@ func TestOpenAPIGateUndocumentedRoute(t *testing.T) {
 			status       int
 		}{
 			{http.MethodGet, "/v1/drift-probe", http.StatusNotFound},
+			{http.MethodGet, "/v1/devices/probe%2Fundocumented", http.StatusNotFound},
 			{http.MethodPost, "/v1/info", http.StatusMethodNotAllowed},
 		} {
 			req := httptest.NewRequest(tc.method, tc.path, nil)
@@ -34,6 +38,17 @@ func TestOpenAPIGateUndocumentedRoute(t *testing.T) {
 			if w.Code != tc.status || w.Header().Get("Content-Type") != "application/problem+json" {
 				t.Fatalf("%s %s: undocumented handler reached: status %d, content type %q", tc.method, tc.path, w.Code, w.Header().Get("Content-Type"))
 			}
+		}
+		devices := &memory.Devices{}
+		if _, err := devices.Create("default", store.Device{Endpoint: "probe/undocumented"}); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/v1/devices/probe%2Fundocumented", nil)
+		req.Header.Set("Authorization", "Bearer lwm_test_secret")
+		w := httptest.NewRecorder()
+		New(Options{Keys: keys, Devices: devices}).ServeHTTP(w, req)
+		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"endpoint":"probe/undocumented"`) {
+			t.Fatalf("encoded endpoint ID not preserved: status %d, body %s", w.Code, w.Body.String())
 		}
 		return
 	}
@@ -45,7 +60,7 @@ func TestOpenAPIGateUndocumentedRoute(t *testing.T) {
 	if strings.Count(string(source), marker) != 1 {
 		t.Fatal("router insertion marker changed")
 	}
-	injection := "		if r.URL.Path == \"/v1/drift-probe\" && r.Method == http.MethodGet || r.URL.Path == \"/v1/info\" && r.Method == http.MethodPost { w.WriteHeader(http.StatusNoContent); return }\n"
+	injection := "		if (r.URL.Path == \"/v1/drift-probe\" || r.URL.Path == \"/v1/devices/probe/undocumented\") && r.Method == http.MethodGet || r.URL.Path == \"/v1/info\" && r.Method == http.MethodPost { w.WriteHeader(http.StatusNoContent); return }\n"
 	dir := t.TempDir()
 	replacement := filepath.Join(dir, "router.go")
 	if err := os.WriteFile(replacement, []byte(strings.Replace(string(source), marker, injection+marker, 1)), 0600); err != nil {
