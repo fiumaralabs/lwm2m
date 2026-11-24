@@ -45,3 +45,15 @@ type Devices interface {
 type DeviceProfileWriter interface {
 	SetProfile(tenant, endpoint, profile string) (Device, error)
 }
+
+// DevicePatch holds the fields to replace; nil means unchanged.
+type DevicePatch struct {
+	Name    *string
+	Profile *string
+	Labels  *map[string]string
+}
+
+// DeviceMetadataWriter applies all supplied fields atomically.
+type DeviceMetadataWriter interface {
+	PatchDevice(tenant, endpoint string, patch DevicePatch) (Device, error)
+}
