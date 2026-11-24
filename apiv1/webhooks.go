@@ -28,6 +28,13 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 	tenant := TenantFrom(r.Context())
 	collection := r.URL.Path == "/v1/webhooks"
 	key := strings.TrimPrefix(r.URL.Path, "/v1/webhooks/")
+	var deliveryID string
+	if strings.HasSuffix(key, "/retry") {
+		parts := strings.Split(key, "/")
+		if len(parts) == 4 && parts[0] != "" && parts[1] == "deliveries" && parts[2] != "" {
+			key, deliveryID = parts[0], parts[2]
+		}
+	}
 	deliveries := strings.HasSuffix(key, "/deliveries")
 	if deliveries {
 		key = strings.TrimSuffix(key, "/deliveries")
@@ -51,7 +58,7 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 	if deliveries {
 		allow = "GET"
 	}
-	if rotate || test {
+	if rotate || test || deliveryID != "" {
 		allow = "POST"
 	}
 	if !strings.Contains(","+strings.ReplaceAll(allow, " ", "")+",", ","+r.Method+",") {
@@ -129,6 +136,30 @@ func (o Options) webhooks(w http.ResponseWriter, r *http.Request) {
 			Items []store.WebhookDelivery `json:"items"`
 			Next  string                  `json:"nextCursor,omitempty"`
 		}{items, next})
+		return
+	}
+	if deliveryID != "" {
+		hook, err := o.Webhooks.Get(tenant, key)
+		if fail(err) {
+			return
+		}
+		attempt, err := o.WebhookDeliveries.Get(tenant, key, deliveryID)
+		if errors.Is(err, store.ErrWebhookDeliveryNotFound) {
+			WriteProblem(w, 404, "not_found", "Webhook delivery not found")
+			return
+		}
+		if fail(err) {
+			return
+		}
+		if len(attempt.Envelope) == 0 {
+			WriteProblem(w, 409, "delivery_unavailable", "The delivery has no retained event")
+			return
+		}
+		result := webhooks.Retry(r.Context(), tenant, hook, attempt, webhooks.Options{Deliveries: o.WebhookDeliveries})
+		deviceJSON(w, 200, struct {
+			EventID string `json:"eventId"`
+			webhooks.DeliveryResult
+		}{attempt.EventID, result})
 		return
 	}
 	if r.Method == "GET" {

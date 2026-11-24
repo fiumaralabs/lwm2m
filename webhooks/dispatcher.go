@@ -305,10 +305,20 @@ func (d *Dispatcher) send(parent context.Context, h store.Webhook, e store.Event
 	return result.Error == ""
 }
 
-func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e store.Event) (result DeliveryResult) {
+// Retry sends the retained envelope once, including for disabled webhooks.
+func Retry(ctx context.Context, tenant string, h store.Webhook, attempt store.WebhookDelivery, o Options) DeliveryResult {
+	d := New(tenant, nil, nil, nil, o)
+	defer d.Close()
+	return d.sendEnvelope(ctx, h, store.Event{ID: attempt.EventID, Type: attempt.EventType}, attempt.Envelope)
+}
+
+func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e store.Event) DeliveryResult {
+	body, _ := json.Marshal(e)
+	return d.sendEnvelope(parent, h, e, body)
+}
+
+func (d *Dispatcher) sendEnvelope(parent context.Context, h store.Webhook, e store.Event, body []byte) (result DeliveryResult) {
 	start := time.Now()
-	var body []byte
-	var err error
 	defer func() {
 		result.LatencyMS = float64(time.Since(start)) / float64(time.Millisecond)
 		if d.deliveries != nil {
@@ -322,8 +332,7 @@ func (d *Dispatcher) sendAttempt(parent context.Context, h store.Webhook, e stor
 	}()
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
-	body, err = json.Marshal(e)
-	if err != nil {
+	if len(body) == 0 {
 		return DeliveryResult{Error: "delivery failed"}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.URL, bytes.NewReader(body))

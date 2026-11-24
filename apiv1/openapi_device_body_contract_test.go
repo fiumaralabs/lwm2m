@@ -32,7 +32,7 @@ func TestOpenAPIDeviceRequestBodies(t *testing.T) {
 	}
 	allowed := []string{
 		"PATCH /v1/device-profiles/{id}", "PATCH /v1/firmware/{id}", "PATCH /v1/observations/{id}", "PATCH /v1/settings", "PATCH /v1/tenants/{id}", "PATCH /v1/webhooks/{id}",
-		"POST /v1/api-keys", "POST /v1/device-profiles", "POST /v1/firmware", "POST /v1/jobs", "POST /v1/jobs/{id}/cancel", "POST /v1/jobs/{id}/pause", "POST /v1/jobs/{id}/resume", "POST /v1/models", "POST /v1/tenants", "POST /v1/trust-anchors", "POST /v1/webhooks", "POST /v1/webhooks/{id}/rotate-secret", "POST /v1/webhooks/{id}/test", "PUT /v1/device-creates/{id}", "PUT /v1/est", "PUT /v1/firmware/{id}/content",
+		"POST /v1/api-keys", "POST /v1/device-profiles", "POST /v1/firmware", "POST /v1/jobs", "POST /v1/jobs/{id}/cancel", "POST /v1/jobs/{id}/pause", "POST /v1/jobs/{id}/resume", "POST /v1/models", "POST /v1/tenants", "POST /v1/trust-anchors", "POST /v1/webhooks", "POST /v1/webhooks/{id}/deliveries/{deliveryId}/retry", "POST /v1/webhooks/{id}/rotate-secret", "POST /v1/webhooks/{id}/test", "PUT /v1/device-creates/{id}", "PUT /v1/est", "PUT /v1/firmware/{id}/content",
 	}
 	var missing []string
 	for path, methods := range doc.Paths {
