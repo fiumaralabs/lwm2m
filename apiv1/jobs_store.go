@@ -45,6 +45,7 @@ type Job struct {
 	CompletedAt *time.Time `json:"completedAt"`
 }
 type JobTask struct {
+	Step           int    `json:"step,omitempty"`
 	Device         string `json:"device"`
 	Status         string `json:"status"`
 	Error          string `json:"error,omitempty"`

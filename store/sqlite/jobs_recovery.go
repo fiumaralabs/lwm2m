@@ -55,23 +55,25 @@ func (s *Jobs) RecoverJobClaims(ctx context.Context) error {
 		return err
 	}
 	for _, c := range claims {
-		opRows, err := conn.QueryContext(ctx, `SELECT body FROM operations WHERE tenant=? AND device=?`, c.tenant, c.task.Device)
+		opRows, err := conn.QueryContext(ctx, `SELECT body, COALESCE((SELECT step FROM operation_job_steps js WHERE js.tenant=operations.tenant AND js.operation_id=operations.id),0) FROM operations WHERE tenant=? AND device=?`, c.tenant, c.task.Device)
 		if err != nil {
 			return err
 		}
 		var found string
 		for opRows.Next() {
 			var body string
+			var step int
 			var op operations.Operation
-			if err = opRows.Scan(&body); err != nil {
+			if err = opRows.Scan(&body, &step); err != nil {
 				break
 			}
 			if err = json.Unmarshal([]byte(body), &op); err != nil {
 				break
 			}
-			if op.Job != nil && *op.Job == c.job {
+			if op.Job != nil && *op.Job == c.job && step == c.task.Step {
 				if found != "" {
-					err = fmt.Errorf("multiple operations for orphaned job task %s/%s", c.job, c.task.Device)
+					// Decision #2: preserve fail-closed recovery, including legacy untagged step 0 operations.
+					err = fmt.Errorf("multiple operations for orphaned job %q device %q step %d", c.job, c.task.Device, c.task.Step)
 					break
 				}
 				found = op.ID

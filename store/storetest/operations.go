@@ -48,9 +48,10 @@ func operationsQueuedEncodingFailure(t *testing.T, factory func(*testing.T) stor
 func operationsList(t *testing.T, factory func(*testing.T) store.Operations) {
 	ctx, now, s := context.Background(), time.Now().UTC(), factory(t)
 	job := "job"
+	step := 2
 	for i, id := range []string{"a", "b", "c", "d", "e"} {
 		o := operations.New("t", "dev", "read", []byte(`{}`), nil, now)
-		o.ID, o.Job = id, &job
+		o.ID, o.Job, o.JobStep = id, &job, &step
 		if i == 1 {
 			o.Status = operations.Failed
 		}
@@ -72,9 +73,13 @@ func operationsList(t *testing.T, factory func(*testing.T) store.Operations) {
 	if err != nil || len(items) != 1 || items[0].ID != "b" || next == "" {
 		t.Fatalf("first page: %+v %q %v", items, next, err)
 	}
+	if items[0].JobStep == nil || *items[0].JobStep != 2 {
+		t.Fatalf("job step: %+v", items[0])
+	}
+	*items[0].JobStep = 99
 	items[0].Request[0], *items[0].Job = '!', "changed"
 	got, _ := s.Get(ctx, "t", "b")
-	if string(got.Request) != `{}` || *got.Job != job {
+	if string(got.Request) != `{}` || *got.Job != job || got.JobStep == nil || *got.JobStep != 2 {
 		t.Fatal("list aliases record")
 	}
 	items, end, err := s.List(ctx, "t", f, next, 1)

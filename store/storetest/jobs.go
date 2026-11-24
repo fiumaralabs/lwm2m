@@ -148,7 +148,7 @@ func Jobs(t *testing.T, fresh func() apiv1.JobStore) {
 			t.Fatal("read alias")
 		}
 		for i, st := range []string{"pending", "running", "succeeded", "failed", "expired", "cancelled"} {
-			if !s.PutTask("a", "z", apiv1.JobTask{Device: fmt.Sprint(i), Status: st}) {
+			if !s.PutTask("a", "z", apiv1.JobTask{Device: fmt.Sprint(i), Status: st, Step: i}) {
 				t.Fatal(st)
 			}
 		}
@@ -159,7 +159,7 @@ func Jobs(t *testing.T, fresh func() apiv1.JobStore) {
 		if got.Counts != (apiv1.JobCounts{Total: 6, Pending: 1, Running: 1, Succeeded: 1, Failed: 1, Expired: 1, Cancelled: 1}) {
 			t.Fatal(got.Counts)
 		}
-		if tasks := s.ListTasks("a", "z", "failed"); len(tasks) != 1 || tasks[0].Device != "3" {
+		if tasks := s.ListTasks("a", "z", "failed"); len(tasks) != 1 || tasks[0].Device != "3" || tasks[0].Step != 3 {
 			t.Fatal(tasks)
 		}
 		if got, ok := s.Get("b", "z"); !ok || got.Name != "other" || len(s.ListTasks("b", "z", "")) != 0 {

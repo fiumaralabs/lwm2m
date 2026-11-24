@@ -19,7 +19,7 @@ func TestJobsReopen(t *testing.T) {
 	if err = s.Create("a", j); err != nil {
 		t.Fatal(err)
 	}
-	if !s.PutTask("a", "one", apiv1.JobTask{Device: "device", Status: "pending"}) || !s.UpdateStatus("a", "one", "running") {
+	if !s.PutTask("a", "one", apiv1.JobTask{Device: "device", Status: "pending", Step: 3}) || !s.UpdateStatus("a", "one", "running") {
 		t.Fatal("setup")
 	}
 	want, ok := s.Get("a", "one")

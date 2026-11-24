@@ -35,6 +35,10 @@ func cloneOperation(o operations.Operation) operations.Operation {
 		v := *o.Error
 		o.Error = &v
 	}
+	if o.JobStep != nil {
+		v := *o.JobStep
+		o.JobStep = &v
+	}
 	if o.Job != nil {
 		v := *o.Job
 		o.Job = &v

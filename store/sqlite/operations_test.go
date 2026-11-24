@@ -3,8 +3,10 @@ package sqlite_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +54,12 @@ func TestOperationsReopenAndMigration(t *testing.T) {
 	}
 	ctx := context.Background()
 	o := operations.New("t", "dev", "read", []byte(`{"paths":["/3/0"]}`), nil, time.Now().UTC())
+	step := 2
+	o.JobStep = &step
+	encoded, err := json.Marshal(o)
+	if err != nil || strings.Contains(string(encoded), "JobStep") || strings.Contains(string(encoded), "jobStep") {
+		t.Fatalf("internal step exposed: %s %v", encoded, err)
+	}
 	o.Prefix, o.Format, o.Accept = "gateway", "tlv", "senml+cbor"
 	if err := d.Operations().Create(ctx, "t", o); err != nil {
 		t.Fatal(err)
