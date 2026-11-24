@@ -1,13 +1,17 @@
 package apiv1
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -19,7 +23,12 @@ import (
 func TestWebhookDeliveriesIntegration(t *testing.T) {
 	var status atomic.Int32
 	status.Store(204)
-	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(int(status.Load())) }))
+	bodies := make(chan []byte, 4)
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		bodies <- b
+		w.WriteHeader(int(status.Load()))
+	}))
 	defer receiver.Close()
 	keys := Keys{entries: map[string]credential{
 		"root":   {hash: sha256.Sum256([]byte("lwm_root_synthetic")), tenant: "default", scopes: ",admin,"},
@@ -44,15 +53,18 @@ func TestWebhookDeliveriesIntegration(t *testing.T) {
 	if err := d.Dispatch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	firstBody := <-bodies
 	status.Store(503)
 	second, _ := events.Append("default", "lwm2m.registration.created", "two", nil)
 	if err := d.Dispatch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	secondBody := <-bodies
 	test := keyRequest(h, "POST", base+"/test", "lwm_root_synthetic", "")
 	if test.Code != 200 {
 		t.Fatal(test.Code, test.Body)
 	}
+	testBody := <-bodies
 	var testResult struct {
 		EventID string `json:"eventId"`
 	}
@@ -69,6 +81,9 @@ func TestWebhookDeliveriesIntegration(t *testing.T) {
 		var page struct {
 			Items []store.WebhookDelivery `json:"items"`
 			Next  string                  `json:"nextCursor"`
+		}
+		if strings.Contains(w.Body.String(), `"envelope"`) || bytes.Contains(w.Body.Bytes(), testBody) {
+			t.Fatalf("envelope leaked: %s", w.Body)
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
 			t.Fatal(err)
@@ -87,6 +102,17 @@ func TestWebhookDeliveriesIntegration(t *testing.T) {
 	}
 	if len(got) != 3 {
 		t.Fatalf("got %+v", got)
+	}
+	for i, body := range [][]byte{testBody, secondBody, firstBody} {
+		delivery, err := log.Get("default", hook.ID, got[i].ID)
+		if err != nil || !bytes.Equal(delivery.Envelope, body) {
+			t.Fatalf("delivery %d envelope mismatch: %v", i, err)
+		}
+		for _, key := range [][2]string{{"other", hook.ID}, {"default", "other"}} {
+			if _, err := log.Get(key[0], key[1], got[i].ID); !errors.Is(err, store.ErrWebhookDeliveryNotFound) {
+				t.Fatalf("cross-scope lookup: %v", err)
+			}
+		}
 	}
 	for i, expected := range []struct {
 		id, kind string

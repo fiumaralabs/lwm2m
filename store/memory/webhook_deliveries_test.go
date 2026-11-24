@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -133,5 +135,38 @@ func TestWebhookDeliveriesDeletionIsolationAndFailedPrecondition(t *testing.T) {
 	b, _, _ := log.List("b", "shared", "", 10)
 	if len(a) != 0 || len(b) != 1 || b[0].ID != "b" {
 		t.Fatalf("histories after delete: a=%v b=%v", a, b)
+	}
+}
+
+func TestWebhookDeliveryEnvelopeOwnershipAndEviction(t *testing.T) {
+	hooks, log := NewWebhookDeliveryStores(&Webhooks{})
+	if _, err := hooks.Create("tenant", store.Webhook{ID: "hook"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte(`{"event":"original"}`)
+	log.Append("tenant", "hook", store.WebhookDelivery{ID: "first", Envelope: original})
+	original[0] = 'x'
+	got, err := log.Get("tenant", "hook", "first")
+	if err != nil || !bytes.Equal(got.Envelope, []byte(`{"event":"original"}`)) {
+		t.Fatalf("append alias: %q %v", got.Envelope, err)
+	}
+	got.Envelope[0] = 'x'
+	page, _, err := log.List("tenant", "hook", "", 1)
+	if err != nil || !bytes.Equal(page[0].Envelope, []byte(`{"event":"original"}`)) {
+		t.Fatalf("get alias: %v %v", page, err)
+	}
+	page[0].Envelope[0] = 'x'
+	got, _ = log.Get("tenant", "hook", "first")
+	if got.Envelope[0] != '{' {
+		t.Fatal("list alias")
+	}
+	for i := 0; i < 1000; i++ {
+		log.Append("tenant", "hook", store.WebhookDelivery{ID: fmt.Sprint(i), Envelope: []byte(`{}`)})
+	}
+	if _, err := log.Get("tenant", "hook", "first"); !errors.Is(err, store.ErrWebhookDeliveryNotFound) {
+		t.Fatalf("evicted delivery: %v", err)
+	}
+	if len(log.entries[[2]string{"tenant", "hook"}]) != 1000 {
+		t.Fatal("history not bounded")
 	}
 }
