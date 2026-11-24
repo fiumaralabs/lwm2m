@@ -32,7 +32,12 @@ func (s *Operations) Create(ctx context.Context, tenant string, o operations.Ope
 	if err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(ctx, "INSERT INTO operations(tenant,id,device,status,seq,body) VALUES(?,?,?,?,?,?) ON CONFLICT(tenant,id) DO NOTHING", tenant, o.ID, o.Device, o.Status, o.CreatedAt.UnixNano(), string(body))
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, "INSERT INTO operations(tenant,id,device,status,seq,body) VALUES(?,?,?,?,?,?) ON CONFLICT(tenant,id) DO NOTHING", tenant, o.ID, o.Device, o.Status, o.CreatedAt.UnixNano(), string(body))
 	if err != nil {
 		return err
 	}
@@ -40,26 +45,39 @@ func (s *Operations) Create(ctx context.Context, tenant string, o operations.Ope
 	if err == nil && n == 0 {
 		return store.ErrExists
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if o.JobStep != nil {
+		if _, err = tx.ExecContext(ctx, "INSERT INTO operation_job_steps(tenant,operation_id,step) VALUES(?,?,?)", tenant, o.ID, *o.JobStep); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // scanOperation restores Tenant, which is deliberately excluded from JSON.
 func scanOperation(row interface{ Scan(...any) error }) (operations.Operation, error) {
 	var o operations.Operation
 	var tenant, body string
-	err := row.Scan(&tenant, &body)
+	var step sql.NullInt64
+	err := row.Scan(&tenant, &body, &step)
 	if err == sql.ErrNoRows {
 		return o, store.ErrNotFound
 	}
 	if err == nil {
 		err = json.Unmarshal([]byte(body), &o)
 		o.Tenant = tenant
+		if step.Valid {
+			v := int(step.Int64)
+			o.JobStep = &v
+		}
 	}
 	return o, err
 }
 
 func (s *Operations) Get(ctx context.Context, tenant, id string) (operations.Operation, error) {
-	return scanOperation(s.db.QueryRowContext(ctx, "SELECT tenant,body FROM operations WHERE tenant=? AND id=?", tenant, id))
+	return scanOperation(s.db.QueryRowContext(ctx, "SELECT tenant,body,(SELECT step FROM operation_job_steps js WHERE js.tenant=operations.tenant AND js.operation_id=operations.id) FROM operations WHERE tenant=? AND id=?", tenant, id))
 }
 
 func (s *Operations) Update(ctx context.Context, tenant, id string, expected operations.Status, change operations.Change) error {
@@ -68,7 +86,7 @@ func (s *Operations) Update(ctx context.Context, tenant, id string, expected ope
 		return err
 	}
 	defer tx.Rollback()
-	o, err := scanOperation(tx.QueryRowContext(ctx, "SELECT tenant,body FROM operations WHERE tenant=? AND id=?", tenant, id))
+	o, err := scanOperation(tx.QueryRowContext(ctx, "SELECT tenant,body,(SELECT step FROM operation_job_steps js WHERE js.tenant=operations.tenant AND js.operation_id=operations.id) FROM operations WHERE tenant=? AND id=?", tenant, id))
 	if err != nil {
 		return err
 	}
@@ -91,7 +109,7 @@ func (s *Operations) Update(ctx context.Context, tenant, id string, expected ope
 // read sorts decoded timestamps rather than JSON text, preserving time-zone and
 // subsecond ordering exactly as the memory store does.
 func (s *Operations) read(ctx context.Context, where string, ascending bool, args ...any) ([]operations.Operation, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT tenant,body FROM operations WHERE "+where, args...)
+	rows, err := s.db.QueryContext(ctx, "SELECT tenant,body,(SELECT step FROM operation_job_steps js WHERE js.tenant=operations.tenant AND js.operation_id=operations.id) FROM operations WHERE "+where, args...)
 	if err != nil {
 		return nil, err
 	}

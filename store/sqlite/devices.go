@@ -84,6 +84,9 @@ var bootstrapCredentialsMigration string
 //go:embed 028_device_profile.sql
 var deviceProfileMigration string
 
+//go:embed 029_operation_job_steps.sql
+var operationJobStepsMigration string
+
 type Devices struct {
 	db               *sql.DB
 	deviceCreateHook func(string) error
@@ -284,6 +287,9 @@ func (s *Devices) migrate() error {
 	}
 	// 028 is idempotent while 024 and 025 remain reserved.
 	if _, err = tx.Exec(deviceProfileMigration); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(operationJobStepsMigration); err != nil {
 		return err
 	}
 	return tx.Commit()

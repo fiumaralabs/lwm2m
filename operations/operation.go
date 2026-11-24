@@ -48,6 +48,7 @@ type Actor struct {
 // Operation keeps the request and result as JSON so codecs and HTTP types do not
 // become dependencies of a durable store. Result includes the CoAP code, if answered.
 type Operation struct {
+	JobStep     *int            `json:"-"`
 	Tenant      string          `json:"-"`
 	ID          string          `json:"id"`
 	Device      string          `json:"device"`
