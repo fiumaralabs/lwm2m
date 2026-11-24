@@ -1,0 +1,122 @@
+[
+  {
+    "name": "first register",
+    "operation": "Register",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": true
+  },
+  {
+    "name": "first update",
+    "operation": "Update",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": true
+  },
+  {
+    "name": "first send",
+    "operation": "Send",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": true
+  },
+  {
+    "name": "first notify",
+    "operation": "Notify",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": true
+  },
+  {
+    "name": "auto-provision register",
+    "operation": "Register",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": true,
+    "consult": true
+  },
+  {
+    "name": "auto-provision update",
+    "operation": "Update",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": true,
+    "consult": true
+  },
+  {
+    "name": "auto-provision send",
+    "operation": "Send",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": true,
+    "consult": true
+  },
+  {
+    "name": "auto-provision notify",
+    "operation": "Notify",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": true,
+    "consult": true
+  },
+  {
+    "name": "already admitted",
+    "operation": "Register",
+    "authenticated": true,
+    "admitted": true,
+    "auto_provision": false,
+    "consult": false
+  },
+  {
+    "name": "bootstrap",
+    "operation": "Bootstrap",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": false
+  },
+  {
+    "name": "security",
+    "operation": "Security",
+    "authenticated": true,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": false
+  },
+  {
+    "name": "unauthenticated",
+    "operation": "Register",
+    "authenticated": false,
+    "admitted": false,
+    "auto_provision": false,
+    "consult": false
+  },
+  {
+    "name": "admitted update",
+    "operation": "Update",
+    "authenticated": true,
+    "admitted": true,
+    "auto_provision": false,
+    "consult": false
+  },
+  {
+    "name": "admitted send",
+    "operation": "Send",
+    "authenticated": true,
+    "admitted": true,
+    "auto_provision": false,
+    "consult": false
+  },
+  {
+    "name": "admitted notify",
+    "operation": "Notify",
+    "authenticated": true,
+    "admitted": true,
+    "auto_provision": false,
+    "consult": false
+  }
+]

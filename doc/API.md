@@ -1098,3 +1098,80 @@ Items 1 to 6, with devices, operations, observations, credentials and SSE, are t
 2. **Time series in the server.** This design puts them in `lwm2md`, with a pluggable store, so self-hosted users get history too. The alternative is to keep `lwm2md` stateless about telemetry and let consumers store events.
 3. **Large integers.** Numbers within ±(2^53−1), decimal strings outside. The alternative is always strings for `integer` and `unsigned`: exact everywhere, but awkward for the common case.
 4. **Gateway end devices as devices.** Here they are addressed by `prefix` on their gateway. Making them first-class devices (own labels, profiles, state) is cleaner for fleets of sensors behind gateways, at the cost of IDs like `{gateway}/{prefix}`.
+
+## Appendix D. Proposed admission hook contract
+
+This section is a proposed contract, not an implemented API. The optional
+hook is off by default. Without explicit hook configuration the server keeps
+its current behaviour and makes no outbound admission requests.
+
+An identity is bound to its authenticated tenant and stable device identity.
+After authentication, the first Register, Update, Send or Notify of a
+not-yet-admitted identity, including auto-provisioning, requires a decision
+before accepting application traffic or creating admission state. An
+already-admitted identity is never re-decided or disconnected by the hook,
+including during service failures or policy changes. Authentication,
+credential management, bootstrap and security traffic are never suppressed.
+The fixtures in `admission/testdata/paths.json` describe this boundary; they
+do not demonstrate implemented admission enforcement.
+
+### Decision exchange
+
+The proposed policy service endpoint is `POST /v1/admission-decisions`. The
+request contains `tenant_id`, `identity_id`, `exchange_id`, `operation`,
+`request_fingerprint` and `observed_at`, with optional non-secret `context`.
+The exchange ID is an opaque unique idempotency key created before dispatch,
+bound to the tenant, identity and canonical authenticated exchange digest.
+Retries and logical retransmissions preserve the ID and fingerprint across
+restart. Reuse with a different binding is rejected; identical retries return
+the same decision and reservation.
+
+The response echoes `tenant_id`, `identity_id`, `exchange_id` and
+`request_fingerprint` and supplies `decision` (`allow` or `deny`),
+`decision_id`, `issued_at` and `expires_at`. It may also include
+`reservation_id`, `reason_code` and `retry_after`. Validate all bindings,
+enumerations, timestamps and authentication before use. Missing, malformed,
+mismatched or expired responses are invalid and never authorize admission.
+Concurrent reservations for new identities must be atomic at the service.
+An allow alone is not evidence that the exchange was accepted.
+
+Both directions require TLS with mutual service authentication, or signed
+requests with equivalent peer authentication and integrity. Signed requests
+bind method, path, body digest, timestamp, nonce, tenant and key ID. Both
+methods require replay protection, with a finite timestamp window and nonce
+or equivalent. Reject reused nonces, stale timestamps and altered messages.
+Authorize the authenticated caller for the tenant and operation; tenant
+fields alone grant no authority. Authentication, authorization, integrity and
+replay failures always deny the request. Do not log credentials or sensitive
+payloads.
+
+Deployment configuration must bound timeout, retry count, backoff, replay
+window and any cache lifetime. Retries reuse the exchange binding. The default
+availability policy denies a new admission on timeout or exhausted retries
+with CoAP **5.03 Service Unavailable** and a bounded `Max-Age` retry hint,
+not an authentication failure. A valid denial uses the same retryable response.
+A cached allow may only apply to its exact authenticated, unexpired,
+unsuperseded tenant, identity, fingerprint and decision. It cannot alter an
+existing admission. An explicitly configured availability fallback, if
+implemented, cannot bypass authentication, invalid decisions or durable
+receipt requirements.
+
+### Durable acceptance evidence
+
+When enabled, each authenticated accepted Register, Update, Send or Notify
+has a durable exchange ID and receipt, including subsequent exchanges of
+already-admitted identities. A subsequent receipt is marked
+`existing_admission` and has no decision or reservation ID. Admission state,
+accepted effects and the receipt must commit atomically before acknowledgement
+or exposure. If that boundary cannot be guaranteed, the hook must not be
+implemented on that ingress path. Storage failure cannot be treated as
+accepted evidence or used to disconnect or re-decide an admitted identity.
+
+A future authenticated receipt query must enforce tenant authorization,
+provide bounded cursor pagination and at-least-once replay, and make retention
+gaps explicit. Exchange lookup distinguishes `pending`, `accepted` with a
+receipt, and `terminal_not_accepted`. Unknown, unavailable or expired data is
+not proof of terminal rejection. Reservations are finalized idempotently from
+accepted receipts and released only on authoritative terminal rejection.
+Unresolved outcomes require reconciliation; absence of evidence is not an
+outcome.
