@@ -3,6 +3,7 @@ package apiv1
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -169,6 +170,46 @@ func TestObservationDelivery(t *testing.T) {
 	if req.Observe == nil || *req.Observe != 1 || uint32(req.Code) != 5 {
 		t.Fatalf("cancel %+v", req)
 	}
+
+	for _, active := range []bool{false, true} {
+		profileID := "profile-passive"
+		if active {
+			profileID = "profile-active"
+		}
+		v := store.Observation{Tenant: "default", ID: profileID, Device: "pump", Paths: []string{"/3/0/0"}, Source: "profile", ProfileID: "owner", Status: "pending"}
+		if err := delivery.Create("default", v); err != nil {
+			t.Fatal(err)
+		}
+		await(profileID, "active")
+		req, _ := c.LastRequest()
+		if w := deviceRequest(h, "DELETE", "/v1/observations/"+profileID, ""); w.Code != 403 {
+			t.Fatalf("profile public delete: %d", w.Code)
+		}
+		if err := delivery.ObservationDeliveryStore.Create("other", store.Observation{Tenant: "other", ID: profileID, Source: "profile", ProfileID: "owner", Status: "active"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := delivery.EndProfileMode("other", profileID, "owner", active); err == nil {
+			t.Fatal("foreign tenant ended")
+		}
+		if err := delivery.EndProfileMode("default", profileID, "wrong", active); err == nil {
+			t.Fatal("wrong profile ended")
+		}
+		if v, _ := delivery.Get("default", profileID); v.Status != "active" {
+			t.Fatalf("rejected end changed record: %+v", v)
+		}
+		if err := delivery.EndProfileMode("default", profileID, "owner", active); err != nil {
+			t.Fatal(err)
+		}
+		await(profileID, "ended")
+		if active {
+			req, _ = c.LastRequest()
+			if req.Observe == nil || *req.Observe != 1 {
+				t.Fatalf("active cancellation: %+v", req)
+			}
+		} else if res, err := c.Notify(ctx, req.Token); err != nil || res != testclient.NotifyReset {
+			t.Fatalf("passive cancellation: %v %v", res, err)
+		}
+	}
 	persistent := create(`["/3/0/0"]`, true)
 	await(persistent, "active")
 	ephemeral := create(`["/1/0/1"]`, false)
@@ -197,5 +238,29 @@ func TestObservationDelivery(t *testing.T) {
 	await(bad, "active")
 	if err := delivery.Create("other", store.Observation{Tenant: "other", ID: "foreign", Device: "pump"}); err != store.ErrTenant {
 		t.Fatal("cross-tenant dispatch", err)
+	}
+}
+
+func TestObservationDeliveryConcurrentEndProfile(t *testing.T) {
+	records, events := &memory.Observations{}, &memory.Events{}
+	d := NewObservationDelivery(nil, records, &memory.State{}, events, "tenant")
+	v := store.Observation{Tenant: "tenant", ID: "id", Device: "device", Source: "profile", ProfileID: "p", Status: "pending"}
+	if err := records.Create("tenant", v); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := d.EndProfile("tenant", "id", "p"); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	result, _, err := events.List("tenant", store.EventFilter{Type: "lwm2m.observation.updated", Limit: 100})
+	if err != nil || len(result) != 1 {
+		t.Fatalf("end events: %d %v", len(result), err)
 	}
 }

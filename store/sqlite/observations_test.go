@@ -69,3 +69,40 @@ func TestObservationsReopen(t *testing.T) {
 		t.Fatalf("reopened list: %+v %v", list, err)
 	}
 }
+
+func TestProfileObservationEndReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profile.db")
+	d, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := store.Observation{Tenant: "tenant", ID: "profile-observation", Source: "profile", ProfileID: "profile", Status: "active"}
+	if err := d.Observations().Create("tenant", v); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	d, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Observations().EndProfile("tenant", v.ID, "wrong"); err == nil {
+		t.Fatal("wrong profile accepted after reopen")
+	}
+	if err := d.Observations().EndProfile("tenant", v.ID, "profile"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	d, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	got, err := d.Observations().Get("tenant", v.ID)
+	if err != nil || got.Status != "ended" || got.ProfileID != "profile" {
+		t.Fatalf("reopen: %+v %v", got, err)
+	}
+}

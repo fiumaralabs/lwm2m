@@ -10,6 +10,7 @@ var ErrObservationProfile = errors.New("store: profile observation cannot be end
 
 // Observation is tenant-owned intent; delivery updates are outside this contract.
 type Observation struct {
+	ProfileID          string                     `json:"-"`
 	Tenant             string                     `json:"-"`
 	ID                 string                     `json:"id"`
 	Device             string                     `json:"device"`
@@ -37,4 +38,6 @@ type Observations interface {
 	UpdateAttributes(tenant, id string, attributes map[string]json.RawMessage) (Observation, error)
 	// End atomically marks API observations ended; profile observations are protected.
 	End(tenant, id string) error
+	// EndProfile ends only intent belonging to the specified nonempty profile.
+	EndProfile(tenant, id, profileID string) error
 }

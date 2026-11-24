@@ -17,12 +17,13 @@ func (s *Devices) Observations() *Observations { return &Observations{db: s.db} 
 // Store raw JSON as bytes so exact contents and nil values survive encoding.
 type observationPayload struct {
 	store.Observation
+	ProfileID  string            `json:"profileId,omitempty"`
 	Attributes map[string][]byte `json:"attributes"`
 	Error      []byte            `json:"error"`
 }
 
 func encodeObservation(v store.Observation) ([]byte, error) {
-	p := observationPayload{Observation: v, Error: v.Error}
+	p := observationPayload{Observation: v, ProfileID: v.ProfileID, Error: v.Error}
 	if v.Attributes != nil {
 		p.Attributes = make(map[string][]byte, len(v.Attributes))
 		for k, value := range v.Attributes {
@@ -38,7 +39,7 @@ func decodeObservation(body []byte, tenant string) (store.Observation, error) {
 		return store.Observation{}, err
 	}
 	v := p.Observation
-	v.Tenant, v.Error = tenant, p.Error
+	v.Tenant, v.Error, v.ProfileID = tenant, p.Error, p.ProfileID
 	if p.Attributes != nil {
 		v.Attributes = make(map[string]json.RawMessage, len(p.Attributes))
 		for k, value := range p.Attributes {
@@ -146,6 +147,17 @@ func (s *Observations) UpdateDelivery(tenant, id string, update func(*store.Obse
 func (s *Observations) End(tenant, id string) error {
 	_, err := s.mutate(tenant, id, func(v *store.Observation) error {
 		if v.Source == "profile" {
+			return store.ErrObservationProfile
+		}
+		v.Status = "ended"
+		return nil
+	})
+	return err
+}
+
+func (s *Observations) EndProfile(tenant, id, profileID string) error {
+	_, err := s.mutate(tenant, id, func(v *store.Observation) error {
+		if profileID == "" || v.Source != "profile" || v.ProfileID != profileID {
 			return store.ErrObservationProfile
 		}
 		v.Status = "ended"
