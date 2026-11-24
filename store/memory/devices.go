@@ -78,6 +78,26 @@ func (s *Devices) SetProfile(tenant, ep, profile string) (store.Device, error) {
 	s.records[tenant][ep] = d
 	return clone(d), nil
 }
+func (s *Devices) PatchDevice(tenant, ep string, p store.DevicePatch) (store.Device, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.records[tenant][ep]
+	if !ok {
+		return store.Device{}, store.ErrDeviceNotFound
+	}
+	if p.Name != nil {
+		d.Name = *p.Name
+	}
+	if p.Profile != nil {
+		d.Profile = *p.Profile
+	}
+	if p.Labels != nil {
+		d.Labels = maps.Clone(*p.Labels)
+	}
+	d.UpdatedAt = time.Now().UTC()
+	s.records[tenant][ep] = d
+	return clone(d), nil
+}
 func (s *Devices) Delete(tenant, ep string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

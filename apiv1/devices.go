@@ -260,32 +260,81 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "PATCH" {
 		var input struct {
+			Name    json.RawMessage `json:"name"`
+			Labels  json.RawMessage `json:"labels"`
 			Profile json.RawMessage `json:"profile"`
 		}
 		if !DecodeJSON(w, r, &input) {
 			return
 		}
-		if input.Profile == nil {
+		var patch store.DevicePatch
+		if input.Name != nil {
+			var name string
+			if err := json.Unmarshal(input.Name, &name); err != nil {
+				WriteProblem(w, 400, "invalid_name", "name must be a string or null")
+				return
+			}
+			patch.Name = &name
+		}
+		if input.Labels != nil {
+			labels := map[string]string{}
+			if string(input.Labels) != "null" {
+				var raw map[string]json.RawMessage
+				if err := json.Unmarshal(input.Labels, &raw); err != nil || raw == nil {
+					WriteProblem(w, 400, "invalid_labels", "labels must be an object or null")
+					return
+				}
+				for key, value := range raw {
+					var v string
+					if string(value) == "null" || json.Unmarshal(value, &v) != nil {
+						WriteProblem(w, 400, "invalid_labels", "label values must be strings")
+						return
+					}
+					match, err := selector.Parse(key + "=" + v)
+					if err != nil || !match.Matches(map[string]string{key: v}) {
+						WriteProblem(w, 400, "invalid_labels", "invalid label")
+						return
+					}
+					labels[key] = v
+				}
+			}
+			patch.Labels = &labels
+		}
+		if input.Profile != nil {
+			var profile string
+			if err := json.Unmarshal(input.Profile, &profile); err != nil {
+				WriteProblem(w, 400, "invalid_profile", "profile must be a string or null")
+				return
+			}
+			if profile != "" {
+				if _, ok := o.DeviceProfiles.Get(tenant, profile); !ok {
+					WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
+					return
+				}
+			}
+			patch.Profile = &profile
+		}
+		if patch.Name == nil && patch.Labels == nil && patch.Profile == nil {
 			deviceJSON(w, 200, o.view(tenant, d))
 			return
 		}
-		var profile string
-		if err := json.Unmarshal(input.Profile, &profile); err != nil {
-			WriteProblem(w, 400, "invalid_profile", "profile must be a string or null")
-			return
-		}
-		if profile != "" {
-			if _, ok := o.DeviceProfiles.Get(tenant, profile); !ok {
-				WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
+		writer, ok := o.Devices.(store.DeviceMetadataWriter)
+		if !ok {
+			if patch.Name == nil && patch.Labels == nil {
+				if old, ok := o.Devices.(store.DeviceProfileWriter); ok {
+					d, err = old.SetProfile(tenant, ep, *patch.Profile)
+				} else {
+					WriteProblem(w, 501, "not_implemented", "Device updates are not supported by this store")
+					return
+				}
+			} else {
+				WriteProblem(w, 501, "not_implemented", "Device updates are not supported by this store")
 				return
 			}
+		} else {
+			d, err = writer.PatchDevice(tenant, ep, patch)
 		}
-		writer, ok := o.Devices.(store.DeviceProfileWriter)
-		if !ok {
-			WriteProblem(w, 501, "not_implemented", "Device profile updates are not supported by this store")
-			return
-		}
-		d, err = writer.SetProfile(tenant, ep, profile)
+
 		if errors.Is(err, store.ErrDeviceNotFound) {
 			WriteProblem(w, 404, "not_found", "Device not found")
 			return

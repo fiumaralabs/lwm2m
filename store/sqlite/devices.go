@@ -331,6 +331,38 @@ func (s *Devices) SetProfile(tenant, endpoint, profile string) (store.Device, er
 	}
 	return d, err
 }
+func (s *Devices) PatchDevice(tenant, endpoint string, p store.DevicePatch) (store.Device, error) {
+	query := "UPDATE devices SET payload=json_set(payload"
+	args := []any{}
+	if p.Name != nil {
+		query += ", '$.name', ?"
+		args = append(args, *p.Name)
+	}
+	if p.Profile != nil {
+		query += ", '$.profile', ?"
+		args = append(args, *p.Profile)
+	}
+	if p.Labels != nil {
+		b, err := json.Marshal(*p.Labels)
+		if err != nil {
+			return store.Device{}, err
+		}
+		query += ", '$.labels', json(?)"
+		args = append(args, string(b))
+	}
+	query += ", '$.updatedAt', ?) WHERE tenant=? AND endpoint=? RETURNING payload"
+	args = append(args, time.Now().UTC().Format(time.RFC3339Nano), tenant, endpoint)
+	var payload string
+	var d store.Device
+	err := s.db.QueryRow(query, args...).Scan(&payload)
+	if err == sql.ErrNoRows {
+		return d, store.ErrDeviceNotFound
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(payload), &d)
+	}
+	return d, err
+}
 func (s *Devices) Delete(tenant, endpoint string) error {
 	result, err := s.db.Exec("DELETE FROM devices WHERE tenant=? AND endpoint=?", tenant, endpoint)
 	if err != nil {
