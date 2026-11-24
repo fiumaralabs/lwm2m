@@ -72,7 +72,8 @@ func (s *Jobs) RecoverJobClaims(ctx context.Context) error {
 			}
 			if op.Job != nil && *op.Job == c.job && step == c.task.Step {
 				if found != "" {
-					err = fmt.Errorf("multiple operations for orphaned job task %s/%s", c.job, c.task.Device)
+					// Decision #2: preserve fail-closed recovery, including legacy untagged step 0 operations.
+					err = fmt.Errorf("multiple operations for orphaned job %q device %q step %d", c.job, c.task.Device, c.task.Step)
 					break
 				}
 				found = op.ID
