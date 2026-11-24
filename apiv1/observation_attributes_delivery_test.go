@@ -27,6 +27,7 @@ func TestObservationAttributeDelivery(t *testing.T) {
 		{"11_composite", "1.1", `["/3/0/0","/3/0/1"]`, "active", 2, false},
 		{"12_composite", "1.2", `["/3/0/0","/3/0/1"]`, "active", 2, false},
 		{"rejected", "1.1", `["/3/0/0"]`, "failed", 1, true},
+		{"rejected_second", "1.1", `["/3/0/0","/3/0/1"]`, "failed", 2, true},
 		{"12_single", "1.2", `["/3/0/0"]`, "active", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -53,7 +54,7 @@ func TestObservationAttributeDelivery(t *testing.T) {
 			c.Set(lwm2m.MustParsePath("/3/0/1"), lwm2m.String("Model"))
 			if tc.reject {
 				c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
-					if r.Code == codes.PUT {
+					if r.Code == codes.PUT && (tc.writes == 1 || r.Path == "/3/0/1") {
 						return codes.BadRequest, nil, nil, true
 					}
 					return 0, nil, nil, false
