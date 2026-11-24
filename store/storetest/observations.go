@@ -12,6 +12,44 @@ import (
 // Observations is the shared persistence contract, including owned snapshots.
 func Observations(t *testing.T, fresh func() store.Observations) {
 	t.Helper()
+	t.Run("EndProfile", func(t *testing.T) {
+		s := fresh()
+		for _, v := range []store.Observation{
+			{Tenant: "a", ID: "profile", Source: "profile", ProfileID: "p", Status: "active"},
+			{Tenant: "a", ID: "api", Source: "api", ProfileID: "p", Status: "active"},
+		} {
+			if err := s.Create("a", v); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, x := range [][3]string{{"b", "profile", "p"}, {"a", "profile", "other"}, {"a", "api", "p"}, {"a", "profile", ""}} {
+			if err := s.EndProfile(x[0], x[1], x[2]); err == nil {
+				t.Fatalf("accepted %v", x)
+			}
+		}
+		for _, id := range []string{"profile", "api"} {
+			v, err := s.Get("a", id)
+			if err != nil || v.Status != "active" {
+				t.Fatalf("changed %s: %+v %v", id, v, err)
+			}
+		}
+		var wg sync.WaitGroup
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := s.EndProfile("a", "profile", "p"); err != nil {
+					t.Error(err)
+				}
+			}()
+		}
+		wg.Wait()
+		v, err := s.Get("a", "profile")
+		if err != nil || v.Status != "ended" {
+			t.Fatalf("not ended: %+v %v", v, err)
+		}
+	})
+
 	t.Run("RawJSONPreservation", func(t *testing.T) {
 		s := fresh()
 		v := store.Observation{Tenant: "a", ID: "raw", Device: "pump", Attributes: map[string]json.RawMessage{"value": json.RawMessage(` { "x" : 1 } `), "nil": nil}, Error: json.RawMessage(` { "message" : "oops" } `)}

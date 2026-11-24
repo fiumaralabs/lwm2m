@@ -118,3 +118,18 @@ func (s *Observations) End(tenant, id string) error {
 	s.records[tenant][id] = v
 	return nil
 }
+
+func (s *Observations) EndProfile(tenant, id, profileID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.records[tenant][id]
+	if !ok {
+		return store.ErrNotFound
+	}
+	if profileID == "" || v.Source != "profile" || v.ProfileID != profileID {
+		return store.ErrObservationProfile
+	}
+	v.Status = "ended"
+	s.records[tenant][id] = v
+	return nil
+}

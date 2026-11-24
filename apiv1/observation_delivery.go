@@ -162,10 +162,27 @@ func observationFormat(name string) *lwm2m.ContentFormat {
 }
 func (d *ObservationDelivery) End(tenant, id string) error { return d.EndMode(tenant, id, true) }
 func (d *ObservationDelivery) EndMode(tenant, id string, active bool) error {
+	return d.endMode(tenant, id, active, func() error { return d.ObservationDeliveryStore.End(tenant, id) })
+}
+
+// EndProfile ends profile-owned intent with an active cancellation.
+func (d *ObservationDelivery) EndProfile(tenant, id, profileID string) error {
+	return d.EndProfileMode(tenant, id, profileID, true)
+}
+
+// EndProfileMode ends profile-owned intent and cancels its device subscription.
+func (d *ObservationDelivery) EndProfileMode(tenant, id, profileID string, active bool) error {
+	if tenant != d.tenant {
+		return store.ErrNotFound
+	}
+	return d.endMode(tenant, id, active, func() error { return d.ObservationDeliveryStore.EndProfile(tenant, id, profileID) })
+}
+
+func (d *ObservationDelivery) endMode(tenant, id string, active bool, end func() error) error {
 	d.mu.Lock()
 	v, err := d.Get(tenant, id)
 	if err == nil {
-		err = d.ObservationDeliveryStore.End(tenant, id)
+		err = end()
 	}
 	if err != nil {
 		d.mu.Unlock()
