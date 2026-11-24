@@ -167,18 +167,19 @@ func TestOpenAPIInventoryRoutes(t *testing.T) {
 					t.Fatalf("invalid 404: %s", w.Body.String())
 				}
 				allowed := map[string]string{
-					"GET /v1/firmware/{id}/content":                 "Firmware content not found",
-					"DELETE /v1/device-creates/{id}":                "Outcome not found",
-					"GET /v1/devices/{ep}/registration":             "Device is not registered",
-					"DELETE /v1/devices/{ep}/registration":          "Device is not registered",
-					"GET /v1/devices/{ep}/model":                    "Device is not registered",
-					"GET /v1/devices/{ep}/credentials":              "Device not found",
-					"PUT /v1/devices/{ep}/credentials":              "Device not found",
-					"DELETE /v1/devices/{ep}/credentials":           "Device not found",
-					"GET /v1/devices/{ep}/bootstrap":                "Bootstrap config not found",
-					"DELETE /v1/devices/{ep}/bootstrap":             "Bootstrap config not found",
-					"GET /v1/devices/{ep}/bootstrap/credentials":    "Credential not found",
-					"DELETE /v1/devices/{ep}/bootstrap/credentials": "Credential not found",
+					"POST /v1/webhooks/{id}/deliveries/{deliveryId}/retry": "Webhook delivery not found",
+					"GET /v1/firmware/{id}/content":                        "Firmware content not found",
+					"DELETE /v1/device-creates/{id}":                       "Outcome not found",
+					"GET /v1/devices/{ep}/registration":                    "Device is not registered",
+					"DELETE /v1/devices/{ep}/registration":                 "Device is not registered",
+					"GET /v1/devices/{ep}/model":                           "Device is not registered",
+					"GET /v1/devices/{ep}/credentials":                     "Device not found",
+					"PUT /v1/devices/{ep}/credentials":                     "Device not found",
+					"DELETE /v1/devices/{ep}/credentials":                  "Device not found",
+					"GET /v1/devices/{ep}/bootstrap":                       "Bootstrap config not found",
+					"DELETE /v1/devices/{ep}/bootstrap":                    "Bootstrap config not found",
+					"GET /v1/devices/{ep}/bootstrap/credentials":           "Credential not found",
+					"DELETE /v1/devices/{ep}/bootstrap/credentials":        "Credential not found",
 				}
 				if detail, ok := allowed[route.Method+" "+route.Path]; !ok || problem.Detail != detail {
 					t.Fatalf("unknown path or missing fixture: %s", w.Body.String())

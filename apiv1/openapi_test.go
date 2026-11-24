@@ -150,6 +150,7 @@ var openAPIRoutes = []struct{ Method, Path, Example string }{
 	{"DELETE", "/v1/webhooks/{id}", "/v1/webhooks/probe"},
 	{"POST", "/v1/webhooks/{id}/rotate-secret", "/v1/webhooks/probe/rotate-secret"},
 	{"GET", "/v1/webhooks/{id}/deliveries", "/v1/webhooks/probe/deliveries"},
+	{"POST", "/v1/webhooks/{id}/deliveries/{deliveryId}/retry", "/v1/webhooks/probe/deliveries/probe/retry"},
 	{"POST", "/v1/webhooks/{id}/test", "/v1/webhooks/probe/test"},
 	{"DELETE", "/v1/api-keys/{id}", "/v1/api-keys/probe"},
 	{"DELETE", "/v1/models/{id}/versions/{version}", "/v1/models/50000/versions/1.0"},
