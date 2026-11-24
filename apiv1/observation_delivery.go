@@ -97,7 +97,21 @@ func (d *ObservationDelivery) deliver(v store.Observation, r *server.Registratio
 		query = append(query, k+"="+string(val))
 	}
 	if len(query) > 0 && (r.Version != "1.2" || len(paths) > 1) {
-		err = fmt.Errorf("Write-Attributes before Observe is not supported")
+		if v.Prefix != "" {
+			err = fmt.Errorf("Write-Attributes for gateway observations is unsupported")
+		} else {
+			for _, path := range paths {
+				resp, err = d.srv.WriteAttributes(ctx, v.Device, path, query)
+				if err != nil || (resp != nil && !resp.Success()) {
+					break
+				}
+				if resp == nil {
+					err = fmt.Errorf("Write-Attributes returned no response")
+					break
+				}
+			}
+			query = nil
+		}
 	}
 	if err == nil && (resp == nil || resp.Success()) {
 		if len(paths) == 1 {
