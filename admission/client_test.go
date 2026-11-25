@@ -61,7 +61,7 @@ func TestClientDecide(t *testing.T) {
 					t.Error("request signature or target invalid")
 				}
 				if name == "timeout" {
-					time.Sleep(80 * time.Millisecond)
+					<-r.Context().Done()
 					return
 				}
 				if name == "retries" {
@@ -91,7 +91,12 @@ func TestClientDecide(t *testing.T) {
 				w.Write(b)
 			}))
 			defer server.Close()
-			cfg := Config{Enabled: true, Endpoint: server.URL + "/v1/admission-decisions", RequestSecretRefs: []string{"ADMISSION_TEST_REQUEST_KEY"}, ResponseSecretRefs: []string{"ADMISSION_TEST_RESPONSE_KEY"}, Timeout: 20 * time.Millisecond, MaxRetries: 2, Backoff: time.Millisecond, Transport: server.Client().Transport}
+			// Retry assertions depend on complete handler responses, not a short
+			// per-attempt deadline that can expire before the handler starts.
+			cfg := Config{Enabled: true, Endpoint: server.URL + "/v1/admission-decisions", RequestSecretRefs: []string{"ADMISSION_TEST_REQUEST_KEY"}, ResponseSecretRefs: []string{"ADMISSION_TEST_RESPONSE_KEY"}, Timeout: 5 * time.Second, MaxRetries: 2, Transport: server.Client().Transport}
+			if name == "timeout" {
+				cfg.Timeout = 20 * time.Millisecond
+			}
 			if name == "disabled" {
 				cfg.Enabled = false
 				cfg.RequestSecrets = nil
