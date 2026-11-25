@@ -58,6 +58,7 @@ type Executor struct {
 }
 type request struct {
 	Attributes map[string]json.RawMessage `json:"attributes"`
+	Depth      *int                       `json:"depth"`
 	Arguments  string                     `json:"arguments"`
 	Paths      []string                   `json:"paths"`
 	Path       string                     `json:"path"`
@@ -139,7 +140,7 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	if closed {
 		return Operation{}, ErrClosed
 	}
-	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" {
+	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" && o.Type != "discover" {
 		return Operation{}, ErrInvalid
 	}
 	var q request
@@ -446,6 +447,12 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			return resultJSON{}, pe
 		}
 		r, err = e.srv.Delete(ctx, o.Device, p)
+	} else if o.Type == "discover" {
+		p, pe := lwm2m.ParsePath(q.Path)
+		if pe != nil {
+			return resultJSON{}, pe
+		}
+		r, err = e.srv.Discover(ctx, o.Device, p, q.Depth)
 	} else if o.Type == "execute" {
 		p, pe := lwm2m.ParsePath(q.Path)
 		if pe != nil {
