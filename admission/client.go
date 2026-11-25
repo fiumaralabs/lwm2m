@@ -20,9 +20,10 @@ import (
 	"time"
 )
 
-// Config is disabled when Endpoint is empty. Secrets are standard webhook keys.
+// Config is disabled unless Enabled is true. Secrets are standard webhook keys.
 type Config struct {
-	Endpoint, KeyID                       string
+	Enabled                               bool
+	Endpoint                              string
 	RequestSecretRefs, ResponseSecretRefs []string
 	RequestSecrets, ResponseSecrets       []string
 	Timeout                               time.Duration
@@ -44,6 +45,10 @@ type Decision struct {
 	MaxAge                    time.Duration
 	DecisionID, ReservationID string
 }
+
+// Client keeps up to 100,000 exchange IDs in memory for its lifetime and then
+// fails closed. It does not provide replay protection across process restarts;
+// durable admission wiring must enforce that boundary before applying decisions.
 type Client struct {
 	config Config
 	mu     sync.Mutex
@@ -76,7 +81,7 @@ func mac(k []byte, id, ts string, body []byte) string {
 }
 func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) {
 	failure := Decision{MaxAge: time.Second * 5}
-	if c.config.Endpoint == "" {
+	if !c.config.Enabled {
 		return Decision{}, nil
 	}
 	cfg := c.config
@@ -207,26 +212,8 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		if resp.StatusCode >= 500 {
 			continue
 		}
-		if e != nil || len(raw) > 65536 || resp.StatusCode != http.StatusOK || resp.Header.Get("webhook-id") != request.ExchangeID || resp.Header.Get("webhook-timestamp") != ts {
-			return failure, ErrUnavailable
-		}
-		stamp, e := strconv.ParseInt(ts, 10, 64)
 		now := time.Now()
-		if e != nil || now.Sub(time.Unix(stamp, 0)) > window || time.Unix(stamp, 0).Sub(now) > window {
-			return failure, ErrUnavailable
-		}
-		valid := false
-		for _, sig := range strings.Fields(resp.Header.Get("webhook-signature")) {
-			if !strings.HasPrefix(sig, "v1,") {
-				continue
-			}
-			for _, k := range respKeys {
-				if hmac.Equal([]byte(strings.TrimPrefix(sig, "v1,")), []byte(mac(k, request.ExchangeID, ts, raw))) {
-					valid = true
-				}
-			}
-		}
-		if !valid {
+		if e != nil || len(raw) > 65536 || resp.StatusCode != http.StatusOK || !verifyResponse(resp.Header.Get("webhook-id"), resp.Header.Get("webhook-timestamp"), resp.Header.Get("webhook-signature"), request.ExchangeID, ts, raw, respKeys, now, window) {
 			return failure, ErrUnavailable
 		}
 		var result struct {
@@ -249,4 +236,26 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		return Decision{Admitted: true, DecisionID: result.DecisionID, ReservationID: result.ReservationID}, nil
 	}
 	return failure, ErrUnavailable
+}
+
+// verifyResponse checks the signature and the exact binding to an attempt.
+func verifyResponse(id, ts, signatures, requestID, requestTS string, body []byte, keys [][]byte, now time.Time, window time.Duration) bool {
+	if id != requestID || ts != requestTS || id == "" || ts == "" {
+		return false
+	}
+	stamp, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil || strconv.FormatInt(stamp, 10) != ts || now.Sub(time.Unix(stamp, 0)) > window || time.Unix(stamp, 0).Sub(now) > window {
+		return false
+	}
+	for _, sig := range strings.Fields(signatures) {
+		if !strings.HasPrefix(sig, "v1,") {
+			continue
+		}
+		for _, k := range keys {
+			if hmac.Equal([]byte(strings.TrimPrefix(sig, "v1,")), []byte(mac(k, id, ts, body))) {
+				return true
+			}
+		}
+	}
+	return false
 }

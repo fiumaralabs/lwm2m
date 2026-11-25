@@ -41,7 +41,7 @@ func TestClientDecide(t *testing.T) {
 	responseSecret := "whsec_" + base64.StdEncoding.EncodeToString([]byte("separate-response-test-key"))
 	t.Setenv("ADMISSION_TEST_RESPONSE_KEY", responseSecret)
 	req := Request{TenantID: "tenant", IdentityID: "device", ExchangeID: "exchange_123", Operation: "Register", RequestFingerprint: "fingerprint", ObservedAt: time.Now().UTC()}
-	for _, name := range []string{"disabled", "allow", "deny", "timeout", "retries", "signature", "replay", "binding", "expired"} {
+	for _, name := range []string{"disabled", "allow", "deny", "timeout", "retries", "signature", "retry-after-failure", "replay", "binding", "expired"} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
 			var firstBody, firstID string
@@ -82,7 +82,7 @@ func TestClientDecide(t *testing.T) {
 				}
 				b, _ := json.Marshal(response)
 				sig := testSign(responseSecret, id, ts, b)
-				if name == "signature" {
+				if name == "signature" || (name == "retry-after-failure" && n == 1) {
 					sig = "v1,AAAA"
 				}
 				w.Header().Set("webhook-id", id)
@@ -91,9 +91,13 @@ func TestClientDecide(t *testing.T) {
 				w.Write(b)
 			}))
 			defer server.Close()
-			cfg := Config{Endpoint: server.URL + "/v1/admission-decisions", RequestSecretRefs: []string{"ADMISSION_TEST_REQUEST_KEY"}, ResponseSecretRefs: []string{"ADMISSION_TEST_RESPONSE_KEY"}, Timeout: 20 * time.Millisecond, MaxRetries: 2, Backoff: time.Millisecond, Transport: server.Client().Transport}
+			cfg := Config{Enabled: true, Endpoint: server.URL + "/v1/admission-decisions", RequestSecretRefs: []string{"ADMISSION_TEST_REQUEST_KEY"}, ResponseSecretRefs: []string{"ADMISSION_TEST_RESPONSE_KEY"}, Timeout: 20 * time.Millisecond, MaxRetries: 2, Backoff: time.Millisecond, Transport: server.Client().Transport}
 			if name == "disabled" {
-				cfg = Config{}
+				cfg.Enabled = false
+				cfg.RequestSecrets = nil
+				cfg.ResponseSecrets = nil
+				cfg.RequestSecretRefs = nil
+				cfg.ResponseSecretRefs = nil
 			}
 			client := NewClient(cfg)
 			got, err := client.Decide(context.Background(), req)
@@ -106,6 +110,19 @@ func TestClientDecide(t *testing.T) {
 			if name == "allow" {
 				if err != nil || !got.Admitted {
 					t.Fatalf("allow: %+v %v", got, err)
+				}
+				if _, err := client.Decide(context.Background(), req); err == nil {
+					t.Fatal("successful exchange was accepted twice")
+				}
+				return
+			}
+			if name == "retry-after-failure" {
+				if err == nil || got.Admitted {
+					t.Fatal("first attempt should fail")
+				}
+				got, err = client.Decide(context.Background(), req)
+				if err != nil || !got.Admitted {
+					t.Fatalf("retry: %+v %v", got, err)
 				}
 				return
 			}
@@ -139,6 +156,36 @@ func TestClientSigningFixture(t *testing.T) {
 			}
 			if got := "v1," + mac(k, v.ID, v.Timestamp, []byte(v.Body)); got != v.Expected {
 				t.Fatal("signature differs from published vector")
+			}
+		})
+	}
+}
+
+func TestVerificationVectors(t *testing.T) {
+	data, err := os.ReadFile("testdata/signing.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var vs []struct {
+		Name, Secret, ID, Timestamp, Body string
+		Provided                          string `json:"provided_signature"`
+		RequestID                         string `json:"request_id"`
+		RequestTimestamp                  string `json:"request_timestamp"`
+		Now                               int64
+		Valid                             bool
+	}
+	if err := json.Unmarshal(data, &vs); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Run(v.Name, func(t *testing.T) {
+			k, err := key(v.Secret)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := verifyResponse(v.ID, v.Timestamp, v.Provided, v.RequestID, v.RequestTimestamp, []byte(v.Body), [][]byte{k}, time.Unix(v.Now, 0), 5*time.Minute)
+			if got != v.Valid {
+				t.Fatalf("got %v, want %v", got, v.Valid)
 			}
 		})
 	}
