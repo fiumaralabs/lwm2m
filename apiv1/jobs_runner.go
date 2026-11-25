@@ -119,17 +119,18 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						continue
 					}
 					var input struct {
-						Type        string            `json:"type"`
-						TTL         *int              `json:"ttlSeconds"`
-						WhenOffline string            `json:"whenOffline"`
-						Prefix      string            `json:"prefix"`
-						Format      string            `json:"format"`
-						Accept      string            `json:"accept"`
-						Paths       []string          `json:"paths,omitempty"`
-						Path        string            `json:"path,omitempty"`
-						Values      []json.RawMessage `json:"values,omitempty"`
-						Mode        string            `json:"mode,omitempty"`
-						Arguments   string            `json:"arguments,omitempty"`
+						Type        string                     `json:"type"`
+						TTL         *int                       `json:"ttlSeconds"`
+						WhenOffline string                     `json:"whenOffline"`
+						Prefix      string                     `json:"prefix"`
+						Format      string                     `json:"format"`
+						Accept      string                     `json:"accept"`
+						Paths       []string                   `json:"paths,omitempty"`
+						Path        string                     `json:"path,omitempty"`
+						Values      []json.RawMessage          `json:"values,omitempty"`
+						Mode        string                     `json:"mode,omitempty"`
+						Arguments   string                     `json:"arguments,omitempty"`
+						Attributes  map[string]json.RawMessage `json:"attributes,omitempty"`
 					}
 					decoder := json.NewDecoder(bytes.NewReader(job.Action.Operation))
 					decoder.DisallowUnknownFields()
@@ -138,12 +139,13 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						parseErr = fmt.Errorf("invalid operation options")
 					}
 					request, _ := json.Marshal(struct {
-						Paths     []string          `json:"paths,omitempty"`
-						Path      string            `json:"path,omitempty"`
-						Values    []json.RawMessage `json:"values,omitempty"`
-						Mode      string            `json:"mode,omitempty"`
-						Arguments string            `json:"arguments,omitempty"`
-					}{input.Paths, input.Path, input.Values, input.Mode, input.Arguments})
+						Paths      []string                   `json:"paths,omitempty"`
+						Path       string                     `json:"path,omitempty"`
+						Values     []json.RawMessage          `json:"values,omitempty"`
+						Mode       string                     `json:"mode,omitempty"`
+						Arguments  string                     `json:"arguments,omitempty"`
+						Attributes map[string]json.RawMessage `json:"attributes,omitempty"`
+					}{input.Paths, input.Path, input.Values, input.Mode, input.Arguments, input.Attributes})
 					op := operations.New(tenant, task.Device, input.Type, request, input.TTL, now)
 					op.Job = &job.ID
 					if input.WhenOffline != "" {
