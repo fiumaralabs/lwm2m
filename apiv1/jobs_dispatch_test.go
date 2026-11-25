@@ -66,6 +66,41 @@ func TestJobRunnerDispatchesClaimedOperation(t *testing.T) {
 	}
 }
 
+func TestJobRunnerQueuesWriteAttributes(t *testing.T) {
+	jobs := NewMemoryJobStore()
+	job := Job{ID: "job", Target: JobTarget{Devices: []string{"dev"}}, Action: JobAction{Operation: []byte(`{"type":"write-attributes","path":"/3/0/9","attributes":{"pmin":10,"pmax":60}}`)}, Rollout: JobRollout{MaxConcurrent: 1}, TTLSeconds: 60}
+	if err := jobs.Create("tenant", job); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := jobs.StartJob("tenant", "job", []string{"dev"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	ops := memory.NewOperations()
+	srv := server.New(server.Config{})
+	defer srv.Close()
+	ex := operations.NewExecutor(srv, ops, operations.ExecutorOptions{})
+	defer ex.Close()
+	r := JobRunner{ServerTenant: "tenant", Jobs: jobs, Operations: ops, Executor: ex}
+	if err := tickUnrestricted(r, context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	task := jobs.ListTasks("tenant", "job", "")[0]
+	if task.Status != "running" || task.Operation == "" {
+		t.Fatalf("task: %+v", task)
+	}
+	op, err := ops.Get(context.Background(), "tenant", task.Operation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req struct {
+		Path       string         `json:"path"`
+		Attributes map[string]int `json:"attributes"`
+	}
+	if err := json.Unmarshal(op.Request, &req); err != nil || req.Path != "/3/0/9" || req.Attributes["pmin"] != 10 || req.Attributes["pmax"] != 60 {
+		t.Fatalf("request=%s error=%v", op.Request, err)
+	}
+}
+
 func TestJobRunnerPassesOperationOptions(t *testing.T) {
 	jobs := NewMemoryJobStore()
 	job := Job{ID: "job", Target: JobTarget{Devices: []string{"dev"}}, Action: JobAction{Operation: []byte(`{"type":"read","paths":["/3/0/0"],"ttlSeconds":7,"whenOffline":"reject","prefix":"d1","format":"a","accept":"b"}`)}, Rollout: JobRollout{MaxConcurrent: 1}, TTLSeconds: 60}
