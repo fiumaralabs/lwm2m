@@ -14,7 +14,9 @@ import (
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/attr"
 	"github.com/fiumaralabs/lwm2m/codec"
+	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
 // Operations is the durable operation store contract. store.Operations aliases
@@ -57,6 +59,7 @@ type Executor struct {
 	sessions   map[[2]string]string // reject operations belong to one registration
 }
 type request struct {
+	Depth      *int                       `json:"depth"`
 	Attributes map[string]json.RawMessage `json:"attributes"`
 	Arguments  string                     `json:"arguments"`
 	Paths      []string                   `json:"paths"`
@@ -75,7 +78,14 @@ type valueJSON struct {
 	Type      string     `json:"type,omitempty"`
 	Value     any        `json:"value,omitempty"`
 }
+type linkJSON struct {
+	Path       string         `json:"path"`
+	Attributes map[string]any `json:"attributes,omitempty"`
+	Dim        *uint64        `json:"dim,omitempty"`
+}
 type resultJSON struct {
+	Links     *[]linkJSON `json:"links,omitempty"`
+	Location  string      `json:"location,omitempty"`
 	decodeErr error
 	Payload   []byte      `json:"payload,omitempty"`
 	Format    string      `json:"format,omitempty"`
@@ -139,12 +149,21 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	if closed {
 		return Operation{}, ErrClosed
 	}
-	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" {
+	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" && o.Type != "discover" && o.Type != "create" {
 		return Operation{}, ErrInvalid
 	}
 	var q request
 	if json.Unmarshal(o.Request, &q) != nil {
 		return Operation{}, ErrInvalid
+	}
+	if o.Type == "discover" && q.Depth != nil && (*q.Depth < 0 || *q.Depth > 3) {
+		return Operation{}, ErrInvalid
+	}
+	if o.Type == "create" {
+		p, err := lwm2m.ParsePath(q.Path)
+		if err != nil || !p.IsObject() || len(q.Values) == 0 {
+			return Operation{}, ErrInvalid
+		}
 	}
 	if o.Type == "sync-clock" {
 		var body map[string]json.RawMessage
@@ -350,7 +369,7 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 	}
 	var r *server.Response
 	var err error
-	if o.Type == "write" {
+	if o.Type == "write" || o.Type == "create" {
 		preparing := true
 		defer func() {
 			if preparing && deliveryErr != nil {
@@ -422,14 +441,19 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		if q.Mode == "replace" {
 			mode = server.Replace
 		}
-		if q.Path == "" {
+		if o.Type == "create" {
+			r, err = e.srv.Create(ctx, o.Device, p, nodes, format(o.Format))
+		} else if q.Path == "" {
 			r, err = e.srv.WriteComposite(ctx, o.Device, nodes, format(o.Format))
 		} else {
 			r, err = e.srv.Write(ctx, o.Device, p, nodes, server.WriteOptions{Mode: mode, Format: format(o.Format)})
 		}
-		if err == nil && r != nil {
+		if o.Type == "write" && err == nil && r != nil {
 			r.Nodes = nodes
 		}
+	} else if o.Type == "discover" {
+		p, _ := lwm2m.ParsePath(q.Path)
+		r, err = e.srv.Discover(ctx, o.Device, p, q.Depth)
 	} else if o.Type == "write-attributes" {
 		p, _ := lwm2m.ParsePath(q.Path)
 		query, qe := attributeQuery(p, q.Attributes)
@@ -472,6 +496,9 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		return resultJSON{}, err
 	}
 	out := resultJSON{Code: server.CodeString(r.Code), decodeErr: r.DecodeErr}
+	if o.Type == "create" && len(r.Location) > 0 {
+		out.Location = "/" + strings.Join(r.Location, "/")
+	}
 	if r.DecodeErr != nil || len(r.Nodes) == 0 {
 		out.Payload = r.Payload
 	}
@@ -483,7 +510,46 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			}
 		}
 	}
+	if o.Type == "discover" && r.Code == codes.Content && out.decodeErr == nil {
+		links, parseErr := discoverLinks(r.Payload)
+		out.decodeErr = parseErr
+		if parseErr == nil {
+			out.Links = &links
+		}
+	}
 	out.Values = ObservationValues(r.Nodes)
+	return out, nil
+}
+
+func discoverLinks(payload []byte) ([]linkJSON, error) {
+	ls, err := link.Parse(string(payload))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]linkJSON, 0, len(ls))
+	for _, l := range ls {
+		item := linkJSON{Path: l.URI}
+		for _, p := range l.Params {
+			a, known, err := attr.ParseLinkParam(p.Name, p.Value, p.HasValue)
+			if err != nil {
+				return nil, err
+			}
+			var value any = p.Value
+			if known {
+				value = a.Value
+			}
+			if p.Name == "dim" {
+				dim := value.(uint64)
+				item.Dim = &dim
+				continue
+			}
+			if item.Attributes == nil {
+				item.Attributes = make(map[string]any)
+			}
+			item.Attributes[p.Name] = value
+		}
+		out = append(out, item)
+	}
 	return out, nil
 }
 
