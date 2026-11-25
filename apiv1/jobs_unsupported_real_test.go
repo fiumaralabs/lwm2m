@@ -12,7 +12,7 @@ import (
 
 func TestJobRunnerUnsupportedRealExecutor(t *testing.T) {
 	jobs := NewMemoryJobStore()
-	job := Job{ID: "job", Target: JobTarget{Devices: []string{"dev"}}, Action: JobAction{Operation: []byte(`{"type":"create","path":"/3"}`)}, Rollout: JobRollout{MaxConcurrent: 1}, TTLSeconds: 60}
+	job := Job{ID: "job", Target: JobTarget{Devices: []string{"dev"}}, Action: JobAction{Operation: []byte(`{"type":"read-composite","paths":["/3/0"]}`)}, Rollout: JobRollout{MaxConcurrent: 1}, TTLSeconds: 60}
 	if err := jobs.Create("default", job); err != nil {
 		t.Fatal(err)
 	}

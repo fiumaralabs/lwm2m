@@ -10,7 +10,7 @@ import (
 
 func TestJobRunnerRejectsUnsupportedOperationPerTarget(t *testing.T) {
 	jobs := NewMemoryJobStore()
-	job := Job{ID: "job", Target: JobTarget{Devices: []string{"a", "b"}}, Action: JobAction{Operation: []byte(`{"type":"create","path":"/3"}`)}, Rollout: JobRollout{MaxConcurrent: 2}, TTLSeconds: 60}
+	job := Job{ID: "job", Target: JobTarget{Devices: []string{"a", "b"}}, Action: JobAction{Operation: []byte(`{"type":"read-composite","paths":["/3/0"]}`)}, Rollout: JobRollout{MaxConcurrent: 2}, TTLSeconds: 60}
 	if err := jobs.Create("tenant", job); err != nil {
 		t.Fatal(err)
 	}
