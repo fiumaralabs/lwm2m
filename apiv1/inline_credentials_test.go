@@ -35,7 +35,7 @@ func TestInlineCredentials(t *testing.T) {
 	t.Cleanup(func() { _ = s.Close() })
 	d := &memory.Devices{}
 	events := &memory.Events{}
-	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,", tenant: "default"}, "foreign": {hash: sha256.Sum256([]byte("lwm_foreign_secret")), scopes: ",devices:read,devices:write,", tenant: "other"}}}
+	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "default"}, "foreign": {hash: sha256.Sum256([]byte("lwm_foreign_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "other"}}}
 	h := New(Options{Keys: keys, Devices: d, Server: s, EventOptions: EventOptions{Events: events}})
 	request := func(method, path, token, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))

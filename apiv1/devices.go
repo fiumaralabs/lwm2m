@@ -160,6 +160,13 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			}
 			var security *server.SecurityInfo
 			if len(input.Credentials) > 0 {
+				authorized := false
+				RequireScope("credentials:write")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+					authorized = true
+				})).ServeHTTP(w, r)
+				if !authorized {
+					return
+				}
 				if o.Server == nil || tenant != o.ServerTenant {
 					WriteProblem(w, 404, "not_found", "Credential service not available")
 					return
