@@ -25,6 +25,23 @@ func testSign(secret, id, ts string, body []byte) string {
 	return "v1," + base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
+type handlerTransport struct {
+	handler http.Handler
+	delayed atomic.Bool
+}
+
+func (tr *handlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// Force the first request past its deadline before delivering it. Unlike a
+	// network transport, this controlled transport synchronously finishes each
+	// handler before returning its response, even if the context has expired.
+	if tr.delayed.CompareAndSwap(false, true) {
+		<-r.Context().Done()
+	}
+	w := httptest.NewRecorder()
+	tr.handler.ServeHTTP(w, r)
+	return w.Result(), nil
+}
+
 func TestClientDecide(t *testing.T) {
 	data, err := os.ReadFile("testdata/signing.json")
 	if err != nil {
@@ -46,7 +63,7 @@ func TestClientDecide(t *testing.T) {
 			var calls atomic.Int32
 			var firstBody, firstID string
 			var mu sync.Mutex
-			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				n := calls.Add(1)
 				body, _ := io.ReadAll(r.Body)
@@ -61,10 +78,13 @@ func TestClientDecide(t *testing.T) {
 					t.Error("request signature or target invalid")
 				}
 				if name == "timeout" {
-					time.Sleep(80 * time.Millisecond)
+					<-r.Context().Done()
 					return
 				}
 				if name == "retries" {
+					if n == 1 && r.Context().Err() == nil {
+						t.Error("first attempt was not delayed past its deadline")
+					}
 					w.WriteHeader(503)
 					return
 				}
@@ -89,9 +109,19 @@ func TestClientDecide(t *testing.T) {
 				w.Header().Set("webhook-timestamp", ts)
 				w.Header().Set("webhook-signature", sig)
 				w.Write(b)
-			}))
+			})
+			server := httptest.NewTLSServer(handler)
 			defer server.Close()
-			cfg := Config{Enabled: true, Endpoint: server.URL + "/v1/admission-decisions", RequestSecretRefs: []string{"ADMISSION_TEST_REQUEST_KEY"}, ResponseSecretRefs: []string{"ADMISSION_TEST_RESPONSE_KEY"}, Timeout: 20 * time.Millisecond, MaxRetries: 2, Backoff: time.Millisecond, Transport: server.Client().Transport}
+			// Only the timeout case needs a short real network deadline.
+			// The retry case uses a synchronous transport below.
+			cfg := Config{Enabled: true, Endpoint: server.URL + "/v1/admission-decisions", RequestSecretRefs: []string{"ADMISSION_TEST_REQUEST_KEY"}, ResponseSecretRefs: []string{"ADMISSION_TEST_RESPONSE_KEY"}, Timeout: 5 * time.Second, MaxRetries: 2, Transport: server.Client().Transport}
+			if name == "retries" {
+				cfg.Timeout = time.Nanosecond
+				cfg.Transport = &handlerTransport{handler: handler}
+			}
+			if name == "timeout" {
+				cfg.Timeout = 20 * time.Millisecond
+			}
 			if name == "disabled" {
 				cfg.Enabled = false
 				cfg.RequestSecrets = nil
