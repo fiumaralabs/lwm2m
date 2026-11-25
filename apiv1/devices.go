@@ -1,9 +1,11 @@
 package apiv1
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -137,10 +139,11 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			var input struct {
-				Endpoint string            `json:"endpoint"`
-				Name     string            `json:"name"`
-				Profile  string            `json:"profile"`
-				Labels   map[string]string `json:"labels"`
+				Endpoint    string            `json:"endpoint"`
+				Name        string            `json:"name"`
+				Profile     string            `json:"profile"`
+				Labels      map[string]string `json:"labels"`
+				Credentials json.RawMessage   `json:"credentials"`
 			}
 			if !DecodeJSON(w, r, &input) {
 				return
@@ -154,6 +157,24 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
 					return
 				}
+			}
+			var security *server.SecurityInfo
+			if len(input.Credentials) > 0 {
+				if o.Server == nil || tenant != o.ServerTenant {
+					WriteProblem(w, 404, "not_found", "Credential service not available")
+					return
+				}
+				credentialRequest := r.Clone(r.Context())
+				credentialRequest.Body = io.NopCloser(bytes.NewReader(input.Credentials))
+				identity, _, key, generated, ok := decodePSKCredential(w, credentialRequest)
+				if !ok {
+					return
+				}
+				if generated {
+					WriteProblem(w, 400, "invalid_credential", "Generated credentials require the credentials endpoint")
+					return
+				}
+				security = &server.SecurityInfo{Endpoint: input.Endpoint, PSKIdentity: identity, PSKKey: key}
 			}
 			unlock := o.limits.lock(tenant)
 			defer unlock()
@@ -172,6 +193,12 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			}
 			unlockLifecycle := bootstrapLifecycle.lock(tenant)
 			defer unlockLifecycle()
+			if security != nil {
+				if _, exists := o.Server.Security().ByEndpoint(input.Endpoint); exists {
+					WriteProblem(w, 409, "device_exists", "Endpoint already has credentials")
+					return
+				}
+			}
 			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
 			if err != nil {
 				if errors.Is(err, store.ErrDeviceExists) {
@@ -180,6 +207,20 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					WriteProblem(w, 500, "internal_error", "Cannot create device")
 				}
 				return
+			}
+			if security != nil {
+				if err := o.Server.Security().Put(*security); err != nil {
+					if deleteErr := o.Devices.Delete(tenant, d.Endpoint); deleteErr != nil {
+						WriteProblem(w, 500, "internal_error", "Cannot roll back device creation")
+						return
+					}
+					if errors.Is(err, server.ErrDuplicatePSKIdentity) {
+						WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
+					} else {
+						WriteProblem(w, 500, "internal_error", "Cannot store credential")
+					}
+					return
+				}
 			}
 			w.Header().Set("Location", "/v1/devices/"+url.PathEscape(d.Endpoint))
 			o.emitDevice(tenant, "lwm2m.device.created", d)
