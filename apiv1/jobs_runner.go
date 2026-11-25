@@ -169,7 +169,7 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						task.Status, task.Error = "failed", err.Error()
 						if errors.Is(err, operations.ErrInvalid) {
 							switch input.Type {
-							case "read", "write", "execute", "delete", "write-attributes", "sync-clock":
+							case "read", "write", "execute", "delete", "write-attributes", "sync-clock", "discover", "create":
 							default:
 								task.Error = "unsupported_operation"
 							}
