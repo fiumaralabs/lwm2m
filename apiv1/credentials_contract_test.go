@@ -17,8 +17,8 @@ func TestCredentialsErrorsAndGeneration(t *testing.T) {
 	s := server.New(server.Config{})
 	defer s.Close()
 	keys := Keys{entries: map[string]credential{
-		"test":    {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,", tenant: "default"},
-		"foreign": {hash: sha256.Sum256([]byte("lwm_foreign_secret")), scopes: ",devices:read,devices:write,", tenant: "other"},
+		"test":    {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "default"},
+		"foreign": {hash: sha256.Sum256([]byte("lwm_foreign_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "other"},
 		"read":    {hash: sha256.Sum256([]byte("lwm_read_secret")), scopes: ",devices:read,", tenant: "default"},
 	}}
 	events := &memory.Events{}
@@ -95,7 +95,7 @@ func TestCredentialsErrorsAndGeneration(t *testing.T) {
 func TestCredentialsPSKLifecycle(t *testing.T) {
 	s := server.New(server.Config{})
 	defer s.Close()
-	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,", tenant: "default"}}}
+	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "default"}}}
 	h := New(Options{Keys: keys, Server: s})
 	if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"pump"}`); w.Code != 201 {
 		t.Fatal(w.Code, w.Body.String())

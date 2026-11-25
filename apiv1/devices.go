@@ -121,6 +121,35 @@ func (o Options) listSelectedDevices(r *http.Request, tenant string, filter stor
 	}
 }
 
+// decodeInlineCredentials authorizes and validates optional inline PSK credentials
+// without mutating either store. Callers must invoke it before creating a device
+// or committing a durable create outcome. A nil result means no credentials.
+func (o Options) decodeInlineCredentials(w http.ResponseWriter, r *http.Request, tenant, endpoint string, raw json.RawMessage) (*server.SecurityInfo, bool) {
+	if len(raw) == 0 {
+		return nil, true
+	}
+	authorized := false
+	RequireScope("credentials:write")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { authorized = true })).ServeHTTP(w, r)
+	if !authorized {
+		return nil, false
+	}
+	if o.Server == nil || tenant != o.ServerTenant {
+		WriteProblem(w, 404, "not_found", "Credential service not available")
+		return nil, false
+	}
+	credentialRequest := r.Clone(r.Context())
+	credentialRequest.Body = io.NopCloser(bytes.NewReader(raw))
+	identity, _, key, generated, ok := decodePSKCredential(w, credentialRequest)
+	if !ok {
+		return nil, false
+	}
+	if generated {
+		WriteProblem(w, 400, "invalid_credential", "Generated credentials require the credentials endpoint")
+		return nil, false
+	}
+	return &server.SecurityInfo{Endpoint: endpoint, PSKIdentity: identity, PSKKey: key}, true
+}
+
 func (o Options) devices(w http.ResponseWriter, r *http.Request) {
 	scope := "devices:read"
 	if r.Method != "GET" {
@@ -158,30 +187,9 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			var security *server.SecurityInfo
-			if len(input.Credentials) > 0 {
-				authorized := false
-				RequireScope("credentials:write")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-					authorized = true
-				})).ServeHTTP(w, r)
-				if !authorized {
-					return
-				}
-				if o.Server == nil || tenant != o.ServerTenant {
-					WriteProblem(w, 404, "not_found", "Credential service not available")
-					return
-				}
-				credentialRequest := r.Clone(r.Context())
-				credentialRequest.Body = io.NopCloser(bytes.NewReader(input.Credentials))
-				identity, _, key, generated, ok := decodePSKCredential(w, credentialRequest)
-				if !ok {
-					return
-				}
-				if generated {
-					WriteProblem(w, 400, "invalid_credential", "Generated credentials require the credentials endpoint")
-					return
-				}
-				security = &server.SecurityInfo{Endpoint: input.Endpoint, PSKIdentity: identity, PSKKey: key}
+			security, ok := o.decodeInlineCredentials(w, r, tenant, input.Endpoint, input.Credentials)
+			if !ok {
+				return
 			}
 			unlock := o.limits.lock(tenant)
 			defer unlock()
