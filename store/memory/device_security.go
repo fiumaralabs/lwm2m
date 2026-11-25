@@ -64,12 +64,12 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 	if err := ctx.Err(); err != nil {
 		return store.DeviceCreateOutcome{}, false, err
 	}
-	if security.Endpoint != d.Endpoint {
-		return store.DeviceCreateOutcome{}, false, errors.New("store: security endpoint mismatch")
-	}
 	if o, ok := s.creates[tenant][id]; ok {
 		o, err := replayOutcome(o, fingerprint)
 		return o, false, err
+	}
+	if security.Endpoint != d.Endpoint {
+		return store.DeviceCreateOutcome{}, false, errors.New("store: security endpoint mismatch")
 	}
 	for _, devices := range s.records {
 		if _, ok := devices[d.Endpoint]; ok {

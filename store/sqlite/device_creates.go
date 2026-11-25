@@ -80,12 +80,6 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 }
 
 func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo) (store.DeviceCreateOutcome, bool, error) {
-	if security.Endpoint != d.Endpoint {
-		return store.DeviceCreateOutcome{}, false, errors.New("store: security endpoint mismatch")
-	}
-	if len(security.PublicKey) != 0 {
-		return store.DeviceCreateOutcome{}, false, server.ErrRPKUnsupported
-	}
 	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, &security)
 }
 
@@ -100,6 +94,14 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 		if ok {
 			out = existing
 			return checkDeviceCreateReplay(out, fingerprint)
+		}
+		if security != nil {
+			if security.Endpoint != d.Endpoint {
+				return errors.New("store: security endpoint mismatch")
+			}
+			if len(security.PublicKey) != 0 {
+				return server.ErrRPKUnsupported
+			}
 		}
 		var exists bool
 		if err = conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM devices WHERE endpoint=?)`, d.Endpoint).Scan(&exists); err != nil {
