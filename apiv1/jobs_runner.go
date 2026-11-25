@@ -127,6 +127,7 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						Accept      string                     `json:"accept"`
 						Paths       []string                   `json:"paths,omitempty"`
 						Path        string                     `json:"path,omitempty"`
+						Depth       *int                       `json:"depth,omitempty"`
 						Values      []json.RawMessage          `json:"values,omitempty"`
 						Mode        string                     `json:"mode,omitempty"`
 						Arguments   string                     `json:"arguments,omitempty"`
@@ -141,11 +142,12 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					request, _ := json.Marshal(struct {
 						Paths      []string                   `json:"paths,omitempty"`
 						Path       string                     `json:"path,omitempty"`
+						Depth      *int                       `json:"depth,omitempty"`
 						Values     []json.RawMessage          `json:"values,omitempty"`
 						Mode       string                     `json:"mode,omitempty"`
 						Arguments  string                     `json:"arguments,omitempty"`
 						Attributes map[string]json.RawMessage `json:"attributes,omitempty"`
-					}{input.Paths, input.Path, input.Values, input.Mode, input.Arguments, input.Attributes})
+					}{input.Paths, input.Path, input.Depth, input.Values, input.Mode, input.Arguments, input.Attributes})
 					op := operations.New(tenant, task.Device, input.Type, request, input.TTL, now)
 					op.Job = &job.ID
 					if input.WhenOffline != "" {
