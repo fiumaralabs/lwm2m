@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/server"
 )
 
 // DeviceCreateOutcome is the durable result of an idempotent device create.
@@ -15,6 +17,14 @@ type DeviceCreateOutcome struct {
 }
 
 var ErrOperationIDReused = errors.New("store: operation id reused with a different request")
+
+// DeviceSecurityCreateStore atomically commits a device, its credential, and a
+// durable outcome. The security store must be the one owned by this backend.
+// Callers must bind the fingerprint to the full request, including credentials.
+// Existing credentials are never overwritten by this operation.
+type DeviceSecurityCreateStore interface {
+	CreateDeviceWithSecurity(ctx context.Context, tenant, operationID, fingerprint string, d Device, security server.SecurityInfo) (DeviceCreateOutcome, bool, error)
+}
 
 // DeviceCreateStore serializes device creation, outcomes, fencing and deletion.
 // Outcomes are tenant scoped and retained until explicitly deleted. A create
