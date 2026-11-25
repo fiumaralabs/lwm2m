@@ -1,8 +1,13 @@
 // Package admission implements the optional policy decision exchange.
+// Exchange binding and single-application protection are in-memory guarantees
+// limited to the configured replay window after an exchange completes. Durable
+// exchange bindings across restarts are required before wiring this hook into
+// lwm2md; this client alone cannot enforce that prerequisite.
 package admission
 
 import (
 	"bytes"
+	"container/list"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -46,18 +51,21 @@ type Decision struct {
 	DecisionID, ReservationID string
 }
 
-// Client keeps up to 100,000 exchange IDs in memory for its lifetime and then
-// fails closed. It does not provide replay protection across process restarts;
-// durable admission wiring must enforce that boundary before applying decisions.
+// Client retains at most 100,000 in-flight or unexpired exchange IDs and
+// fails closed when capacity is full. Its guarantees do not survive restarts.
 type Client struct {
 	config Config
 	mu     sync.Mutex
 	used   map[string]*exchangeState
+	expiry list.List // completed exchanges, ordered by completion time
 }
 
 type exchangeState struct {
+	id             string
 	digest         [32]byte
 	busy, admitted bool
+	expires        time.Time
+	element        *list.Element
 }
 
 var ErrUnavailable = errors.New("admission unavailable")
@@ -163,22 +171,41 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 	if c.used == nil {
 		c.used = make(map[string]*exchangeState)
 	}
+	now := time.Now()
+	for e := c.expiry.Front(); e != nil; e = c.expiry.Front() {
+		expired := e.Value.(*exchangeState)
+		if now.Before(expired.expires) {
+			break
+		}
+		delete(c.used, expired.id)
+		c.expiry.Remove(e)
+	}
 	state := c.used[request.ExchangeID]
 	if state == nil {
 		if len(c.used) >= 100000 {
 			c.mu.Unlock()
 			return failure, ErrUnavailable
 		}
-		state = &exchangeState{digest: digest}
+		state = &exchangeState{id: request.ExchangeID, digest: digest}
 		c.used[request.ExchangeID] = state
 	}
 	if state.digest != digest || state.busy || state.admitted {
 		c.mu.Unlock()
 		return failure, ErrUnavailable
 	}
+	if state.element != nil {
+		c.expiry.Remove(state.element)
+		state.element = nil
+	}
 	state.busy = true
 	c.mu.Unlock()
-	defer func() { c.mu.Lock(); state.busy = false; c.mu.Unlock() }()
+	defer func() {
+		c.mu.Lock()
+		state.busy = false
+		state.expires = time.Now().Add(window)
+		state.element = c.expiry.PushBack(state)
+		c.mu.Unlock()
+	}()
 
 	for attempt := 0; attempt <= retries; attempt++ {
 		if attempt > 0 && backoff > 0 {
