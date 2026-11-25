@@ -26,7 +26,7 @@ It replaces nothing: `leshanapi` stays, only so the Zephyr interop suite runs un
 | LwM2M paths | In request and response bodies, never in URLs: `"/3/0/1"`. A gateway end device is addressed with a separate `prefix` field (§14). |
 | Pagination | `?limit=` (default 50, max 500) and `?cursor=`. Responses are `{"items": [...], "nextCursor": "..."}`; no `nextCursor` means the last page. |
 | Filtering | `?selector=` uses label selectors: `env=prod,region in (eu,us),!beta`. List endpoints also take the specific filters listed with them. |
-| Idempotency | Every `POST` accepts an `Idempotency-Key` header. A retry with the same key within 24 h returns the first response and creates nothing. |
+| Idempotency | Every `POST` accepts an `Idempotency-Key` header. A retry with the same key within 24 h returns the first response and creates nothing. Device-create retries require `credentials:write` when the original or retry body supplies inline credentials; unclassifiable bodies and older replay records are treated as requiring that scope. |
 | Concurrency | Mutable resources carry an `ETag`. `PUT`, `PATCH` and `DELETE` accept `If-Match`; a mismatch is 412. |
 | Partial updates | `PATCH` uses JSON Merge Patch (RFC 7396), `Content-Type: application/merge-patch+json`. |
 | Errors | `application/problem+json` (RFC 9457), see below. |
