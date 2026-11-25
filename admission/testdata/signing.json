@@ -1,0 +1,80 @@
+[
+  {
+    "name": "request",
+    "secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "id": "exchange_123",
+    "timestamp": "1700000000",
+    "body": "{\"exchange_id\":\"exchange_123\",\"operation\":\"Register\"}",
+    "expected_signature": "v1,w0fIZHNd7kPstRSCyu2ZSAySqQpv/QHwfd7BqWB0jDU=",
+    "provided_signature": "v1,w0fIZHNd7kPstRSCyu2ZSAySqQpv/QHwfd7BqWB0jDU=",
+    "request_id": "exchange_123",
+    "request_timestamp": "1700000000",
+    "now": 1700000000,
+    "valid": true
+  },
+  {
+    "name": "response",
+    "secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "id": "exchange_123",
+    "timestamp": "1700000000",
+    "body": "{\"exchange_id\":\"exchange_123\",\"decision\":\"allow\"}",
+    "expected_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "provided_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "request_id": "exchange_123",
+    "request_timestamp": "1700000000",
+    "now": 1700000000,
+    "valid": true
+  },
+  {
+    "name": "bad_signature",
+    "secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "id": "exchange_123",
+    "timestamp": "1700000000",
+    "body": "{\"exchange_id\":\"exchange_123\",\"decision\":\"allow\"}",
+    "expected_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "provided_signature": "v1,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "request_id": "exchange_123",
+    "request_timestamp": "1700000000",
+    "now": 1700000000,
+    "valid": false
+  },
+  {
+    "name": "stale_timestamp",
+    "secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "id": "exchange_123",
+    "timestamp": "1700000000",
+    "body": "{\"exchange_id\":\"exchange_123\",\"decision\":\"allow\"}",
+    "expected_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "provided_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "request_id": "exchange_123",
+    "request_timestamp": "1700000000",
+    "now": 1700000301,
+    "valid": false
+  },
+  {
+    "name": "mismatched_id",
+    "secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "id": "exchange_123",
+    "timestamp": "1700000000",
+    "body": "{\"exchange_id\":\"exchange_123\",\"decision\":\"allow\"}",
+    "expected_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "provided_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "request_id": "exchange_other",
+    "request_timestamp": "1700000000",
+    "now": 1700000000,
+    "valid": false
+  },
+  {
+    "name": "mismatched_timestamp",
+    "secret": "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "id": "exchange_123",
+    "timestamp": "1700000000",
+    "body": "{\"exchange_id\":\"exchange_123\",\"decision\":\"allow\"}",
+    "expected_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "provided_signature": "v1,CCkXl9ohn1LtwKk177/2x2AZFY9ZsAeXE+EKwKK6ZOM=",
+    "request_id": "exchange_123",
+    "request_timestamp": "1700000001",
+    "now": 1700000000,
+    "valid": false
+  }
+]

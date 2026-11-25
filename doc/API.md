@@ -1135,15 +1135,54 @@ mismatched or expired responses are invalid and never authorize admission.
 Concurrent reservations for new identities must be atomic at the service.
 An allow alone is not evidence that the exchange was accepted.
 
-Both directions require TLS with mutual service authentication, or signed
-requests with equivalent peer authentication and integrity. Signed requests
-bind method, path, body digest, timestamp, nonce, tenant and key ID. Both
-methods require replay protection, with a finite timestamp window and nonce
-or equivalent. Reject reused nonces, stale timestamps and altered messages.
-Authorize the authenticated caller for the tenant and operation; tenant
-fields alone grant no authority. Authentication, authorization, integrity and
-replay failures always deny the request. Do not log credentials or sensitive
-payloads.
+### Signed wire protocol
+
+The proposed exchange uses HTTPS with certificate and hostname verification.
+Send only to the configured `POST /v1/admission-decisions` endpoint; do not
+follow redirects. TLS protects the method and path, which are not included in
+the signature. Authenticate both directions with the following Standard
+Webhooks v1 scheme. Use distinct request and response secrets, dedicated to
+this protocol and peer, to prevent reflection and cross-protocol replay.
+
+Each HTTP request and response carries these headers (names are
+case-insensitive):
+
+- `webhook-id`: the body `exchange_id`, unchanged across retries.
+- `webhook-timestamp`: decimal Unix seconds, without whitespace. The response
+  must echo the exact timestamp of the request attempt it answers.
+- `webhook-signature`: one or more space-separated `v1,<signature>` entries.
+  Each signature is standard padded Base64 of HMAC-SHA256 over the exact bytes
+  `<webhook-id>.<webhook-timestamp>.<body>`. The body is the raw HTTP body as
+  sent, not reserialized JSON. Sign the response body in the same way.
+
+A configured secret is `whsec_<base64>`, with standard Base64 decoding to a
+nonempty key. Resolve secrets through configuration, such as a file path or
+an environment variable name. Do not log or echo secret values or sensitive
+bodies. Maintain a configured list of accepted secrets per direction for
+rotation; senders may include one signature per active secret and receivers
+accept any valid v1 signature under any accepted secret. Compare MACs in
+constant time. Unknown signature versions do not count as valid.
+
+Check the timestamp against the receiver's clock, allowing a configurable
+window of five minutes by default in either direction. Reject missing,
+malformed, stale or future-outside-window timestamps, IDs, signatures and
+bodies. For each attempt the client validates the response ID and timestamp
+against that attempt, verifies its signature, and checks the echoed body
+bindings and decision expiry before use. A retry retains the exchange ID,
+fingerprint and body binding, but may use a fresh timestamp and signature.
+A response whose timestamp differs from the current attempt is rejected.
+Attempts using the same ID and timestamp have the same response binding and
+must return the same decision.
+
+The service persists the exchange ID and its tenant, identity and request
+fingerprint binding across retries and restarts. A repeated ID with a changed
+binding or changed request body is rejected. An identical retry returns the
+same decision and reservation, signed for that attempt. The client must not
+apply a decision twice or accept it for another exchange. A valid signature
+alone is not authorization: the service must authorize the authenticated
+request peer for the tenant and operation. Any authentication, authorization,
+integrity or replay failure fails closed. The deterministic signing examples
+in `admission/testdata/signing.json` are test keys, not credentials.
 
 Deployment configuration must bound timeout, retry count, backoff, replay
 window and any cache lifetime. Retries reuse the exchange binding. The default
