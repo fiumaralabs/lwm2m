@@ -14,7 +14,9 @@ import (
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/attr"
 	"github.com/fiumaralabs/lwm2m/codec"
+	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/server"
+	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
 // Operations is the durable operation store contract. store.Operations aliases
@@ -76,7 +78,14 @@ type valueJSON struct {
 	Type      string     `json:"type,omitempty"`
 	Value     any        `json:"value,omitempty"`
 }
+type linkJSON struct {
+	Path       string         `json:"path"`
+	Attributes map[string]any `json:"attributes,omitempty"`
+	Dim        *uint64        `json:"dim,omitempty"`
+}
 type resultJSON struct {
+	Links     *[]linkJSON `json:"links,omitempty"`
+	Location  string      `json:"location,omitempty"`
 	decodeErr error
 	Payload   []byte      `json:"payload,omitempty"`
 	Format    string      `json:"format,omitempty"`
@@ -487,6 +496,9 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		return resultJSON{}, err
 	}
 	out := resultJSON{Code: server.CodeString(r.Code), decodeErr: r.DecodeErr}
+	if o.Type == "create" && len(r.Location) > 0 {
+		out.Location = "/" + strings.Join(r.Location, "/")
+	}
 	if r.DecodeErr != nil || len(r.Nodes) == 0 {
 		out.Payload = r.Payload
 	}
@@ -498,7 +510,46 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			}
 		}
 	}
+	if o.Type == "discover" && r.Code == codes.Content && out.decodeErr == nil {
+		links, parseErr := discoverLinks(r.Payload)
+		out.decodeErr = parseErr
+		if parseErr == nil {
+			out.Links = &links
+		}
+	}
 	out.Values = ObservationValues(r.Nodes)
+	return out, nil
+}
+
+func discoverLinks(payload []byte) ([]linkJSON, error) {
+	ls, err := link.Parse(string(payload))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]linkJSON, 0, len(ls))
+	for _, l := range ls {
+		item := linkJSON{Path: l.URI}
+		for _, p := range l.Params {
+			a, known, err := attr.ParseLinkParam(p.Name, p.Value, p.HasValue)
+			if err != nil {
+				return nil, err
+			}
+			var value any = p.Value
+			if known {
+				value = a.Value
+			}
+			if p.Name == "dim" {
+				dim := value.(uint64)
+				item.Dim = &dim
+				continue
+			}
+			if item.Attributes == nil {
+				item.Attributes = make(map[string]any)
+			}
+			item.Attributes[p.Name] = value
+		}
+		out = append(out, item)
+	}
 	return out, nil
 }
 
