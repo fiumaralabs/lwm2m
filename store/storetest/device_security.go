@@ -3,6 +3,7 @@ package storetest
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -22,6 +23,20 @@ func DeviceSecurity(t *testing.T, devices store.Devices, security server.Securit
 		t.Fatal("device store lacks atomic security create")
 	}
 	ctx := context.Background()
+	outcomes := devices.(store.DeviceCreateStore)
+	fence, err := outcomes.GetOrFenceDeviceCreate(ctx, "a", "fence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sec := range []server.SecurityInfo{
+		{Endpoint: "fenced-device", PublicKey: []byte("unsupported")},
+		{Endpoint: "mismatch", PublicKey: []byte("unsupported")},
+	} {
+		got, inserted, err := creator.CreateDeviceWithSecurity(ctx, "a", "fence", "anything", store.Device{Endpoint: "fenced-device"}, sec)
+		if err != nil || inserted || !reflect.DeepEqual(got, fence) {
+			t.Errorf("fence replay: got %+v inserted=%v err=%v, want %+v", got, inserted, err, fence)
+		}
+	}
 	d := store.Device{Endpoint: "pump"}
 	good := server.SecurityInfo{Endpoint: "pump", PSKIdentity: "good", PSKKey: []byte("good-key")}
 	out, inserted, err := creator.CreateDeviceWithSecurity(ctx, "a", "op", "fp", d, good)
@@ -31,6 +46,13 @@ func DeviceSecurity(t *testing.T, devices store.Devices, security server.Securit
 	out, inserted, err = creator.CreateDeviceWithSecurity(ctx, "a", "op", "fp", d, good)
 	if err != nil || inserted || out.Status != "committed" {
 		t.Fatalf("replay: %+v %v %v", out, inserted, err)
+	}
+	invalidReplay := server.SecurityInfo{Endpoint: "wrong", PublicKey: []byte("unsupported")}
+	if got, inserted, err := creator.CreateDeviceWithSecurity(ctx, "a", "op", "fp", d, invalidReplay); err != nil || inserted || !reflect.DeepEqual(got, out) {
+		t.Errorf("committed replay: %+v %v %v", got, inserted, err)
+	}
+	if _, inserted, err := creator.CreateDeviceWithSecurity(ctx, "a", "op", "changed", d, invalidReplay); inserted || !errors.Is(err, store.ErrOperationIDReused) {
+		t.Errorf("invalid reused operation: inserted=%v err=%v", inserted, err)
 	}
 	bad := server.SecurityInfo{Endpoint: "pump", PSKIdentity: "attacker", PSKKey: []byte("bad-key")}
 	out, _, err = creator.CreateDeviceWithSecurity(ctx, "b", "op", "other", d, bad)
