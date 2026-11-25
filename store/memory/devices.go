@@ -10,16 +10,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
 // Devices stores tenant-isolated metadata. Its zero value is usable.
 type Devices struct {
-	mu       sync.RWMutex
-	records  map[string]map[string]store.Device
-	creates  map[string]map[string]store.DeviceCreateOutcome
-	replayMu sync.Mutex
-	replays  map[deviceReplayKey]*deviceReplay
+	mu                 sync.RWMutex
+	records            map[string]map[string]store.Device
+	creates            map[string]map[string]store.DeviceCreateOutcome
+	security           *server.MemorySecurityStore
+	deviceSecurityHook func(string) error
+	replayMu           sync.Mutex
+	replays            map[deviceReplayKey]*deviceReplay
 }
 
 var _ store.Devices = (*Devices)(nil)
