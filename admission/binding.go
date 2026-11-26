@@ -21,7 +21,8 @@ type BindingStore interface {
 	BindAndMarkApplied(context.Context, Binding) (alreadyApplied bool, err error)
 }
 
-// MaxExchangeIDLifetime bounds how long an exchange ID may be retried.
+// MaxExchangeIDLifetime is the intended maximum retry lifetime. Enforcement
+// is not implemented here; bindings must not be pruned until it is enforced.
 const MaxExchangeIDLifetime = 24 * time.Hour
 const DefaultBindingRetention = 7 * 24 * time.Hour
 

@@ -111,22 +111,10 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	return tx.Commit()
 }
 
-// Prune removes only atomically committed entries older than the configured
-// retention. Legacy tombstones have no timestamp and are never pruned.
+// Prune retains all barriers: CommitAdmitted does not yet enforce exchange
+// expiry, so no receipt is safe to delete, even after its retention period.
+// The caller's context is still honored. Retention remains a lower bound, not
+// a promise that records will be removed after that time.
 func (s *SQLiteBindingStore) Prune(ctx context.Context, now time.Time) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	cutoff := now.Add(-s.retention).UnixNano()
-	if _, err = tx.ExecContext(ctx, `DELETE FROM admission_exchange_bindings WHERE exchange_id IN (SELECT exchange_id FROM admission_receipts WHERE committed_at < ?)`, cutoff); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM admission_receipts WHERE committed_at < ?`, cutoff); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return ctx.Err()
 }

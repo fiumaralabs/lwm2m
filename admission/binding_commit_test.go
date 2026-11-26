@@ -175,7 +175,7 @@ func TestBindingRetentionAndBorrowedDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, table := range []string{"admission_exchange_bindings", "admission_receipts"} {
-		if err = db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&count); err != nil || count != 0 {
+		if err = db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&count); err != nil || count != 1 {
 			t.Fatalf("%s count=%d err=%v", table, count, err)
 		}
 	}
@@ -256,5 +256,46 @@ func TestCommitAdmittedConcurrentIndependentSQLiteHandles(t *testing.T) {
 	var n int
 	if err = first.db.QueryRow(`SELECT count(*) FROM effects`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("n=%d err=%v", n, err)
+	}
+}
+
+// Pruning must never permit the same accepted exchange to run its effect twice.
+func TestPruneKeepsRetryBarrier(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s, err := NewSQLiteBindingStoreDB(db, MaxExchangeIDLifetime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := Binding{ExchangeID: "retry", DecisionDigest: "digest"}
+	now := time.Now().UTC()
+	r := Receipt{DecisionDigest: "digest", IssuedAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour)}
+	calls := 0
+	effect := func(*sql.Tx) error { calls++; return nil }
+	if err := s.CommitAdmitted(context.Background(), b, r, effect); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Prune(context.Background(), now.Add(25*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CommitAdmitted(context.Background(), b, r, effect); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Prune(context.Background(), now.Add(31*24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CommitAdmitted(context.Background(), b, r, effect); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("effect executed %d times after prune", calls)
+	}
+	conflict := b
+	conflict.IdentityID = "different"
+	if err := s.CommitAdmitted(context.Background(), conflict, r, effect); !errors.Is(err, ErrBindingConflict) {
+		t.Fatalf("conflicting retry: %v", err)
 	}
 }
