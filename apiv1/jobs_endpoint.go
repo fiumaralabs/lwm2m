@@ -47,6 +47,12 @@ func newJobsHandler(store JobStore, executor *operations.Executor, runner *JobRu
 				return
 			}
 			tenant, key := TenantFrom(r.Context()), r.Header.Get("Idempotency-Key")
+			// NUL cannot occur in HTTP header values and reserves a disjoint
+			// replay namespace for non-job routes. Keep legacy job keys unchanged.
+			if strings.ContainsRune(key, '\x00') {
+				WriteProblem(w, 400, "invalid_request", "Invalid idempotency key")
+				return
+			}
 			replay, ok := store.(JobReplayStore)
 			if !ok {
 				WriteProblem(w, 500, "internal_error", "Unable to create job")

@@ -128,6 +128,7 @@ var openAPIRoutes = []struct{ Method, Path, Example string }{
 	{"DELETE", "/v1/observations/{id}", "/v1/observations/probe"},
 	{"GET", "/v1/operations/{id}", "/v1/operations/probe"},
 	{"DELETE", "/v1/operations/{id}", "/v1/operations/probe"},
+	{"POST", "/v1/device-profiles/{id}/apply", "/v1/device-profiles/probe/apply"},
 	{"GET", "/v1/device-profiles/{id}", "/v1/device-profiles/probe"},
 	{"PATCH", "/v1/device-profiles/{id}", "/v1/device-profiles/probe"},
 	{"DELETE", "/v1/device-profiles/{id}", "/v1/device-profiles/probe"},
