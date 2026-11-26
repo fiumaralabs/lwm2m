@@ -177,6 +177,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				Profile     string            `json:"profile"`
 				Labels      map[string]string `json:"labels"`
 				Credentials json.RawMessage   `json:"credentials"`
+				Bootstrap   json.RawMessage   `json:"bootstrap"`
 			}
 			if !DecodeJSON(w, r, &input) {
 				return
@@ -194,6 +195,65 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			security, ok := o.decodeInlineCredentials(w, r, tenant, input.Endpoint, input.Credentials)
 			if !ok {
 				return
+			}
+			if len(input.Bootstrap) != 0 {
+				authorized := false
+				RequireScope("bootstrap:write")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { authorized = true })).ServeHTTP(w, r)
+				if !authorized {
+					return
+				}
+				var config bootstrapInput
+				b := bytes.TrimSpace(input.Bootstrap)
+				if len(b) == 0 || b[0] != '{' || json.Unmarshal(b, &config) != nil || !unambiguousBootstrapJSON(b) {
+					WriteProblem(w, 400, "invalid_json", "Invalid bootstrap config")
+					return
+				}
+				code, fields := validateBootstrap(config)
+				if code != "" {
+					WriteProblem(w, 501, code, "Bootstrap security mode is not supported")
+					return
+				}
+				if len(fields) != 0 {
+					WriteProblem(w, 400, "validation_error", "Invalid bootstrap config")
+					return
+				}
+				// Generated keys must be materialized before the one atomic write.
+				var doc map[string]any
+				dec := json.NewDecoder(bytes.NewReader(b))
+				dec.UseNumber()
+				if dec.Decode(&doc) != nil {
+					WriteProblem(w, 400, "invalid_json", "Invalid bootstrap config")
+					return
+				}
+				for i, entry := range config.Servers {
+					if entry.Security.PSK == nil || !entry.Security.PSK.Generate {
+						continue
+					}
+					if entry.Server == "self" && security != nil {
+						WriteProblem(w, 400, "invalid_credential", "Conflicting self credentials")
+						return
+					}
+					var random [48]byte
+					if _, err := rand.Read(random[:]); err != nil {
+						WriteProblem(w, 500, "internal_error", "Cannot generate credentials")
+						return
+					}
+					identity := hex.EncodeToString(random[:16])
+					key := random[16:]
+					servers := doc["servers"].([]any)
+					servers[i].(map[string]any)["security"].(map[string]any)["psk"] = map[string]any{"identity": identity, "key": "base64:" + base64.StdEncoding.EncodeToString(key)}
+					if entry.Server == "self" {
+						if o.Server == nil || tenant != o.ServerTenant {
+							WriteProblem(w, 404, "not_found", "Credential service not available")
+							return
+						}
+						if !authorizeDeviceReplayCredentials(w, r) {
+							return
+						}
+						security = &server.SecurityInfo{Endpoint: input.Endpoint, PSKIdentity: identity, PSKKey: key}
+					}
+				}
+				input.Bootstrap, _ = json.Marshal(doc)
 			}
 			unlock := o.limits.lock(tenant)
 			defer unlock()
@@ -213,7 +273,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			unlockLifecycle := bootstrapLifecycle.lock(tenant)
 			defer unlockLifecycle()
 			var d store.Device
-			if security != nil {
+			if security != nil || len(input.Bootstrap) != 0 {
 				creator, ok := o.Devices.(store.DeviceSecurityCreateStore)
 				owner, owned := o.Devices.(interface {
 					OwnsSecurity(server.SecurityStore) bool
@@ -228,7 +288,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 						liveSecurity = wrapped.SecurityStore
 					}
 				}
-				if !ok || !owned || !hasOutcomes || liveSecurity == nil || !owner.OwnsSecurity(liveSecurity) {
+				if !ok || !hasOutcomes || (security != nil && (!owned || liveSecurity == nil || !owner.OwnsSecurity(liveSecurity))) {
 					WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
 					return
 				}
@@ -244,7 +304,38 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				digest := sha256.Sum256(encoded)
-				result, _, err := creator.CreateDeviceWithSecurity(r.Context(), tenant, id, hex.EncodeToString(digest[:]), store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}, *security)
+				var result store.DeviceCreateOutcome
+				device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}
+				if len(input.Bootstrap) != 0 {
+					bootstrapCreator, supported := o.Devices.(store.DeviceBootstrapCreateStore)
+					shared, sharedOK := o.BootstrapConfigs.(sharedBootstrapConfigs)
+					if !supported || !sharedOK || shared.DeviceBootstrapCreateStore != bootstrapCreator {
+						WriteProblem(w, 501, "inline_bootstrap_unavailable", "Atomic inline bootstrap is unavailable")
+						return
+					}
+					_, exists, readErr := bootstrapCreator.GetBootstrapConfig(r.Context(), tenant, input.Endpoint)
+					if readErr != nil {
+						WriteProblem(w, 500, "internal_error", "Cannot read bootstrap config")
+						return
+					}
+					if exists {
+						WriteProblem(w, 409, "bootstrap_exists", "Bootstrap config already exists")
+						return
+					}
+					if liveSecurity != nil {
+						if _, exists := liveSecurity.ByEndpoint(input.Endpoint); exists {
+							WriteProblem(w, 409, "credential_exists", "Credential already exists")
+							return
+						}
+					}
+					var sec server.SecurityInfo
+					if security != nil {
+						sec = *security
+					}
+					result, _, err = bootstrapCreator.CreateDeviceWithSecurityAndBootstrap(r.Context(), tenant, id, hex.EncodeToString(digest[:]), device, sec, input.Bootstrap)
+				} else {
+					result, _, err = creator.CreateDeviceWithSecurity(r.Context(), tenant, id, hex.EncodeToString(digest[:]), device, *security)
+				}
 				if err != nil {
 					if errors.Is(err, server.ErrDuplicatePSKIdentity) {
 						WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
