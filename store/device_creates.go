@@ -3,10 +3,31 @@ package store
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/server"
 )
+
+// DeviceCreateReplay captures the response as part of a create transaction.
+type DeviceCreateReplay struct {
+	Key    string
+	Render func(Device) (int, http.Header, []byte)
+}
+
+// AtomicDeviceReplayStore advertises that create operations honor the replay context.
+type AtomicDeviceReplayStore interface{ AtomicDeviceReplaySupported() }
+
+type deviceCreateReplayContextKey struct{}
+
+func WithDeviceCreateReplay(ctx context.Context, replay *DeviceCreateReplay) context.Context {
+	return context.WithValue(ctx, deviceCreateReplayContextKey{}, replay)
+}
+
+func DeviceCreateReplayFrom(ctx context.Context) *DeviceCreateReplay {
+	r, _ := ctx.Value(deviceCreateReplayContextKey{}).(*DeviceCreateReplay)
+	return r
+}
 
 // DeviceCreateOutcome is the durable result of an idempotent device create.
 // Fingerprint identifies the request; the request body is never retained here.

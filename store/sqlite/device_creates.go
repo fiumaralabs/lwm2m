@@ -106,7 +106,13 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 			}
 		}
 		var exists bool
-		if err = conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM devices WHERE endpoint=?)`, d.Endpoint).Scan(&exists); err != nil {
+		query := `SELECT EXISTS(SELECT 1 FROM devices WHERE endpoint=?)`
+		args := []any{d.Endpoint}
+		if security == nil && store.DeviceCreateReplayFrom(ctx) != nil {
+			query = `SELECT EXISTS(SELECT 1 FROM devices WHERE tenant=? AND endpoint=?)`
+			args = []any{tenant, d.Endpoint}
+		}
+		if err = conn.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
 			return err
 		}
 		if exists {
@@ -114,6 +120,9 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 		} else {
 			now := time.Now().UTC()
 			d.CreatedAt, d.UpdatedAt, d.LastSeenAt = now, now, nil
+			if d.Labels == nil {
+				d.Labels = map[string]string{}
+			}
 			payload, e := json.Marshal(d)
 			if e != nil {
 				return e
@@ -147,9 +156,22 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 			}
 			out = newDeviceCreateOutcome(tenant, id, fingerprint, "committed", "")
 			out.Endpoint = d.Endpoint
+			if replay := store.DeviceCreateReplayFrom(ctx); replay != nil {
+				status, header, body := replay.Render(d)
+				encoded, err := json.Marshal(header)
+				if err != nil {
+					return err
+				}
+				_, err = conn.ExecContext(ctx, `INSERT INTO device_replays(tenant,key,status,header,body,expires) VALUES(?,?,?,?,?,?)`, tenant, replay.Key, status, encoded, body, time.Now().Add(24*time.Hour).UnixNano())
+				if err != nil {
+					return err
+				}
+			}
 		}
-		if err := writeDeviceCreate(ctx, conn, out); err != nil {
-			return err
+		if store.DeviceCreateReplayFrom(ctx) == nil || out.Status != "committed" {
+			if err := writeDeviceCreate(ctx, conn, out); err != nil {
+				return err
+			}
 		}
 		created = true
 		return nil

@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+
+	"github.com/fiumaralabs/lwm2m/store"
 )
 
 // The marker is stored with the replay response but never sent to clients.
@@ -61,6 +64,10 @@ func (w *deviceReplayWriter) Write(p []byte) (int, error) {
 }
 
 func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tenant, key string) {
+	if _, ok := o.Devices.(store.AtomicDeviceReplayStore); !ok {
+		WriteProblem(w, 501, "not_implemented", "Atomic device create replay is not supported by this store")
+		return
+	}
 	s, ok := o.Devices.(deviceCreateReplayStore)
 	if !ok {
 		WriteProblem(w, 501, "not_implemented", "Device create idempotency is not supported by this store")
@@ -87,7 +94,22 @@ func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tena
 		request := r.Clone(r.Context())
 		request.Body = io.NopCloser(bytes.NewReader(data))
 		request.Header.Del("Idempotency-Key")
+		var savedStatus int
+		var savedHeader http.Header
+		var savedBody []byte
+		replay := &store.DeviceCreateReplay{Key: key, Render: func(d store.Device) (int, http.Header, []byte) {
+			response := &deviceReplayWriter{header: make(http.Header)}
+			response.header.Set(deviceReplayCredentialScope, marker)
+			response.header.Set("Location", "/v1/devices/"+url.PathEscape(d.Endpoint))
+			deviceJSON(response, 201, o.view(tenant, d))
+			savedStatus, savedHeader, savedBody = response.status, response.header.Clone(), append([]byte(nil), response.body.Bytes()...)
+			return savedStatus, savedHeader, savedBody
+		}}
+		request = request.WithContext(store.WithDeviceCreateReplay(request.Context(), replay))
 		o.serveDevices(recorder, request)
+		if savedStatus != 0 && recorder.status == http.StatusCreated {
+			return savedStatus, savedHeader, savedBody
+		}
 		if recorder.status == 0 {
 			recorder.status = http.StatusOK
 		}

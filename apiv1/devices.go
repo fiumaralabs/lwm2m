@@ -264,6 +264,33 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					WriteProblem(w, 500, "internal_error", "Cannot read created device")
 					return
 				}
+			} else if store.DeviceCreateReplayFrom(r.Context()) != nil {
+				creator, ok := o.Devices.(store.DeviceCreateStore)
+				if !ok {
+					WriteProblem(w, 501, "not_implemented", "Atomic device create replay is not supported by this store")
+					return
+				}
+				var nonce [16]byte
+				if _, err := rand.Read(nonce[:]); err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot create operation ID")
+					return
+				}
+				id := hex.EncodeToString(nonce[:])
+				result, _, err := creator.CreateDeviceWithOutcome(r.Context(), tenant, id, "", store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot create device")
+					return
+				}
+				_ = creator.DeleteDeviceCreate(r.Context(), tenant, id)
+				if result.Status != "committed" {
+					WriteProblem(w, 409, "device_exists", "Device already exists")
+					return
+				}
+				d, err = o.Devices.Get(tenant, input.Endpoint)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot read created device")
+					return
+				}
 			} else {
 				var err error
 				d, err = o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})

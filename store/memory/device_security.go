@@ -88,7 +88,8 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 	if _, ok := sec.ByEndpoint(d.Endpoint); ok {
 		return store.DeviceCreateOutcome{}, false, errors.New("store: endpoint credential already exists")
 	}
-	if _, err := s.createLocked(tenant, d); err != nil {
+	d, err := s.createLocked(tenant, d)
+	if err != nil {
 		return store.DeviceCreateOutcome{}, false, err
 	}
 	rollback := func() { delete(s.records[tenant], d.Endpoint) }
@@ -111,6 +112,9 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 	}
 	o := newOutcome(tenant, id, fingerprint, "committed", "")
 	o.Endpoint = d.Endpoint
-	s.saveOutcome(o)
+	if store.DeviceCreateReplayFrom(ctx) == nil {
+		s.saveOutcome(o)
+	}
+	s.saveCreateReplay(ctx, tenant, d)
 	return o, true, nil
 }
