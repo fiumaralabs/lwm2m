@@ -136,6 +136,17 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					decoder := json.NewDecoder(bytes.NewReader(job.Action.Operation))
 					decoder.DisallowUnknownFields()
 					parseErr := decoder.Decode(&input)
+					// Profile operations may contain fields the executor cannot handle.
+					// Preserve invalid-input errors for supported types, but classify
+					// valid unsupported types consistently even when decoding rejects
+					// their type-specific fields.
+					if parseErr != nil && validProfileOperation(job.Action.Operation) {
+						switch input.Type {
+						case "read", "write", "execute", "delete", "write-attributes", "sync-clock", "discover", "create":
+						default:
+							parseErr = operations.ErrInvalid
+						}
+					}
 					if parseErr == nil && (input.TTL != nil && (*input.TTL < 0 || *input.TTL > 2147483647) || input.WhenOffline != "" && input.WhenOffline != "queue" && input.WhenOffline != "reject") {
 						parseErr = fmt.Errorf("invalid operation options")
 					}
