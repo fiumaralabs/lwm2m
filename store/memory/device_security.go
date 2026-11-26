@@ -12,6 +12,12 @@ import (
 // The server must use this same store for credential lookups and mutations.
 func (s *Devices) Security() server.SecurityStore { return memorySecurity{s} }
 
+// OwnsSecurity reports whether security shares this device store's lock.
+func (s *Devices) OwnsSecurity(security server.SecurityStore) bool {
+	m, ok := security.(memorySecurity)
+	return ok && m.devices == s
+}
+
 type memorySecurity struct{ devices *Devices }
 
 func (s *Devices) securityLocked() *server.MemorySecurityStore {

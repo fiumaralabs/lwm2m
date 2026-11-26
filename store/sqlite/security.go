@@ -22,6 +22,12 @@ type SecurityStore struct{ db *sql.DB }
 
 func (s *Devices) Security() *SecurityStore { return &SecurityStore{db: s.db} }
 
+// OwnsSecurity reports whether security shares this device store's database.
+func (s *Devices) OwnsSecurity(security server.SecurityStore) bool {
+	other, ok := security.(*SecurityStore)
+	return ok && other != nil && other.db == s.db
+}
+
 func (s *SecurityStore) Put(si server.SecurityInfo) error {
 	if len(si.PublicKey) != 0 {
 		return server.ErrRPKUnsupported
