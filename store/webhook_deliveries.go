@@ -15,6 +15,7 @@ type WebhookDelivery struct {
 	ID          string    `json:"id"`
 	EventID     string    `json:"eventId"`
 	EventType   string    `json:"eventType"`
+	Attempt     int       `json:"attempt"`
 	AttemptedAt time.Time `json:"attemptedAt"`
 	Status      *int      `json:"status"`
 	LatencyMS   float64   `json:"latencyMs"`

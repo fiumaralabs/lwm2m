@@ -14,6 +14,7 @@ type WebhookDeliveries struct {
 	mu      sync.Mutex
 	hooks   store.Webhooks
 	entries map[[2]string][]store.WebhookDelivery
+	counts  map[[2]string]map[string]int
 }
 
 type webhookDeliveryHooks struct {
@@ -41,6 +42,7 @@ func (s *webhookDeliveryHooks) Delete(tenant, id string, match store.WebhookMatc
 		return err
 	}
 	delete(s.log.entries, [2]string{tenant, id})
+	delete(s.log.counts, [2]string{tenant, id})
 	return nil
 }
 
@@ -66,6 +68,14 @@ func (s *WebhookDeliveries) Append(tenant, webhook string, d store.WebhookDelive
 		s.entries = make(map[[2]string][]store.WebhookDelivery)
 	}
 	k := [2]string{tenant, webhook}
+	if s.counts == nil {
+		s.counts = make(map[[2]string]map[string]int)
+	}
+	if s.counts[k] == nil {
+		s.counts[k] = make(map[string]int)
+	}
+	s.counts[k][d.EventID]++
+	d.Attempt = s.counts[k][d.EventID]
 	a := append(s.entries[k], copyDelivery(d))
 	if len(a) > 1000 {
 		a = append([]store.WebhookDelivery(nil), a[len(a)-1000:]...)

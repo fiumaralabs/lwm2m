@@ -948,6 +948,10 @@ The response includes `secret` once. Each delivery is a `POST` of one event, sig
 | `POST` | `/v1/webhooks/{id}/deliveries/{deliveryId}/retry` | Re-send one |
 
 The in-memory delivery log retains at most 1,000 attempts per webhook.
+Each record's `attempt` is a 1-based per-event ordinal for that webhook,
+assigned when the attempt is recorded. It includes manual and automatic retries
+and remains accurate when older records are evicted. Per-event counters are
+retained until the webhook is deleted, and may grow with distinct events.
 Deleting a webhook removes its history, and attempts completing after deletion
 are not recorded. In-memory histories are lost on restart.
 
