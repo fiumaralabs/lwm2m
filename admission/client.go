@@ -1,8 +1,7 @@
 // Package admission implements the optional policy decision exchange.
-// Exchange binding and single-application protection are in-memory guarantees
-// limited to the configured replay window after an exchange completes. Durable
-// exchange bindings across restarts are required before wiring this hook into
-// lwm2md; this client alone cannot enforce that prerequisite.
+// Exchange binding and single-application protection are bounded in memory by
+// default. An optional store persists bindings, but does not atomically apply
+// admission effects; daemon integration requires that additional guarantee.
 package admission
 
 import (
@@ -35,6 +34,7 @@ type Config struct {
 	MaxRetries                            int
 	Backoff, ReplayWindow                 time.Duration
 	Transport                             http.RoundTripper
+	BindingStore                          BindingStore
 }
 type Request struct {
 	TenantID           string    `json:"tenant_id"`
@@ -52,7 +52,8 @@ type Decision struct {
 }
 
 // Client retains at most 100,000 in-flight or unexpired exchange IDs and
-// fails closed when capacity is full. Its guarantees do not survive restarts.
+// fails closed when capacity is full. The optional store persists successful
+// bindings beyond this in-memory window.
 type Client struct {
 	config Config
 	mu     sync.Mutex
@@ -256,6 +257,20 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		}
 		if json.Unmarshal(raw, &result) != nil || result.TenantID != request.TenantID || result.IdentityID != request.IdentityID || result.ExchangeID != request.ExchangeID || result.Fingerprint != request.RequestFingerprint || result.DecisionID == "" || result.IssuedAt.IsZero() || result.IssuedAt.After(now) || !result.ExpiresAt.After(now) || !result.ExpiresAt.After(result.IssuedAt) || result.Decision != "allow" {
 			return failure, ErrUnavailable
+		}
+		if cfg.BindingStore != nil {
+			decisionBytes, _ := json.Marshal([]string{result.Decision, result.DecisionID, result.ReservationID})
+			decisionDigest := sha256.Sum256(decisionBytes)
+			already, err := cfg.BindingStore.BindAndMarkApplied(ctx, Binding{
+				ExchangeID: request.ExchangeID, TenantID: request.TenantID, IdentityID: request.IdentityID,
+				Fingerprint: request.RequestFingerprint, RequestDigest: fmt.Sprintf("%x", digest), DecisionDigest: fmt.Sprintf("%x", decisionDigest),
+			})
+			if err != nil {
+				return failure, err
+			}
+			if already {
+				return failure, ErrUnavailable
+			}
 		}
 		c.mu.Lock()
 		state.admitted = true

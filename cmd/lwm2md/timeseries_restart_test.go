@@ -98,8 +98,8 @@ func TestSQLiteTimeSeriesRestartTenantIsolation(t *testing.T) {
 		}
 		return b
 	}
-	cmd := start()
-	request("POST", "/v1/devices", `{"endpoint":"series-restart"}`, 201)
+	// Seed before starting the daemon so migrations and fixture writes do not
+	// compete with its live SQLite transactions.
 	db, err := sqlite.Open(filepath.Join(dir, "devices.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -116,6 +116,8 @@ func TestSQLiteTimeSeriesRestartTenantIsolation(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
+	cmd := start()
+	request("POST", "/v1/devices", `{"endpoint":"series-restart"}`, 201)
 	authToken = otherToken
 	request("POST", "/v1/devices", `{"endpoint":"series-restart"}`, 201)
 	get := func(want float64) []apiv1.TimeSeriesPoint {

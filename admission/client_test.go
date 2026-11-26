@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -58,7 +59,7 @@ func TestClientDecide(t *testing.T) {
 	responseSecret := "whsec_" + base64.StdEncoding.EncodeToString([]byte("separate-response-test-key"))
 	t.Setenv("ADMISSION_TEST_RESPONSE_KEY", responseSecret)
 	req := Request{TenantID: "tenant", IdentityID: "device", ExchangeID: "exchange_123", Operation: "Register", RequestFingerprint: "fingerprint", ObservedAt: time.Now().UTC()}
-	for _, name := range []string{"disabled", "allow", "deny", "timeout", "retries", "signature", "retry-after-failure", "replay", "binding", "expired"} {
+	for _, name := range []string{"disabled", "allow", "deny", "timeout", "retries", "signature", "retry-after-failure", "replay", "binding", "expired", "store-restart"} {
 		t.Run(name, func(t *testing.T) {
 			var calls atomic.Int32
 			var firstBody, firstID string
@@ -129,8 +130,38 @@ func TestClientDecide(t *testing.T) {
 				cfg.RequestSecretRefs = nil
 				cfg.ResponseSecretRefs = nil
 			}
+			var bindingPath string
+			var bindingDB *SQLiteBindingStore
+			if name == "store-restart" {
+				bindingPath = filepath.Join(t.TempDir(), "admission.db")
+				var err error
+				bindingDB, err = OpenSQLiteBindingStore(bindingPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cfg.BindingStore = bindingDB
+			}
 			client := NewClient(cfg)
 			got, err := client.Decide(context.Background(), req)
+			if name == "store-restart" {
+				if err != nil || !got.Admitted {
+					t.Fatalf("first: %+v %v", got, err)
+				}
+				if err := bindingDB.Close(); err != nil {
+					t.Fatal(err)
+				}
+				bindingDB, err = OpenSQLiteBindingStore(bindingPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer bindingDB.Close()
+				cfg.BindingStore = bindingDB
+				got, err = NewClient(cfg).Decide(context.Background(), req)
+				if err == nil || got.Admitted {
+					t.Fatalf("restart allowed replay: %+v %v", got, err)
+				}
+				return
+			}
 			if name == "disabled" {
 				if calls.Load() != 0 || err != nil || got.Admitted {
 					t.Fatalf("disabled: %+v %v calls=%d", got, err, calls.Load())
