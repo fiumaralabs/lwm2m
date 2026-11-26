@@ -468,16 +468,27 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		deviceJSON(w, 200, o.view(tenant, d))
 		return
 	}
-	if o.Server != nil && tenant == o.ServerTenant {
-		o.Server.RemoveRegistration(ep)
-	}
-	if err := o.Devices.Delete(tenant, ep); err != nil {
-		WriteProblem(w, 500, "internal_error", "Cannot delete device")
+	config, hadConfig, err := o.BootstrapConfigs.Get(tenant, ep)
+	if err != nil {
+		WriteProblem(w, 500, "internal_error", "Cannot read bootstrap config")
 		return
 	}
 	if _, err := o.BootstrapConfigs.Delete(tenant, ep); err != nil {
 		WriteProblem(w, 500, "internal_error", "Cannot delete bootstrap config")
 		return
+	}
+	if err := o.Devices.Delete(tenant, ep); err != nil {
+		if hadConfig {
+			if err := o.BootstrapConfigs.Put(tenant, ep, config); err != nil {
+				WriteProblem(w, 500, "internal_error", "Cannot restore bootstrap config")
+				return
+			}
+		}
+		WriteProblem(w, 500, "internal_error", "Cannot delete device")
+		return
+	}
+	if o.Server != nil && tenant == o.ServerTenant {
+		o.Server.RemoveRegistration(ep)
 	}
 	o.emitDevice(tenant, "lwm2m.device.deleted", d)
 	w.WriteHeader(204)

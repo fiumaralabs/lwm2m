@@ -50,6 +50,7 @@ func TestGeneratedBootstrapFailedPutPreservesCredential(t *testing.T) {
 	if !ok {
 		t.Fatal("missing old credential")
 	}
+	s.Store().Add(&server.Registration{ID: "reg-a", Endpoint: "a"})
 	raw, _, _ := configs.Get("default", "a")
 	configs.failPut = true
 	if w := deviceRequest(h, "PUT", "/v1/devices/a/bootstrap", body); w.Code != 500 {
@@ -58,6 +59,9 @@ func TestGeneratedBootstrapFailedPutPreservesCredential(t *testing.T) {
 	current, ok := s.Security().ByEndpoint("a")
 	if !ok || current.PSKIdentity != old.PSKIdentity || !bytes.Equal(current.PSKKey, old.PSKKey) {
 		t.Fatal("failed write changed credential")
+	}
+	if _, ok := s.Store().ByEndpoint("a"); !ok {
+		t.Fatal("failed write removed registration")
 	}
 	after, _, _ := configs.Get("default", "a")
 	if !bytes.Equal(raw, after) {
@@ -86,6 +90,9 @@ func TestDeviceDeleteBootstrapFailureRetryAndRecreate(t *testing.T) {
 	if w := deviceRequest(h, "GET", "/v1/devices/a", ""); w.Code != 200 {
 		t.Fatalf("device lost after failed cleanup: %d", w.Code)
 	}
+	if events := history(t, h, "/v1/devices/a/events").Items; len(events) != 1 || events[0].Type != "lwm2m.device.created" {
+		t.Fatalf("unexpected events after failure: %v", events)
+	}
 	configs.failDelete = false
 	for _, step := range []struct {
 		method, path, body string
@@ -98,5 +105,9 @@ func TestDeviceDeleteBootstrapFailureRetryAndRecreate(t *testing.T) {
 		if w := deviceRequest(h, step.method, step.path, step.body); w.Code != step.status {
 			t.Fatal(step.method, step.path, w.Code, w.Body.String())
 		}
+	}
+	events := history(t, h, "/v1/devices/a/events").Items
+	if len(events) != 3 || events[1].Type != "lwm2m.device.deleted" {
+		t.Fatalf("missing deletion event after retry: %v", events)
 	}
 }
