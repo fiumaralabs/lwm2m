@@ -136,6 +136,8 @@ func New(o Options) http.Handler {
 	if o.JobRunner != nil && o.Executor != nil {
 		o.JobRunner.Jobs = o.Jobs
 		o.JobRunner.Devices = o.Devices
+		o.JobRunner.DeviceProfiles = o.DeviceProfiles
+		o.JobRunner.Observations = o.Observations
 		o.JobRunner.Executor = o.Executor
 		o.JobRunner.Operations = o.Operations
 		o.JobRunner.ServerTenant = o.ServerTenant
