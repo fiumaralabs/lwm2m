@@ -203,6 +203,7 @@ func main() {
 	timeSeries := flag.Bool("timeseries", true, "enable time series (persistent with SQLite)")
 	jobInterval := flag.Duration("job-tick-interval", time.Second, "fleet job runner tick interval")
 	storeFlag := flag.String("store", "memory", "device metadata and operations store: memory or sqlite:<path>")
+	registrationStore := flag.String("registration-store", "memory", "registration store: memory or sqlite (requires -store=sqlite:<path>)")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
 	bsCoap := flag.String("bs-coap", ":5783", "Bootstrap-Server CoAP/UDP address; empty disables")
@@ -236,6 +237,18 @@ func main() {
 		devices = durable
 	} else if *storeFlag != "memory" {
 		log.Fatal("invalid -store: expected memory or sqlite:<path>")
+	}
+	var registrations server.Store
+	switch *registrationStore {
+	case "memory":
+	case "sqlite":
+		durable, ok := devices.(*sqlite.Devices)
+		if !ok {
+			log.Fatal("-registration-store=sqlite requires -store=sqlite:<path>")
+		}
+		registrations = durable.Registrations()
+	default:
+		log.Fatal("invalid -registration-store: expected memory or sqlite")
 	}
 	var keys apiv1.Keys
 	if *keyFile != "" {
@@ -284,7 +297,7 @@ func main() {
 			log.Fatalf("recover job claims: %v", err)
 		}
 	}
-	srv, native, executor, dispatcher := newDaemonWithRunner(server.Config{OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, devices)
+	srv, native, executor, dispatcher := newDaemonWithRunner(server.Config{Store: registrations, OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, devices)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)
