@@ -69,6 +69,12 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 	return newDaemonWithRunner(cfg, api, keys, enabled, sessions, nil, stores...)
 }
 
+// newDaemonWithAdmission is the seam for future Register integration. The
+// hook is deliberately unused until admission and registration commit together.
+func newDaemonWithAdmission(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, _ *admissionHook, devices store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	return newDaemonWithRunner(cfg, api, keys, enabled, sessions, runner, devices)
+}
+
 func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
@@ -203,6 +209,10 @@ func main() {
 	timeSeries := flag.Bool("timeseries", true, "enable time series (persistent with SQLite)")
 	jobInterval := flag.Duration("job-tick-interval", time.Second, "fleet job runner tick interval")
 	storeFlag := flag.String("store", "memory", "device metadata and operations store: memory or sqlite:<path>")
+	admissionURL := flag.String("admission-url", "", "optional HTTPS admission decision URL; empty disables")
+	admissionTimeout := flag.Duration("admission-timeout", 5*time.Second, "admission decision timeout (at most 30s)")
+	admissionRequestKeyRef := flag.String("admission-request-key-ref", "", "environment variable name for the admission request signing key")
+	admissionResponseKeyRef := flag.String("admission-response-key-ref", "", "environment variable name for the admission response signing key")
 	registrationStore := flag.String("registration-store", "memory", "registration store: memory or sqlite (requires -store=sqlite:<path>)")
 	prefix := flag.String("prefix", "/api", "REST mount point")
 	keyFile := flag.String("api-keys", "", "native /v1 API key file; empty denies all requests")
@@ -224,6 +234,11 @@ func main() {
 	if *jobInterval <= 0 {
 		log.Fatal("job-tick-interval must be positive")
 	}
+	hook, err := buildAdmissionHook(admissionSettings{URL: *admissionURL, Timeout: *admissionTimeout, RequestKeyRef: *admissionRequestKeyRef, ResponseKeyRef: *admissionResponseKeyRef}, *storeFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer hook.Close()
 	var devices store.Devices = &memory.Devices{}
 	if strings.HasPrefix(*storeFlag, "sqlite:") && strings.TrimPrefix(*storeFlag, "sqlite:") != "" {
 		durable, err := sqlite.Open(strings.TrimPrefix(*storeFlag, "sqlite:"))
@@ -297,7 +312,7 @@ func main() {
 			log.Fatalf("recover job claims: %v", err)
 		}
 	}
-	srv, native, executor, dispatcher := newDaemonWithRunner(server.Config{Store: registrations, OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, devices)
+	srv, native, executor, dispatcher := newDaemonWithAdmission(server.Config{Store: registrations, OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, hook, devices)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)
