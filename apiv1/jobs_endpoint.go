@@ -47,6 +47,9 @@ func newJobsHandler(store JobStore, executor *operations.Executor, runner *JobRu
 				return
 			}
 			tenant, key := TenantFrom(r.Context()), r.Header.Get("Idempotency-Key")
+			if key != "" {
+				key = "jobs:" + key
+			}
 			replay, ok := store.(JobReplayStore)
 			if !ok {
 				WriteProblem(w, 500, "internal_error", "Unable to create job")

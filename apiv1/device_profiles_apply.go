@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -20,7 +21,7 @@ func (o Options) applyDeviceProfile(w http.ResponseWriter, r *http.Request) {
 	tenant := TenantFrom(r.Context())
 	replayKey := r.Header.Get("Idempotency-Key")
 	if replayKey != "" {
-		replayKey = "profile-apply:" + key + ":" + replayKey
+		replayKey = "profile-apply:" + base64.RawURLEncoding.EncodeToString([]byte(key)) + ":" + replayKey
 	}
 	respond := func(result JobCreateResult) {
 		if result.Problem != nil {
