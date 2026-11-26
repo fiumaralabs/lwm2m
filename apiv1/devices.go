@@ -2,7 +2,10 @@ package apiv1
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -208,31 +211,57 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			}
 			unlockLifecycle := bootstrapLifecycle.lock(tenant)
 			defer unlockLifecycle()
+			var d store.Device
 			if security != nil {
-				if _, exists := o.Server.Security().ByEndpoint(input.Endpoint); exists {
-					WriteProblem(w, 409, "device_exists", "Endpoint already has credentials")
+				creator, ok := o.Devices.(store.DeviceSecurityCreateStore)
+				owner, owned := o.Devices.(interface {
+					OwnsSecurity(server.SecurityStore) bool
+				})
+				outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
+				if !ok || !owned || !hasOutcomes || o.Server == nil || !owner.OwnsSecurity(o.Server.Security()) {
+					WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
 					return
 				}
-			}
-			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
-			if err != nil {
-				if errors.Is(err, store.ErrDeviceExists) {
-					WriteProblem(w, 409, "device_exists", "Device already exists")
-				} else {
-					WriteProblem(w, 500, "internal_error", "Cannot create device")
+				var nonce [16]byte
+				if _, err := rand.Read(nonce[:]); err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot create operation ID")
+					return
 				}
-				return
-			}
-			if security != nil {
-				if err := o.Server.Security().Put(*security); err != nil {
-					if deleteErr := o.Devices.Delete(tenant, d.Endpoint); deleteErr != nil {
-						WriteProblem(w, 500, "internal_error", "Cannot roll back device creation")
-						return
-					}
+				id := hex.EncodeToString(nonce[:])
+				encoded, err := json.Marshal(input)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot fingerprint create")
+					return
+				}
+				digest := sha256.Sum256(encoded)
+				result, _, err := creator.CreateDeviceWithSecurity(r.Context(), tenant, id, hex.EncodeToString(digest[:]), store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}, *security)
+				if err != nil {
 					if errors.Is(err, server.ErrDuplicatePSKIdentity) {
 						WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
 					} else {
-						WriteProblem(w, 500, "internal_error", "Cannot store credential")
+						WriteProblem(w, 500, "internal_error", "Cannot create device with credential")
+					}
+					return
+				}
+				// This internal outcome has no public operation ID to acknowledge.
+				_ = outcomes.DeleteDeviceCreate(r.Context(), tenant, id)
+				if result.Status != "committed" {
+					WriteProblem(w, 409, "device_exists", "Device already exists")
+					return
+				}
+				d, err = o.Devices.Get(tenant, input.Endpoint)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot read created device")
+					return
+				}
+			} else {
+				var err error
+				d, err = o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
+				if err != nil {
+					if errors.Is(err, store.ErrDeviceExists) {
+						WriteProblem(w, 409, "device_exists", "Device already exists")
+					} else {
+						WriteProblem(w, 500, "internal_error", "Cannot create device")
 					}
 					return
 				}

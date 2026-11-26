@@ -127,6 +127,15 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			WriteProblem(w, 400, "invalid_json", "Expected one JSON value")
 			return
 		}
+		if object, ok := body.(map[string]any); ok {
+			if _, present := object["credentials"]; present {
+				if !authorizeDeviceReplayCredentials(w, r) {
+					return
+				}
+				WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
+				return
+			}
+		}
 		canonical, e := json.Marshal(body)
 		if e != nil {
 			WriteProblem(w, 400, "invalid_json", "Invalid JSON")

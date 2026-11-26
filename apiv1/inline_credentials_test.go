@@ -31,9 +31,9 @@ func TestInlineCredentialOpenAPI(t *testing.T) {
 }
 
 func TestInlineCredentials(t *testing.T) {
-	s := server.New(server.Config{})
-	t.Cleanup(func() { _ = s.Close() })
 	d := &memory.Devices{}
+	s := server.New(server.Config{Security: d.Security()})
+	t.Cleanup(func() { _ = s.Close() })
 	events := &memory.Events{}
 	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "default"}, "foreign": {hash: sha256.Sum256([]byte("lwm_foreign_secret")), scopes: ",devices:read,devices:write,credentials:write,", tenant: "other"}}}
 	h := New(Options{Keys: keys, Devices: d, Server: s, EventOptions: EventOptions{Events: events}})

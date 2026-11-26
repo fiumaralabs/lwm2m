@@ -11,9 +11,9 @@ import (
 )
 
 func TestInlineCredentialsRequireCredentialScope(t *testing.T) {
-	s := server.New(server.Config{})
-	t.Cleanup(func() { _ = s.Close() })
 	devices := &memory.Devices{}
+	s := server.New(server.Config{Security: devices.Security()})
+	t.Cleanup(func() { _ = s.Close() })
 	keys := Keys{entries: map[string]credential{
 		"limited": {hash: sha256.Sum256([]byte("lwm_limited_secret")), scopes: ",devices:write,", tenant: "default"},
 		"allowed": {hash: sha256.Sum256([]byte("lwm_allowed_secret")), scopes: ",devices:write,credentials:write,", tenant: "default"},
