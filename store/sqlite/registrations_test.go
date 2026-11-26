@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -117,5 +119,56 @@ func TestRegistrationRestartAndRollback(t *testing.T) {
 	}
 	if _, ok = d.Registrations().ByID("rolled"); ok {
 		t.Fatal("rollback leaked")
+	}
+}
+
+func TestRegistrationAddTxCacheReconciliation(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	s := d.Registrations()
+	original := &server.Registration{ID: "original", Endpoint: "device"}
+	s.Add(original)
+	tx, err := d.db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.AddTx(context.Background(), tx, &server.Registration{ID: "discarded", Endpoint: "device"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := s.ByEndpoint("device"); !ok || got != original {
+		t.Fatal("rollback lost live registration", got)
+	}
+	for i := 0; i < 10; i++ {
+		live := &server.Registration{ID: fmt.Sprintf("live-%d", i), Endpoint: "device"}
+		s.Add(live)
+		tx, err = d.db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = s.AddTx(context.Background(), tx, &server.Registration{ID: fmt.Sprintf("tx-%d", i), Endpoint: "device"}); err != nil {
+			t.Fatal(err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		s.mu.Lock()
+		n := len(s.live)
+		s.mu.Unlock()
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("committed replacements retained %d live entries", n)
+		}
+		runtime.Gosched()
 	}
 }

@@ -123,7 +123,27 @@ func (s *Registrations) AddTx(ctx context.Context, tx *sql.Tx, r *server.Registr
 		return nil, err
 	}
 	_, err = tx.ExecContext(ctx, "INSERT INTO registrations(id,endpoint,payload) VALUES(?,?,?)", r.ID, r.Endpoint, payload)
+	if err == nil {
+		// The database has one connection, held by tx until commit or rollback.
+		// Reconcile only afterwards against committed state, preserving live peers
+		// on rollback. Tokens also protect newer writes from delayed cleanup.
+		go s.reconcileEndpoint(r.Endpoint)
+	}
 	return old, err
+}
+
+func (s *Registrations) reconcileEndpoint(endpoint string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r, token, err := s.read(context.Background(), s.db, "SELECT payload FROM registrations WHERE endpoint=?", endpoint)
+	if err != nil { // The database may have closed while the transaction ended.
+		return
+	}
+	for id, live := range s.live {
+		if live.r.Endpoint == endpoint && (r == nil || id != r.ID || live.token != token) {
+			delete(s.live, id)
+		}
+	}
 }
 func (s *Registrations) Add(r *server.Registration) *server.Registration {
 	s.mu.Lock()
