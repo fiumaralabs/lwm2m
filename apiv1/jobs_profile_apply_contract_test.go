@@ -196,3 +196,49 @@ func TestProfileApplyChangedProfileFailsInsteadOfSkippingStep(t *testing.T) {
 		t.Errorf("unexpected operations after profile changed: %+v", ops.accepted)
 	}
 }
+
+func TestProfileApplyObservationsFailClosed(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3303/0/5700"]}]`)}
+	jobs, _, _, _, runner := profileApplyFixture(t, profile)
+	profileApplyJob(t, jobs, "observations")
+	profileApplyTicks(t, runner)
+	for _, task := range jobs.ListTasks("tenant", "observations", "") {
+		if task.Status != "failed" || task.Error == "" {
+			t.Errorf("unsupported observations must fail: %+v", task)
+		}
+	}
+}
+
+func TestProfileApplyRevisionPersistedBeforeFirstSubmit(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", OnRegister: json.RawMessage(`[{"type":"discover","path":"/3"},{"type":"discover","path":"/4"}]`)}
+	jobs, _, _, ops, runner := profileApplyFixture(t, profile)
+	profileApplyJob(t, jobs, "recovery")
+	snapshots := map[string]JobTask{}
+	runner.Executor = jobSubmitterFunc(func(ctx context.Context, tenant string, op operations.Operation) (operations.Operation, error) {
+		for _, task := range jobs.ListTasks(tenant, "recovery", "") {
+			if task.Device == op.Device {
+				snapshots[task.Device] = task
+			}
+		}
+		return ops.Submit(ctx, tenant, op)
+	})
+	if err := tickUnrestricted(runner, context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, op := range ops.accepted {
+		task := snapshots[op.Device]
+		if task.ProfileRevision == "" || task.Status != "dispatching" {
+			t.Errorf("before submit: %+v", task)
+		}
+		task.Status, task.Operation = "running", op.ID
+		if !jobs.PutTask("tenant", "recovery", task) {
+			t.Fatal("restore recovered task")
+		}
+	}
+	profileApplyTicks(t, runner)
+	for _, task := range jobs.ListTasks("tenant", "recovery", "") {
+		if task.Status != "succeeded" {
+			t.Errorf("recovered task: %+v", task)
+		}
+	}
+}
