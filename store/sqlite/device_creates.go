@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 )
 
@@ -75,6 +76,14 @@ func checkDeviceCreateReplay(o store.DeviceCreateOutcome, fingerprint string) er
 }
 
 func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, fingerprint string, d store.Device) (store.DeviceCreateOutcome, bool, error) {
+	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, nil)
+}
+
+func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo) (store.DeviceCreateOutcome, bool, error) {
+	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, &security)
+}
+
+func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, fingerprint string, d store.Device, security *server.SecurityInfo) (store.DeviceCreateOutcome, bool, error) {
 	var out store.DeviceCreateOutcome
 	var created bool
 	err := s.withDeviceCreate(ctx, func(conn *sql.Conn) error {
@@ -85,6 +94,14 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 		if ok {
 			out = existing
 			return checkDeviceCreateReplay(out, fingerprint)
+		}
+		if security != nil {
+			if security.Endpoint != d.Endpoint {
+				return errors.New("store: security endpoint mismatch")
+			}
+			if len(security.PublicKey) != 0 {
+				return server.ErrRPKUnsupported
+			}
 		}
 		var exists bool
 		if err = conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM devices WHERE endpoint=?)`, d.Endpoint).Scan(&exists); err != nil {
@@ -105,6 +122,17 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 			if s.deviceCreateHook != nil {
 				if e = s.deviceCreateHook("after-device"); e != nil {
 					return e
+				}
+			}
+			if security != nil {
+				_, e = conn.ExecContext(ctx, `INSERT INTO security(endpoint,psk_identity,psk_key,x509,updated_at) VALUES(?,?,?,?,?)`, security.Endpoint, security.PSKIdentity, security.PSKKey, security.X509, time.Now().UTC().Format(time.RFC3339Nano))
+				if e != nil {
+					return errors.New("sqlite: security credential write failed")
+				}
+				if s.deviceCreateHook != nil {
+					if e = s.deviceCreateHook("after-security"); e != nil {
+						return e
+					}
 				}
 			}
 			out = newDeviceCreateOutcome(tenant, id, fingerprint, "committed", "")

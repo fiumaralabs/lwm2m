@@ -12,10 +12,15 @@ type JobTarget struct {
 	Selector string   `json:"selector,omitempty"`
 	Devices  []string `json:"devices,omitempty"`
 }
+type ProfileApplyAction struct {
+	Profile string `json:"profile"`
+}
+
 type JobAction struct {
-	Operation      json.RawMessage `json:"operation,omitempty"`
-	Observation    json.RawMessage `json:"observation,omitempty"`
-	FirmwareUpdate json.RawMessage `json:"firmwareUpdate,omitempty"`
+	ProfileApply   *ProfileApplyAction `json:"profileApply,omitempty"`
+	Operation      json.RawMessage     `json:"operation,omitempty"`
+	Observation    json.RawMessage     `json:"observation,omitempty"`
+	FirmwareUpdate json.RawMessage     `json:"firmwareUpdate,omitempty"`
 }
 type JobRollout struct {
 	MaxConcurrent           int        `json:"maxConcurrent"`
@@ -45,13 +50,14 @@ type Job struct {
 	CompletedAt *time.Time `json:"completedAt"`
 }
 type JobTask struct {
-	Step           int    `json:"step,omitempty"`
-	Device         string `json:"device"`
-	Status         string `json:"status"`
-	Error          string `json:"error,omitempty"`
-	Operation      string `json:"operation,omitempty"`
-	Observation    string `json:"observation,omitempty"`
-	FirmwareUpdate string `json:"firmwareUpdate,omitempty"`
+	ProfileRevision string `json:"-"`
+	Step            int    `json:"step,omitempty"`
+	Device          string `json:"device"`
+	Status          string `json:"status"`
+	Error           string `json:"error,omitempty"`
+	Operation       string `json:"operation,omitempty"`
+	Observation     string `json:"observation,omitempty"`
+	FirmwareUpdate  string `json:"firmwareUpdate,omitempty"`
 }
 
 // JobStore keeps job and task operations tenant-scoped. IDs are supplied by the caller.
@@ -111,6 +117,12 @@ func ValidateJob(j Job) error {
 			actions++
 		}
 	}
+	if j.Action.ProfileApply != nil {
+		actions++
+		if j.Action.ProfileApply.Profile == "" {
+			return errors.New("invalid profile")
+		}
+	}
 	if targets != 1 || actions != 1 || j.Rollout.MaxConcurrent < 1 || j.Rollout.FailureThresholdPercent < 0 || j.Rollout.FailureThresholdPercent > 100 || j.TTLSeconds <= 0 {
 		return errors.New("invalid job configuration")
 	}
@@ -122,6 +134,10 @@ func ShouldPauseJob(failed, finished, threshold int) bool {
 	return finished >= 10 && float64(failed)*100 >= float64(threshold)*float64(finished)
 }
 func cloneJob(j Job) Job {
+	if j.Action.ProfileApply != nil {
+		v := *j.Action.ProfileApply
+		j.Action.ProfileApply = &v
+	}
 	if j.Target.Devices != nil {
 		j.Target.Devices = append([]string{}, j.Target.Devices...)
 	}
@@ -251,7 +267,7 @@ func (s *memoryJobStore) PutTask(tenant, id string, t JobTask) bool {
 		t.Status = "cancelled"
 	}
 	switch t.Status {
-	case "pending", "running", "succeeded", "failed", "expired", "cancelled":
+	case "pending", "dispatching", "running", "succeeded", "failed", "expired", "cancelled":
 	default:
 		return false
 	}

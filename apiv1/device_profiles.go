@@ -19,6 +19,10 @@ type profileCursor struct {
 
 func (o Options) deviceProfiles(w http.ResponseWriter, r *http.Request) {
 	collection := r.URL.Path == "/v1/device-profiles"
+	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/apply") {
+		RequireScope("jobs:write")(http.HandlerFunc(o.applyDeviceProfile)).ServeHTTP(w, r)
+		return
+	}
 	if r.Method == http.MethodPost && collection {
 		o.createDeviceProfile(w, r)
 		return

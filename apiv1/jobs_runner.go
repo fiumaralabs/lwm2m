@@ -3,6 +3,7 @@ package apiv1
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,9 +18,11 @@ import (
 // pass it as Options.JobRunner to New before calling Tick; standalone runners
 // without shared admission fail closed rather than bypassing tenant limits.
 type JobRunner struct {
-	cancelMu sync.Locker
-	Jobs     JobStore
-	Devices  store.Devices
+	cancelMu       sync.Locker
+	Jobs           JobStore
+	Devices        store.Devices
+	DeviceProfiles DeviceProfileStore
+	Observations   store.Observations
 	// ServerTenant is the sole tenant served by the executor (default: default).
 	ServerTenant string
 	Executor     interface {
@@ -62,7 +65,11 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					}
 					switch op.Status {
 					case operations.Succeeded:
-						task.Status = "succeeded"
+						if job.Action.ProfileApply != nil && job.Status != "cancelled" {
+							task.Status, task.Operation, task.Step = "pending", "", task.Step+1
+						} else {
+							task.Status = "succeeded"
+						}
 					case operations.Failed, operations.Timeout, operations.Dropped:
 						task.Status = "failed"
 					case operations.Expired:
@@ -94,7 +101,7 @@ func (r JobRunner) Tick(ctx context.Context) error {
 			if serverTenant == "" {
 				serverTenant = "default"
 			}
-			if job.Status == "running" && r.Executor != nil && tenant == serverTenant && len(job.Action.Operation) > 0 {
+			if job.Status == "running" && r.Executor != nil && tenant == serverTenant && (len(job.Action.Operation) > 0 || job.Action.ProfileApply != nil) {
 				if r.submit == nil {
 					return fmt.Errorf("job runner requires handler operation admission")
 				}
@@ -118,6 +125,27 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						}
 						continue
 					}
+					action := job.Action.Operation
+					if job.Action.ProfileApply != nil {
+						var done bool
+						var actionErr error
+						action, done, actionErr = r.profileStep(tenant, job.Action.ProfileApply.Profile, &task)
+						if actionErr != nil || done {
+							if actionErr != nil {
+								task.Status, task.Error = "failed", actionErr.Error()
+							} else {
+								task.Status = "succeeded"
+							}
+							if !r.Jobs.PutTask(tenant, job.ID, task) {
+								return fmt.Errorf("cannot record task")
+							}
+							continue
+						}
+						// Keep the claim recoverable with its revision before submitting an operation.
+						if !r.Jobs.PutTask(tenant, job.ID, task) {
+							return fmt.Errorf("cannot record profile revision")
+						}
+					}
 					var input struct {
 						Type        string                     `json:"type"`
 						TTL         *int                       `json:"ttlSeconds"`
@@ -127,27 +155,44 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						Accept      string                     `json:"accept"`
 						Paths       []string                   `json:"paths,omitempty"`
 						Path        string                     `json:"path,omitempty"`
+						Depth       *int                       `json:"depth,omitempty"`
 						Values      []json.RawMessage          `json:"values,omitempty"`
 						Mode        string                     `json:"mode,omitempty"`
 						Arguments   string                     `json:"arguments,omitempty"`
 						Attributes  map[string]json.RawMessage `json:"attributes,omitempty"`
 					}
-					decoder := json.NewDecoder(bytes.NewReader(job.Action.Operation))
+					decoder := json.NewDecoder(bytes.NewReader(action))
 					decoder.DisallowUnknownFields()
 					parseErr := decoder.Decode(&input)
+					// Profile operations may contain fields the executor cannot handle.
+					// Preserve invalid-input errors for supported types, but classify
+					// valid unsupported types consistently even when decoding rejects
+					// their type-specific fields.
+					if parseErr != nil && validProfileOperation(action) {
+						switch input.Type {
+						case "read", "write", "execute", "delete", "write-attributes", "sync-clock", "discover", "create":
+						default:
+							parseErr = operations.ErrInvalid
+						}
+					}
 					if parseErr == nil && (input.TTL != nil && (*input.TTL < 0 || *input.TTL > 2147483647) || input.WhenOffline != "" && input.WhenOffline != "queue" && input.WhenOffline != "reject") {
 						parseErr = fmt.Errorf("invalid operation options")
 					}
 					request, _ := json.Marshal(struct {
 						Paths      []string                   `json:"paths,omitempty"`
 						Path       string                     `json:"path,omitempty"`
+						Depth      *int                       `json:"depth,omitempty"`
 						Values     []json.RawMessage          `json:"values,omitempty"`
 						Mode       string                     `json:"mode,omitempty"`
 						Arguments  string                     `json:"arguments,omitempty"`
 						Attributes map[string]json.RawMessage `json:"attributes,omitempty"`
-					}{input.Paths, input.Path, input.Values, input.Mode, input.Arguments, input.Attributes})
+					}{input.Paths, input.Path, input.Depth, input.Values, input.Mode, input.Arguments, input.Attributes})
 					op := operations.New(tenant, task.Device, input.Type, request, input.TTL, now)
 					op.Job = &job.ID
+					if job.Action.ProfileApply != nil {
+						step := task.Step
+						op.JobStep = &step
+					}
 					if input.WhenOffline != "" {
 						op.WhenOffline = input.WhenOffline
 					}
@@ -165,6 +210,15 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						}
 					} else if err != nil && op.ID == "" {
 						task.Status, task.Error = "failed", err.Error()
+						if errors.Is(err, operations.ErrInvalid) && job.Action.ProfileApply != nil {
+							task.Error = "unsupported_operation"
+						} else if errors.Is(err, operations.ErrInvalid) {
+							switch input.Type {
+							case "read", "write", "execute", "delete", "write-attributes", "sync-clock", "discover", "create":
+							default:
+								task.Error = "unsupported_operation"
+							}
+						}
 					} else {
 						task.Status, task.Operation = "running", op.ID
 					}
@@ -191,4 +245,104 @@ func (r JobRunner) Tick(ctx context.Context) error {
 		}
 	}
 	return ctx.Err()
+}
+
+// profileStep selects one sequential operation from the tenant-scoped profile.
+func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessage, bool, error) {
+	if r.DeviceProfiles == nil {
+		return nil, false, fmt.Errorf("profile store unavailable")
+	}
+	profile, ok := r.DeviceProfiles.Get(tenant, id)
+	if !ok {
+		return nil, false, fmt.Errorf("profile not found")
+	}
+	revision := fmt.Sprintf("%x", sha256.Sum256(append(append([]byte(nil), profile.Attributes...), append([]byte{0}, profile.OnRegister...)...)))
+	if task.ProfileRevision == "" && task.Step == 0 {
+		task.ProfileRevision = revision
+	}
+	if task.ProfileRevision != revision {
+		return nil, false, fmt.Errorf("profile changed during apply")
+	}
+	step := task.Step
+	var attrs []struct {
+		Path       string          `json:"path"`
+		Attributes json.RawMessage `json:"attributes"`
+	}
+	var ops []json.RawMessage
+	if len(profile.Attributes) > 0 && json.Unmarshal(profile.Attributes, &attrs) != nil {
+		return nil, false, fmt.Errorf("invalid profile attributes")
+	}
+	if len(profile.OnRegister) > 0 && json.Unmarshal(profile.OnRegister, &ops) != nil {
+		return nil, false, fmt.Errorf("invalid profile operations")
+	}
+	if step < 0 {
+		return nil, false, fmt.Errorf("invalid profile step")
+	}
+	if step < len(attrs) {
+		raw, err := json.Marshal(struct {
+			Type       string          `json:"type"`
+			Path       string          `json:"path"`
+			Attributes json.RawMessage `json:"attributes"`
+		}{"write-attributes", attrs[step].Path, attrs[step].Attributes})
+		return raw, false, err
+	}
+	step -= len(attrs)
+	if step >= len(ops) {
+		var observations []observationInput
+		if len(profile.Observations) > 0 && json.Unmarshal(profile.Observations, &observations) != nil {
+			return nil, false, fmt.Errorf("invalid profile observations")
+		}
+		if len(observations) > 0 && r.Observations == nil {
+			return nil, false, fmt.Errorf("observation store unavailable")
+		}
+		for _, input := range observations {
+			if err := validateObservation(input.Paths, input.Attributes); err != nil {
+				return nil, false, fmt.Errorf("invalid profile observation: %w", err)
+			}
+			persistent := true
+			if input.Persistent != nil {
+				persistent = *input.Persistent
+			}
+			if input.Attributes == nil {
+				input.Attributes = map[string]json.RawMessage{}
+			}
+			key, err := json.Marshal(struct {
+				Device, Profile string
+				Input           observationInput
+			}{task.Device, id, input})
+			if err != nil {
+				return nil, false, err
+			}
+			v := store.Observation{Tenant: tenant, ID: fmt.Sprintf("obs_%x", sha256.Sum256(key)), Device: task.Device, ProfileID: id, Source: "profile", Paths: input.Paths, Attributes: input.Attributes, Persistent: persistent, Status: "pending", Prefix: input.Prefix, Format: input.Format, Accept: input.Accept}
+			for {
+				err := r.Observations.Create(tenant, v)
+				if err == nil {
+					break
+				}
+				if !errors.Is(err, store.ErrExists) {
+					return nil, false, fmt.Errorf("create profile observation: %w", err)
+				}
+				existing, getErr := r.Observations.Get(tenant, v.ID)
+				if getErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" {
+					return nil, false, fmt.Errorf("profile observation conflict")
+				}
+				if existing.Status != "ended" {
+					actual, actualErr := json.Marshal(existing.Attributes)
+					wanted, wantedErr := json.Marshal(v.Attributes)
+					if actualErr != nil || wantedErr != nil || !bytes.Equal(actual, wanted) {
+						return nil, false, fmt.Errorf("profile observation conflict")
+					}
+					break
+				}
+				if existing.Persistent || v.Persistent {
+					return nil, false, fmt.Errorf("profile observation conflict")
+				}
+				// Each ended intent names a single successor, so concurrent applies
+				// converge without overwriting historical delivery state.
+				v.ID = fmt.Sprintf("obs_%x", sha256.Sum256([]byte(v.ID)))
+			}
+		}
+		return nil, true, nil
+	}
+	return ops[step], false, nil
 }
