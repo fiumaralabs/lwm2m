@@ -246,6 +246,12 @@ func TestOpenAPIProfilesFirmwareHandlerContracts(t *testing.T) {
 		return w
 	}
 	const js = "application/json"
+	nullable := call("POST", "/v1/device-profiles", "/v1/device-profiles", `{"name":"nullable","observations":[{"paths":["/3/0/1"],"attributes":null,"persistent":null,"prefix":null,"format":null,"accept":null}],"attributes":[{"path":"/3/0/1","attributes":null}],"timeseries":{"retentionDays":null,"fromReads":null}}`, js, 201)
+	for _, field := range []string{`"retentionDays":null`, `"fromReads":null`, `"attributes":null`, `"persistent":null`, `"prefix":null`, `"format":null`, `"accept":null`} {
+		if !strings.Contains(nullable.Body.String(), field) {
+			t.Errorf("handler did not preserve %s: %s", field, nullable.Body.String())
+		}
+	}
 	w := call("POST", "/v1/device-profiles", "/v1/device-profiles", `{"name":"pump","onRegister":[{"type":"sync-clock"}],"observations":[{"paths":["/3/0/1"],"attributes":{"pmin":3}}],"attributes":[{"path":"/3/0/1","attributes":{"pmax":20}}],"timeseries":{"retentionDays":30,"fromReads":true}}`, js, 201)
 	var profile DeviceProfile
 	if err := json.Unmarshal(w.Body.Bytes(), &profile); err != nil {
