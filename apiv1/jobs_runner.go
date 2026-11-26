@@ -141,6 +141,10 @@ func (r JobRunner) Tick(ctx context.Context) error {
 							}
 							continue
 						}
+						// Keep the claim recoverable with its revision before submitting an operation.
+						if !r.Jobs.PutTask(tenant, job.ID, task) {
+							return fmt.Errorf("cannot record profile revision")
+						}
 					}
 					var input struct {
 						Type        string                     `json:"type"`
@@ -284,6 +288,13 @@ func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessag
 	}
 	step -= len(attrs)
 	if step >= len(ops) {
+		var observations []json.RawMessage
+		if len(profile.Observations) > 0 && json.Unmarshal(profile.Observations, &observations) != nil {
+			return nil, false, fmt.Errorf("invalid profile observations")
+		}
+		if len(observations) > 0 {
+			return nil, false, fmt.Errorf("profile observations not supported")
+		}
 		return nil, true, nil
 	}
 	return ops[step], false, nil

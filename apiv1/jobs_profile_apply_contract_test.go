@@ -118,6 +118,11 @@ func TestProfileApplyTwoDevicesAndRerun(t *testing.T) {
 			t.Errorf("%s: attribute write=%v queued discover=%v operations=%+v", device, write, discover, ops.accepted)
 		}
 	}
+	for _, task := range jobs.ListTasks("tenant", "first", "") {
+		if task.Status != "failed" || task.Error != "profile observations not supported" {
+			t.Errorf("mixed profile must not succeed without observations: %+v", task)
+		}
+	}
 	t.Run("observations and rerun", func(t *testing.T) {
 		t.Skip("slice 2 #229")
 		for _, device := range []string{"a", "b"} {

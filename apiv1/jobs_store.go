@@ -267,7 +267,7 @@ func (s *memoryJobStore) PutTask(tenant, id string, t JobTask) bool {
 		t.Status = "cancelled"
 	}
 	switch t.Status {
-	case "pending", "running", "succeeded", "failed", "expired", "cancelled":
+	case "pending", "dispatching", "running", "succeeded", "failed", "expired", "cancelled":
 	default:
 		return false
 	}

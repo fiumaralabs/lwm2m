@@ -160,3 +160,51 @@ func TestRecoverOrphanedJobStepAfterReopen(t *testing.T) {
 		})
 	}
 }
+
+// Simulate the crash window after a claimed profile task's first operation is
+// persisted but before its operation ID is recorded on the task.
+func TestRecoverFirstProfileOperationPreservesRevision(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "jobs.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := apiv1.Job{ID: "profile-job", Target: apiv1.JobTarget{Devices: []string{"device"}}, Action: apiv1.JobAction{ProfileApply: &apiv1.ProfileApplyAction{Profile: "profile"}}, Rollout: apiv1.JobRollout{MaxConcurrent: 1}, TTLSeconds: 60}
+	if err := db.Jobs().Create("tenant", job); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := db.Jobs().StartJob("tenant", job.ID, []string{"device"}, time.Now()); !ok || err != nil {
+		t.Fatalf("start: %v %v", ok, err)
+	}
+	tasks, err := db.Jobs().ClaimTasks("tenant", job.ID)
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("claim: %+v %v", tasks, err)
+	}
+	task := tasks[0]
+	task.ProfileRevision = "revision-at-claim"
+	if !db.Jobs().PutTask("tenant", job.ID, task) {
+		t.Fatal("persist dispatching task")
+	}
+	op := operations.New("tenant", "device", "discover", []byte(`{}`), nil, time.Now())
+	step := 0
+	op.Job, op.JobStep = &job.ID, &step
+	if err := db.Operations().Create(ctx, "tenant", op); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = sqlite.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.Jobs().RecoverJobClaims(ctx); err != nil {
+		t.Fatal(err)
+	}
+	tasks = db.Jobs().ListTasks("tenant", job.ID, "")
+	if len(tasks) != 1 || tasks[0].Status != "running" || tasks[0].Operation != op.ID || tasks[0].Step != 0 || tasks[0].ProfileRevision != "revision-at-claim" {
+		t.Fatalf("recovered: %+v", tasks)
+	}
+}
