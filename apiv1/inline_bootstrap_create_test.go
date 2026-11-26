@@ -167,6 +167,11 @@ func TestInlineBootstrapStores(t *testing.T) {
 					t.Fatalf("config persisted %s %v", ep, err)
 				}
 			}
+			generatedExternal := post("lwm_test_secret", body("external-generated", "external-generated", `{"servers":[{"shortServerId":1,"security":{"psk":{"generate":true}}}]}`))
+			if generatedExternal.Code != 400 {
+				t.Fatalf("external generated PSK: %d %s", generatedExternal.Code, generatedExternal.Body)
+			}
+			checkAbsent("external-generated")
 			invalid := post("lwm_test_secret", body("bad", "bad", `{"servers":[{}]}`))
 			if invalid.Code != 400 {
 				t.Fatalf("invalid: %d %s", invalid.Code, invalid.Body)

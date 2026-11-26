@@ -229,6 +229,10 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					if entry.Security.PSK == nil || !entry.Security.PSK.Generate {
 						continue
 					}
+					if entry.Server != "self" {
+						WriteProblem(w, 400, "invalid_credential", "Inline bootstrap cannot generate external server credentials; supply a PSK instead")
+						return
+					}
 					if entry.Server == "self" && security != nil {
 						WriteProblem(w, 400, "invalid_credential", "Conflicting self credentials")
 						return
