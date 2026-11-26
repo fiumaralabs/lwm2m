@@ -99,6 +99,7 @@ func (s *Devices) CreateDeviceWithSecurityAndBootstrap(ctx context.Context, tena
 func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, fingerprint string, d store.Device, security *server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
 	var out store.DeviceCreateOutcome
 	var created bool
+	var committedDevice *store.Device
 	err := s.withDeviceCreate(ctx, func(conn *sql.Conn) error {
 		existing, ok, err := readDeviceCreate(ctx, conn, tenant, id)
 		if err != nil {
@@ -129,6 +130,24 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 		if exists {
 			out = newDeviceCreateOutcome(tenant, id, fingerprint, "not-created", "endpoint-conflict")
 		} else {
+			if config != nil {
+				var exists bool
+				if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM bootstrap_configs WHERE tenant=? AND endpoint=?)`, tenant, d.Endpoint).Scan(&exists); err != nil {
+					return err
+				}
+				if exists {
+					return store.ErrBootstrapConfigExists
+				}
+			}
+			if config != nil || security != nil {
+				var credentialExists bool
+				if err := conn.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM security WHERE endpoint=?)`, d.Endpoint).Scan(&credentialExists); err != nil {
+					return err
+				}
+				if credentialExists {
+					return store.ErrCredentialExists
+				}
+			}
 			now := time.Now().UTC()
 			d.CreatedAt, d.UpdatedAt, d.LastSeenAt = now, now, nil
 			if d.Labels == nil {
@@ -177,6 +196,7 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 			}
 			out = newDeviceCreateOutcome(tenant, id, fingerprint, "committed", "")
 			out.Endpoint = d.Endpoint
+			committedDevice = &d
 			if replay := store.DeviceCreateReplayFrom(ctx); replay != nil {
 				status, header, body := replay.Render(d)
 				encoded, err := json.Marshal(header)
@@ -199,6 +219,9 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 	})
 	if err != nil {
 		return store.DeviceCreateOutcome{}, false, err
+	}
+	if committedDevice != nil {
+		store.CaptureDeviceCreate(ctx, *committedDevice)
 	}
 	return out, created, nil
 }

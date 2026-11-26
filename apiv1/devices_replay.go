@@ -14,14 +14,25 @@ import (
 // The marker is stored with the replay response but never sent to clients.
 // Missing markers (records written by older versions) are treated as scoped.
 const deviceReplayCredentialScope = "X-Internal-Device-Credential-Scope"
+const deviceReplayBootstrapScope = "X-Internal-Device-Bootstrap-Scope"
 
 func deviceCreateBodyRequiresCredentialScope(body []byte) bool {
 	var input struct {
 		Credentials json.RawMessage `json:"credentials"`
+		Bootstrap   json.RawMessage `json:"bootstrap"`
 	}
 	if json.Unmarshal(body, &input) != nil {
 		// Fail closed when the request cannot be classified.
 		return true
+	}
+	var config bootstrapInput
+	if len(input.Bootstrap) != 0 && json.Unmarshal(input.Bootstrap, &config) != nil {
+		return true
+	}
+	for _, entry := range config.Servers {
+		if entry.Server == "self" && entry.Security.PSK != nil && entry.Security.PSK.Generate {
+			return true
+		}
 	}
 	return len(input.Credentials) != 0
 }
@@ -37,6 +48,18 @@ func authorizeDeviceReplayCredentials(w http.ResponseWriter, r *http.Request) bo
 			WriteProblem(w, http.StatusUnauthorized, "unauthorized", "Authentication required")
 		}
 	}
+	return authorized
+}
+
+func deviceCreateBodyRequiresBootstrapScope(body []byte) bool {
+	var input struct {
+		Bootstrap json.RawMessage `json:"bootstrap"`
+	}
+	return json.Unmarshal(body, &input) != nil || len(input.Bootstrap) != 0
+}
+func authorizeDeviceReplayBootstrap(w http.ResponseWriter, r *http.Request) bool {
+	authorized := false
+	RequireScope("bootstrap:write")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { authorized = true })).ServeHTTP(w, r)
 	return authorized
 }
 
@@ -84,6 +107,11 @@ func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tena
 			marker = "1"
 		}
 		recorder.header.Set(deviceReplayCredentialScope, marker)
+		bootstrapMarker := "0"
+		if readErr != nil || deviceCreateBodyRequiresBootstrapScope(data) {
+			bootstrapMarker = "1"
+		}
+		recorder.header.Set(deviceReplayBootstrapScope, bootstrapMarker)
 		if readErr != nil {
 			WriteProblem(recorder, 400, "invalid_json", "Cannot read request body")
 			return recorder.status, recorder.header, recorder.body.Bytes()
@@ -100,6 +128,7 @@ func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tena
 		replay := &store.DeviceCreateReplay{Key: key, Render: func(d store.Device) (int, http.Header, []byte) {
 			response := &deviceReplayWriter{header: make(http.Header)}
 			response.header.Set(deviceReplayCredentialScope, marker)
+			response.header.Set(deviceReplayBootstrapScope, bootstrapMarker)
 			response.header.Set("Location", "/v1/devices/"+url.PathEscape(d.Endpoint))
 			deviceJSON(response, 201, o.view(tenant, d))
 			savedStatus, savedHeader, savedBody = response.status, response.header.Clone(), append([]byte(nil), response.body.Bytes()...)
@@ -124,10 +153,14 @@ func (o Options) replayDeviceCreate(w http.ResponseWriter, r *http.Request, tena
 			WriteProblem(w, 400, "invalid_json", "Cannot read request body")
 			return
 		}
+		if ((header.Get(deviceReplayBootstrapScope) != "" && header.Get(deviceReplayBootstrapScope) != "0") || deviceCreateBodyRequiresBootstrapScope(data)) && !authorizeDeviceReplayBootstrap(w, r) {
+			return
+		}
 		if (header.Get(deviceReplayCredentialScope) != "0" || deviceCreateBodyRequiresCredentialScope(data)) && !authorizeDeviceReplayCredentials(w, r) {
 			return
 		}
 	}
+	header.Del(deviceReplayBootstrapScope)
 	header.Del(deviceReplayCredentialScope)
 	for k, values := range header {
 		w.Header()[k] = values

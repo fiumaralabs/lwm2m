@@ -99,11 +99,11 @@ func (s *Devices) createDeviceWithSecurity(ctx context.Context, tenant, id, fing
 	}
 	sec := s.securityLocked()
 	if _, ok := sec.ByEndpoint(d.Endpoint); ok {
-		return store.DeviceCreateOutcome{}, false, errors.New("store: endpoint credential already exists")
+		return store.DeviceCreateOutcome{}, false, store.ErrCredentialExists
 	}
 	if config != nil {
 		if _, ok := s.bootstrapConfigs[tenant][d.Endpoint]; ok {
-			return store.DeviceCreateOutcome{}, false, errors.New("store: bootstrap config already exists")
+			return store.DeviceCreateOutcome{}, false, store.ErrBootstrapConfigExists
 		}
 	}
 	d, err := s.createLocked(tenant, d)
@@ -147,6 +147,7 @@ func (s *Devices) createDeviceWithSecurity(ctx context.Context, tenant, id, fing
 		s.saveOutcome(o)
 	}
 	s.saveCreateReplay(ctx, tenant, d)
+	store.CaptureDeviceCreate(ctx, clone(d))
 	return o, true, nil
 }
 
