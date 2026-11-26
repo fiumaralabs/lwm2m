@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/fiumaralabs/lwm2m/store"
 )
 
 type deviceReplayKey struct{ tenant, key string }
@@ -13,6 +15,23 @@ type deviceReplay struct {
 	status int
 	header http.Header
 	body   []byte
+}
+
+func (*Devices) AtomicDeviceReplaySupported() {}
+
+// saveCreateReplay runs under the device mutation lock before it is released.
+func (s *Devices) saveCreateReplay(ctx context.Context, tenant string, d store.Device) {
+	r := store.DeviceCreateReplayFrom(ctx)
+	if r == nil {
+		return
+	}
+	status, header, body := r.Render(d)
+	s.replayMu.Lock()
+	defer s.replayMu.Unlock()
+	if entry := s.replays[deviceReplayKey{tenant, r.Key}]; entry != nil {
+		entry.status, entry.header, entry.body = status, header.Clone(), append([]byte(nil), body...)
+		entry.at = time.Now()
+	}
 }
 
 // ReplayDeviceCreate serializes requests for one tenant and key and retains the first response.
@@ -51,15 +70,18 @@ func (s *Devices) ReplayDeviceCreate(ctx context.Context, tenant, key string, ru
 		func() {
 			defer func() {
 				s.replayMu.Lock()
-				if !completed {
+				if !completed && entry.at.IsZero() {
 					delete(s.replays, k)
 				}
 				close(entry.done)
 				s.replayMu.Unlock()
 			}()
-			entry.status, entry.header, entry.body = run()
+			status, header, body := run()
 			s.replayMu.Lock()
-			entry.at = time.Now()
+			if entry.at.IsZero() {
+				entry.status, entry.header, entry.body = status, header, body
+				entry.at = time.Now()
+			}
 			completed = true
 			s.replayMu.Unlock()
 		}()

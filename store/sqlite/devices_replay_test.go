@@ -44,6 +44,29 @@ func TestDeviceReplayExpiryAndWriteFailure(t *testing.T) {
 	}
 }
 
+func TestDeviceCreateReplayInsertFailureRollsBackDevice(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "devices.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.db.Exec(`CREATE TRIGGER fail_replay_insert BEFORE INSERT ON device_replays BEGIN SELECT RAISE(FAIL, 'forced failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := store.WithDeviceCreateReplay(context.Background(), &store.DeviceCreateReplay{Key: "key", Render: func(store.Device) (int, http.Header, []byte) {
+		return 201, http.Header{"Content-Type": {"application/json"}}, []byte("created")
+	}})
+	if _, _, err := db.CreateDeviceWithOutcome(ctx, "tenant", "op", "", store.Device{Endpoint: "device"}); err == nil {
+		t.Fatal("expected replay insert to fail")
+	}
+	if _, err := db.Get("tenant", "device"); err == nil {
+		t.Fatal("device survived replay insert failure")
+	}
+	if _, err := db.GetDeviceCreate(context.Background(), "tenant", "op"); err == nil {
+		t.Fatal("outcome survived replay insert failure")
+	}
+}
+
 func TestDeviceReplayCancelledWaiter(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "devices.db"))
 	if err != nil {

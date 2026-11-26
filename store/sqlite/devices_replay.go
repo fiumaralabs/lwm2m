@@ -16,6 +16,8 @@ var deviceReplayMigration string
 
 type deviceReplayKey struct{ tenant, key string }
 
+func (*Devices) AtomicDeviceReplaySupported() {}
+
 // Coordinate all SQLite handles in this process, including aliases for the same
 // database. Keys for unrelated databases may briefly serialize as well.
 var deviceReplays = struct {
@@ -59,9 +61,20 @@ func (s *Devices) ReplayDeviceCreate(ctx context.Context, tenant, key string, ru
 	if _, err = s.db.ExecContext(ctx, `DELETE FROM device_replays WHERE expires<=?`, time.Now().UnixNano()); err != nil {
 		return 0, nil, nil, err
 	}
-	// The callback creates the device and event without a held SQLite transaction:
-	// a crash or persistence failure before this response is saved can lose replay.
 	status, header, body := run()
+	// A successful device create has already committed its response atomically.
+	// Preserve that response, including its original expiration, rather than
+	// rewriting it after the transaction.
+	err = s.db.QueryRowContext(context.WithoutCancel(ctx), `SELECT status, header, body FROM device_replays WHERE tenant=? AND key=? AND expires>?`, tenant, key, time.Now().UnixNano()).Scan(&status, &headerData, &body)
+	if err == nil {
+		if err = json.Unmarshal(headerData, &header); err != nil {
+			return 0, nil, nil, err
+		}
+		return status, header, body, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, nil, nil, err
+	}
 	headerData, err = json.Marshal(header)
 	if err != nil {
 		return 0, nil, nil, err

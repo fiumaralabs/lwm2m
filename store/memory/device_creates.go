@@ -41,20 +41,23 @@ func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, finge
 		o, err := replayOutcome(o, fingerprint)
 		return o, false, err
 	}
-	for _, devices := range s.records {
-		if _, exists := devices[d.Endpoint]; exists {
+	for owner, devices := range s.records {
+		if _, exists := devices[d.Endpoint]; exists && (store.DeviceCreateReplayFrom(ctx) == nil || owner == tenant) {
 			o := newOutcome(tenant, id, fingerprint, "not-created", "endpoint-conflict")
 			s.saveOutcome(o)
 			return o, true, nil
 		}
 	}
-	_, err := s.createLocked(tenant, d)
+	d, err := s.createLocked(tenant, d)
 	if err != nil {
 		return store.DeviceCreateOutcome{}, false, err
 	}
 	o := newOutcome(tenant, id, fingerprint, "committed", "")
 	o.Endpoint = d.Endpoint
-	s.saveOutcome(o)
+	if store.DeviceCreateReplayFrom(ctx) == nil {
+		s.saveOutcome(o)
+	}
+	s.saveCreateReplay(ctx, tenant, d)
 	return o, true, nil
 }
 
