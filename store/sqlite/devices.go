@@ -90,8 +90,12 @@ var operationJobStepsMigration string
 //go:embed 030_bootstrap_configs.sql
 var bootstrapConfigsMigration string
 
+//go:embed 031_registrations.sql
+var registrationsMigration string
+
 type Devices struct {
 	db               *sql.DB
+	registrations    *Registrations
 	deviceCreateHook func(string) error
 }
 type deviceCursor struct {
@@ -145,6 +149,7 @@ func Open(path string) (*Devices, error) {
 		return nil, err
 	}
 	s := &Devices{db: db}
+	s.registrations = &Registrations{db: db, live: make(map[string]liveRegistration)}
 	if err = s.migrate(); err != nil {
 		db.Close()
 		return nil, err
@@ -296,6 +301,9 @@ func (s *Devices) migrate() error {
 		return err
 	}
 	if _, err = tx.Exec(bootstrapConfigsMigration); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(registrationsMigration); err != nil {
 		return err
 	}
 	return tx.Commit()
