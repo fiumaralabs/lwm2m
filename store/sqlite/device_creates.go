@@ -78,14 +78,21 @@ func checkDeviceCreateReplay(o store.DeviceCreateOutcome, fingerprint string) er
 }
 
 func (s *Devices) CreateDeviceWithOutcome(ctx context.Context, tenant, id, fingerprint string, d store.Device) (store.DeviceCreateOutcome, bool, error) {
-	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, nil)
+	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, nil, nil)
 }
 
 func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo) (store.DeviceCreateOutcome, bool, error) {
-	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, &security)
+	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, &security, nil)
 }
 
-func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, fingerprint string, d store.Device, security *server.SecurityInfo) (store.DeviceCreateOutcome, bool, error) {
+func (s *Devices) CreateDeviceWithSecurityAndBootstrap(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
+	if config == nil {
+		return store.DeviceCreateOutcome{}, false, errors.New("store: missing bootstrap config")
+	}
+	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, &security, config)
+}
+
+func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, fingerprint string, d store.Device, security *server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
 	var out store.DeviceCreateOutcome
 	var created bool
 	err := s.withDeviceCreate(ctx, func(conn *sql.Conn) error {
@@ -150,6 +157,16 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 				}
 				if s.deviceCreateHook != nil {
 					if e = s.deviceCreateHook("after-security"); e != nil {
+						return e
+					}
+				}
+			}
+			if config != nil {
+				if _, e = conn.ExecContext(ctx, `INSERT INTO bootstrap_configs(tenant,endpoint,config) VALUES(?,?,?)`, tenant, d.Endpoint, []byte(config)); e != nil {
+					return e
+				}
+				if s.deviceCreateHook != nil {
+					if e = s.deviceCreateHook("after-bootstrap"); e != nil {
 						return e
 					}
 				}
@@ -256,4 +273,17 @@ func (s *Devices) DeleteDeviceCreate(ctx context.Context, tenant, id string) err
 		return store.ErrNotFound
 	}
 	return nil
+}
+
+func (s *Devices) PutBootstrapConfig(ctx context.Context, tenant, endpoint string, config json.RawMessage) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO bootstrap_configs(tenant,endpoint,config) VALUES(?,?,?) ON CONFLICT(tenant,endpoint) DO UPDATE SET config=excluded.config`, tenant, endpoint, []byte(config))
+	return err
+}
+func (s *Devices) GetBootstrapConfig(ctx context.Context, tenant, endpoint string) (json.RawMessage, bool, error) {
+	var b []byte
+	err := s.db.QueryRowContext(ctx, `SELECT config FROM bootstrap_configs WHERE tenant=? AND endpoint=?`, tenant, endpoint).Scan(&b)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	return b, err == nil, err
 }

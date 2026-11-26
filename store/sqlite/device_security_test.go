@@ -59,3 +59,12 @@ func TestDeviceSecurityContract(t *testing.T) {
 	defer d.Close()
 	storetest.DeviceSecurity(t, d, d.Security())
 }
+
+func TestDeviceBootstrapContract(t *testing.T) {
+	d, err := Open(filepath.Join(t.TempDir(), "store.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	storetest.DeviceBootstrap(t, d, d.Security(), func(h func(string) error) { d.deviceCreateHook = h })
+}

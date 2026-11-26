@@ -21,6 +21,7 @@ type Devices struct {
 	creates            map[string]map[string]store.DeviceCreateOutcome
 	security           *server.MemorySecurityStore
 	deviceSecurityHook func(string) error
+	bootstrapConfigs   map[string]map[string]json.RawMessage
 	replayMu           sync.Mutex
 	replays            map[deviceReplayKey]*deviceReplay
 }

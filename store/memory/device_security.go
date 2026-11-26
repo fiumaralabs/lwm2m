@@ -1,7 +1,9 @@
 package memory
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/fiumaralabs/lwm2m/server"
@@ -65,6 +67,15 @@ func (m memorySecurity) All() []server.SecurityInfo {
 }
 
 func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo) (store.DeviceCreateOutcome, bool, error) {
+	return s.createDeviceWithSecurity(ctx, tenant, id, fingerprint, d, security, nil)
+}
+func (s *Devices) CreateDeviceWithSecurityAndBootstrap(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
+	if config == nil {
+		return store.DeviceCreateOutcome{}, false, errors.New("store: missing bootstrap config")
+	}
+	return s.createDeviceWithSecurity(ctx, tenant, id, fingerprint, d, security, config)
+}
+func (s *Devices) createDeviceWithSecurity(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -88,6 +99,11 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 	if _, ok := sec.ByEndpoint(d.Endpoint); ok {
 		return store.DeviceCreateOutcome{}, false, errors.New("store: endpoint credential already exists")
 	}
+	if config != nil {
+		if _, ok := s.bootstrapConfigs[tenant][d.Endpoint]; ok {
+			return store.DeviceCreateOutcome{}, false, errors.New("store: bootstrap config already exists")
+		}
+	}
 	d, err := s.createLocked(tenant, d)
 	if err != nil {
 		return store.DeviceCreateOutcome{}, false, err
@@ -110,6 +126,17 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 			return store.DeviceCreateOutcome{}, false, err
 		}
 	}
+	if config != nil {
+		s.putBootstrapLocked(tenant, d.Endpoint, config)
+		if s.deviceSecurityHook != nil {
+			if err := s.deviceSecurityHook("after-bootstrap"); err != nil {
+				delete(s.bootstrapConfigs[tenant], d.Endpoint)
+				sec.Remove(d.Endpoint)
+				rollback()
+				return store.DeviceCreateOutcome{}, false, err
+			}
+		}
+	}
 	o := newOutcome(tenant, id, fingerprint, "committed", "")
 	o.Endpoint = d.Endpoint
 	if store.DeviceCreateReplayFrom(ctx) == nil {
@@ -117,4 +144,35 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 	}
 	s.saveCreateReplay(ctx, tenant, d)
 	return o, true, nil
+}
+
+func (s *Devices) putBootstrapLocked(tenant, endpoint string, config json.RawMessage) {
+	if s.bootstrapConfigs == nil {
+		s.bootstrapConfigs = make(map[string]map[string]json.RawMessage)
+	}
+	if s.bootstrapConfigs[tenant] == nil {
+		s.bootstrapConfigs[tenant] = make(map[string]json.RawMessage)
+	}
+	s.bootstrapConfigs[tenant][endpoint] = bytes.Clone(config)
+}
+func (s *Devices) PutBootstrapConfig(ctx context.Context, tenant, endpoint string, config json.RawMessage) error {
+	if config == nil {
+		return errors.New("store: missing bootstrap config")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.putBootstrapLocked(tenant, endpoint, config)
+	return nil
+}
+func (s *Devices) GetBootstrapConfig(ctx context.Context, tenant, endpoint string) (json.RawMessage, bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	b, ok := s.bootstrapConfigs[tenant][endpoint]
+	return bytes.Clone(b), ok, nil
 }

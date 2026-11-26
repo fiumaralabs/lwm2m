@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -45,6 +46,18 @@ var ErrOperationIDReused = errors.New("store: operation id reused with a differe
 // Existing credentials are never overwritten by this operation.
 type DeviceSecurityCreateStore interface {
 	CreateDeviceWithSecurity(ctx context.Context, tenant, operationID, fingerprint string, d Device, security server.SecurityInfo) (DeviceCreateOutcome, bool, error)
+}
+
+// DeviceBootstrapCreateStore shares bootstrap configuration and device transactions.
+// The configuration belongs to this store, not an independent API config store.
+// Callers must bind fingerprints to the complete request, including credentials
+// and bootstrap configuration. An existing configuration is never overwritten
+// by create. PutBootstrapConfig replaces only the specified tenant's value.
+// GetBootstrapConfig returns an owned copy and reports storage errors.
+type DeviceBootstrapCreateStore interface {
+	CreateDeviceWithSecurityAndBootstrap(context.Context, string, string, string, Device, server.SecurityInfo, json.RawMessage) (DeviceCreateOutcome, bool, error)
+	PutBootstrapConfig(context.Context, string, string, json.RawMessage) error
+	GetBootstrapConfig(context.Context, string, string) (json.RawMessage, bool, error)
 }
 
 // DeviceCreateStore serializes device creation, outcomes, fencing and deletion.
