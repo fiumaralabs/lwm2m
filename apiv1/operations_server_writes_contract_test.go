@@ -71,4 +71,18 @@ func TestOperationServerWritesHTTPDelivery(t *testing.T) {
 			}
 		})
 	}
+	for _, body := range []string{
+		`{"type":"set-lifetime"}`,
+		`{"type":"set-lifetime","lifetimeSeconds":-1}`,
+		`{"type":"set-binding","binding":"???"}`,
+		`{"type":"set-preferred-transport","binding":"UQ"}`,
+		`{"type":"set-profile-hash-algorithm"}`,
+		`{"type":"set-profile-hash-algorithm","suite":256}`,
+		`{"type":"set-lifetime","lifetimeSeconds":1,"unknown":true}`,
+	} {
+		w := deviceRequest(h, "POST", "/v1/devices/pump/operations", body)
+		if w.Code != 400 {
+			t.Errorf("invalid %s: %d %s", body, w.Code, w.Body.String())
+		}
+	}
 }
