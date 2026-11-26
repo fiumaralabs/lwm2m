@@ -37,7 +37,9 @@ func TestDaemonRecoversKilledJobDispatch(t *testing.T) {
 	if ok, err := db.Jobs().StartJob("default", job.ID, devices, time.Now()); !ok || err != nil {
 		t.Fatalf("start job: %v %v", ok, err)
 	}
-	db.Close()
+	// Keep the initialized connection open across both daemon runs. Opening a
+	// second store while the daemon writes can race SQLite migrations.
+	defer db.Close()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -71,10 +73,6 @@ func TestDaemonRecoversKilledJobDispatch(t *testing.T) {
 		return nil
 	}
 	cmd := start()
-	db, err = sqlite.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	deadline := time.Now().Add(15 * time.Second)
 	observed := false
 	for time.Now().Before(deadline) {
@@ -93,7 +91,6 @@ func TestDaemonRecoversKilledJobDispatch(t *testing.T) {
 	}
 	_ = cmd.Wait()
 	claims := len(db.Jobs().ListTasks("default", job.ID, "dispatching"))
-	db.Close()
 	if claims == 0 {
 		t.Fatal("process was not killed mid-dispatch")
 	}
@@ -111,11 +108,6 @@ func TestDaemonRecoversKilledJobDispatch(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	db, err = sqlite.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
 	var tasks []apiv1.JobTask
 	for deadline = time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
 		tasks = db.Jobs().ListTasks("default", job.ID, "")
