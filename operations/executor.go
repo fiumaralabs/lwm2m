@@ -14,6 +14,7 @@ import (
 	"github.com/fiumaralabs/lwm2m"
 	"github.com/fiumaralabs/lwm2m/attr"
 	"github.com/fiumaralabs/lwm2m/codec"
+	"github.com/fiumaralabs/lwm2m/internal/regparam"
 	"github.com/fiumaralabs/lwm2m/link"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -57,6 +58,11 @@ type Executor struct {
 	devices    map[deviceKey]bool
 	timers     map[[2]string]*time.Timer
 	sessions   map[[2]string]string // reject operations belong to one registration
+}
+type serverWriteRequest struct {
+	LifetimeSeconds *uint32 `json:"lifetimeSeconds"`
+	Binding         string  `json:"binding"`
+	Suite           *uint8  `json:"suite"`
 }
 type request struct {
 	Depth      *int                       `json:"depth"`
@@ -149,12 +155,34 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 	if closed {
 		return Operation{}, ErrClosed
 	}
-	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" && o.Type != "discover" && o.Type != "create" {
+	if o.Type != "read" && o.Type != "write" && o.Type != "execute" && o.Type != "delete" && o.Type != "write-attributes" && o.Type != "sync-clock" && o.Type != "discover" && o.Type != "create" && o.Type != "set-lifetime" && o.Type != "set-binding" && o.Type != "set-preferred-transport" && o.Type != "set-profile-hash-algorithm" {
 		return Operation{}, ErrInvalid
 	}
 	var q request
 	if json.Unmarshal(o.Request, &q) != nil {
 		return Operation{}, ErrInvalid
+	}
+	var sw serverWriteRequest
+	if strings.HasPrefix(o.Type, "set-") && json.Unmarshal(o.Request, &sw) != nil {
+		return Operation{}, ErrInvalid
+	}
+	switch o.Type {
+	case "set-lifetime":
+		if sw.LifetimeSeconds == nil {
+			return Operation{}, ErrInvalid
+		}
+	case "set-binding":
+		if _, err := regparam.ParseBinding(sw.Binding, "1.2"); err != nil {
+			return Operation{}, ErrInvalid
+		}
+	case "set-preferred-transport":
+		if len(sw.Binding) != 1 || !strings.Contains("UTSNMH", sw.Binding) {
+			return Operation{}, ErrInvalid
+		}
+	case "set-profile-hash-algorithm":
+		if sw.Suite == nil {
+			return Operation{}, ErrInvalid
+		}
 	}
 	if o.Type == "discover" && q.Depth != nil && (*q.Depth < 0 || *q.Depth > 3) {
 		return Operation{}, ErrInvalid
@@ -188,6 +216,9 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		paths = []string{q.Path}
 		if o.Type == "sync-clock" {
 			paths = []string{"/3/0/13"}
+		}
+		if o.Type == "set-lifetime" || o.Type == "set-binding" || o.Type == "set-preferred-transport" || o.Type == "set-profile-hash-algorithm" {
+			paths = []string{"/1"}
 		}
 		if o.Type == "write" && q.Path == "" {
 			paths = []string{"/"}
@@ -369,6 +400,12 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 	}
 	var r *server.Response
 	var err error
+	var sw serverWriteRequest
+	if strings.HasPrefix(o.Type, "set-") {
+		if err := json.Unmarshal(o.Request, &sw); err != nil {
+			return resultJSON{}, err
+		}
+	}
 	if o.Type == "write" || o.Type == "create" {
 		preparing := true
 		defer func() {
@@ -451,6 +488,14 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		if o.Type == "write" && err == nil && r != nil {
 			r.Nodes = nodes
 		}
+	} else if o.Type == "set-lifetime" {
+		r, err = e.srv.SetLifetime(ctx, o.Device, time.Duration(*sw.LifetimeSeconds)*time.Second)
+	} else if o.Type == "set-binding" {
+		r, err = e.srv.SetBinding(ctx, o.Device, sw.Binding)
+	} else if o.Type == "set-preferred-transport" {
+		r, err = e.srv.SetPreferredTransport(ctx, o.Device, sw.Binding)
+	} else if o.Type == "set-profile-hash-algorithm" {
+		r, err = e.srv.SetProfileHashAlgorithm(ctx, o.Device, *sw.Suite)
 	} else if o.Type == "discover" {
 		p, _ := lwm2m.ParsePath(q.Path)
 		r, err = e.srv.Discover(ctx, o.Device, p, q.Depth)
