@@ -21,6 +21,10 @@ type Registrations struct {
 	db   *sql.DB
 	mu   sync.Mutex
 	live map[string]liveRegistration
+
+	reconcileMu sync.Mutex
+	reconciling bool
+	dirty       bool
 }
 type liveRegistration struct {
 	token string
@@ -124,23 +128,61 @@ func (s *Registrations) AddTx(ctx context.Context, tx *sql.Tx, r *server.Registr
 	}
 	_, err = tx.ExecContext(ctx, "INSERT INTO registrations(id,endpoint,payload) VALUES(?,?,?)", r.ID, r.Endpoint, payload)
 	if err == nil {
-		// The database has one connection, held by tx until commit or rollback.
-		// Reconcile only afterwards against committed state, preserving live peers
-		// on rollback. Tokens also protect newer writes from delayed cleanup.
-		go s.reconcileEndpoint(r.Endpoint)
+		// Reconcile after the transaction releases the single connection. Batch
+		// requests into one worker so long transactions cannot spawn per-add work.
+		s.scheduleReconcile()
 	}
 	return old, err
 }
 
-func (s *Registrations) reconcileEndpoint(endpoint string) {
+func (s *Registrations) scheduleReconcile() {
+	s.reconcileMu.Lock()
+	defer s.reconcileMu.Unlock()
+	s.dirty = true
+	if s.reconciling {
+		return
+	}
+	s.reconciling = true
+	go func() {
+		for {
+			s.reconcileMu.Lock()
+			if !s.dirty {
+				s.reconciling = false
+				s.reconcileMu.Unlock()
+				return
+			}
+			s.dirty = false
+			s.reconcileMu.Unlock()
+			s.reconcileLive()
+		}
+	}()
+}
+
+func (s *Registrations) reconcileLive() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r, token, err := s.read(context.Background(), s.db, "SELECT payload FROM registrations WHERE endpoint=?", endpoint)
+	rows, err := s.db.Query("SELECT payload FROM registrations")
 	if err != nil { // The database may have closed while the transaction ended.
 		return
 	}
+	defer rows.Close()
+	tokens := make(map[string]string)
+	for rows.Next() {
+		var payload []byte
+		if rows.Scan(&payload) != nil {
+			return
+		}
+		r, token, err := decodeRegistration(payload)
+		if err != nil {
+			return
+		}
+		tokens[r.ID] = token
+	}
+	if rows.Err() != nil {
+		return
+	}
 	for id, live := range s.live {
-		if live.r.Endpoint == endpoint && (r == nil || id != r.ID || live.token != token) {
+		if token, ok := tokens[id]; !ok || live.token != token {
 			delete(s.live, id)
 		}
 	}
