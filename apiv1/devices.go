@@ -18,6 +18,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
 // DeviceEvents must be composed with server.Config.OnEvent for the server's
@@ -218,7 +219,16 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					OwnsSecurity(server.SecurityStore) bool
 				})
 				outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
-				if !ok || !owned || !hasOutcomes || o.Server == nil || !owner.OwnsSecurity(o.Server.Security()) {
+				var liveSecurity server.SecurityStore
+				if o.Server != nil {
+					liveSecurity = o.Server.Security()
+					// Only unwrap the known transparent daemon decorator; arbitrary
+					// wrappers cannot attest that their lookup store is the same.
+					if wrapped, isRevoking := liveSecurity.(*coap.RevokingSecurityStore); isRevoking && wrapped != nil {
+						liveSecurity = wrapped.SecurityStore
+					}
+				}
+				if !ok || !owned || !hasOutcomes || liveSecurity == nil || !owner.OwnsSecurity(liveSecurity) {
 					WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
 					return
 				}

@@ -9,6 +9,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
 func TestDurableInlinePump(t *testing.T) {
@@ -58,6 +59,31 @@ func TestInlineWithoutOwnedSecurityFailsClosed(t *testing.T) {
 	}
 	if _, ok := s.Security().ByEndpoint("pump"); ok {
 		t.Fatal("credential was written")
+	}
+}
+
+func TestInlineWithMismatchedRevokingStoreFailsClosed(t *testing.T) {
+	d := &memory.Devices{}
+	other := &memory.Devices{}
+	s := server.New(server.Config{Security: coap.NewRevokingSecurityStore(other.Security(), func(string) {})})
+	t.Cleanup(func() { _ = s.Close() })
+	keys := Keys{entries: map[string]credential{"allowed": {hash: sha256.Sum256([]byte("lwm_allowed_secret")), scopes: ",devices:write,credentials:write,", tenant: "default"}}}
+	h := New(Options{Keys: keys, Devices: d, Server: s})
+	r := httptest.NewRequest("POST", "/v1/devices", strings.NewReader(`{"endpoint":"pump","credentials":{"psk":{"identity":"pump","key":"hex:000102030405060708090a0b0c0d0e0f"}}}`))
+	r.Header.Set("Authorization", "Bearer lwm_allowed_secret")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 501 || !strings.Contains(w.Body.String(), "inline_credentials_unavailable") {
+		t.Fatalf("got %d %s", w.Code, w.Body)
+	}
+	if _, err := d.Get("default", "pump"); err == nil {
+		t.Fatal("device was written")
+	}
+	if _, ok := d.Security().ByEndpoint("pump"); ok {
+		t.Fatal("owned credential was written")
+	}
+	if _, ok := s.Security().ByEndpoint("pump"); ok {
+		t.Fatal("live credential was written")
 	}
 }
 
