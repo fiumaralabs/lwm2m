@@ -31,7 +31,7 @@ func TestAPIPSKRegisterAndRevoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	t.Cleanup(func() { cancel(); _ = binding.Close(); _ = srv.Close() })
 	sum := sha256.Sum256([]byte("lwm_test_secret"))
-	keys, err := apiv1.LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:read,devices:write\n", sum)))
+	keys, err := apiv1.LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:read,devices:write,credentials:write\n", sum)))
 	if err != nil {
 		t.Fatal(err)
 	}

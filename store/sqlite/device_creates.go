@@ -10,6 +10,8 @@ import (
 
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
+	sqlite3 "modernc.org/sqlite"
+	sqlite3lib "modernc.org/sqlite/lib"
 )
 
 //go:embed 026_device_create_outcomes.sql
@@ -127,6 +129,14 @@ func (s *Devices) createDeviceWithOutcome(ctx context.Context, tenant, id, finge
 			if security != nil {
 				_, e = conn.ExecContext(ctx, `INSERT INTO security(endpoint,psk_identity,psk_key,x509,updated_at) VALUES(?,?,?,?,?)`, security.Endpoint, security.PSKIdentity, security.PSKKey, security.X509, time.Now().UTC().Format(time.RFC3339Nano))
 				if e != nil {
+					var existing int
+					var sqliteErr *sqlite3.Error
+					if security.PSKIdentity != "" && errors.As(e, &sqliteErr) && sqliteErr.Code() == sqlite3lib.SQLITE_CONSTRAINT_UNIQUE {
+						lookupErr := conn.QueryRowContext(ctx, `SELECT 1 FROM security WHERE psk_identity=?`, security.PSKIdentity).Scan(&existing)
+						if lookupErr == nil {
+							return server.ErrDuplicatePSKIdentity
+						}
+					}
 					return errors.New("sqlite: security credential write failed")
 				}
 				if s.deviceCreateHook != nil {

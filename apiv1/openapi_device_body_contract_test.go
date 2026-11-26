@@ -58,7 +58,7 @@ func TestOpenAPIDeviceRequestBodies(t *testing.T) {
 	}
 	srv := server.New(server.Config{})
 	defer srv.Close()
-	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,bootstrap:write,operations:write,firmware:write,", tenant: "default"}}}
+	keys := Keys{entries: map[string]credential{"test": {hash: sha256.Sum256([]byte("lwm_test_secret")), scopes: ",devices:read,devices:write,credentials:write,bootstrap:write,operations:write,firmware:write,", tenant: "default"}}}
 	h := New(Options{Keys: keys, Server: srv})
 	if w := deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"one"}`); w.Code != 201 {
 		t.Fatalf("fixture: %d %s", w.Code, w.Body.String())

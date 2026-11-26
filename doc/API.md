@@ -26,7 +26,7 @@ It replaces nothing: `leshanapi` stays, only so the Zephyr interop suite runs un
 | LwM2M paths | In request and response bodies, never in URLs: `"/3/0/1"`. A gateway end device is addressed with a separate `prefix` field (§14). |
 | Pagination | `?limit=` (default 50, max 500) and `?cursor=`. Responses are `{"items": [...], "nextCursor": "..."}`; no `nextCursor` means the last page. |
 | Filtering | `?selector=` uses label selectors: `env=prod,region in (eu,us),!beta`. List endpoints also take the specific filters listed with them. |
-| Idempotency | Every `POST` accepts an `Idempotency-Key` header. A retry with the same key within 24 h returns the first response and creates nothing. |
+| Idempotency | Every `POST` accepts an `Idempotency-Key` header. A retry with the same key within 24 h returns the first response and creates nothing. Device-create retries require `credentials:write` when the original or retry body supplies inline credentials; unclassifiable bodies and older replay records are treated as requiring that scope. |
 | Concurrency | Mutable resources carry an `ETag`. `PUT`, `PATCH` and `DELETE` accept `If-Match`; a mismatch is 412. |
 | Partial updates | `PATCH` uses JSON Merge Patch (RFC 7396), `Content-Type: application/merge-patch+json`. |
 | Errors | `application/problem+json` (RFC 9457), see below. |
@@ -206,7 +206,7 @@ Objects with no known definition have `"definition": null`.
 
 Device create outcomes let a client resolve an uncertain create and retry without creating a second device. The client generates `operationId`, an opaque string of 1–128 characters from `[A-Za-z0-9._~-]`; an invalid ID returns 400 `invalid-argument`. Records are keyed by `(tenant, operationId)`, with the tenant taken only from the authenticated key. Different tenants can use the same ID independently.
 
-`PUT /v1/device-creates/{operationId}` takes the same body as `POST /v1/devices`. The server computes `fingerprint = "sha256:" + hex(SHA-256(canonical JSON of the body, keys sorted))`. The outcome record never stores the plaintext body or credentials.
+`PUT /v1/device-creates/{operationId}` takes the same body as `POST /v1/devices`. Inline credentials on this endpoint currently return the `inline_credentials_unavailable` problem (501); support is tracked in [#256](https://github.com/fiumaralabs/lwm2m/issues/256). The server computes `fingerprint = "sha256:" + hex(SHA-256(canonical JSON of the body, keys sorted))`. The outcome record never stores the plaintext body or credentials.
 
 | Case | Response |
 |---|---|

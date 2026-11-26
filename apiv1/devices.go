@@ -1,9 +1,14 @@
 package apiv1
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,6 +18,7 @@ import (
 	"github.com/fiumaralabs/lwm2m/selector"
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
 // DeviceEvents must be composed with server.Config.OnEvent for the server's
@@ -119,6 +125,35 @@ func (o Options) listSelectedDevices(r *http.Request, tenant string, filter stor
 	}
 }
 
+// decodeInlineCredentials authorizes and validates optional inline PSK credentials
+// without mutating either store. Callers must invoke it before creating a device
+// or committing a durable create outcome. A nil result means no credentials.
+func (o Options) decodeInlineCredentials(w http.ResponseWriter, r *http.Request, tenant, endpoint string, raw json.RawMessage) (*server.SecurityInfo, bool) {
+	if len(raw) == 0 {
+		return nil, true
+	}
+	authorized := false
+	RequireScope("credentials:write")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { authorized = true })).ServeHTTP(w, r)
+	if !authorized {
+		return nil, false
+	}
+	if o.Server == nil || tenant != o.ServerTenant {
+		WriteProblem(w, 404, "not_found", "Credential service not available")
+		return nil, false
+	}
+	credentialRequest := r.Clone(r.Context())
+	credentialRequest.Body = io.NopCloser(bytes.NewReader(raw))
+	identity, _, key, generated, ok := decodePSKCredential(w, credentialRequest)
+	if !ok {
+		return nil, false
+	}
+	if generated {
+		WriteProblem(w, 400, "invalid_credential", "Generated credentials require the credentials endpoint")
+		return nil, false
+	}
+	return &server.SecurityInfo{Endpoint: endpoint, PSKIdentity: identity, PSKKey: key}, true
+}
+
 func (o Options) devices(w http.ResponseWriter, r *http.Request) {
 	scope := "devices:read"
 	if r.Method != "GET" {
@@ -137,10 +172,11 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			var input struct {
-				Endpoint string            `json:"endpoint"`
-				Name     string            `json:"name"`
-				Profile  string            `json:"profile"`
-				Labels   map[string]string `json:"labels"`
+				Endpoint    string            `json:"endpoint"`
+				Name        string            `json:"name"`
+				Profile     string            `json:"profile"`
+				Labels      map[string]string `json:"labels"`
+				Credentials json.RawMessage   `json:"credentials"`
 			}
 			if !DecodeJSON(w, r, &input) {
 				return
@@ -154,6 +190,10 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
 					return
 				}
+			}
+			security, ok := o.decodeInlineCredentials(w, r, tenant, input.Endpoint, input.Credentials)
+			if !ok {
+				return
 			}
 			unlock := o.limits.lock(tenant)
 			defer unlock()
@@ -172,14 +212,69 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 			}
 			unlockLifecycle := bootstrapLifecycle.lock(tenant)
 			defer unlockLifecycle()
-			d, err := o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
-			if err != nil {
-				if errors.Is(err, store.ErrDeviceExists) {
-					WriteProblem(w, 409, "device_exists", "Device already exists")
-				} else {
-					WriteProblem(w, 500, "internal_error", "Cannot create device")
+			var d store.Device
+			if security != nil {
+				creator, ok := o.Devices.(store.DeviceSecurityCreateStore)
+				owner, owned := o.Devices.(interface {
+					OwnsSecurity(server.SecurityStore) bool
+				})
+				outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
+				var liveSecurity server.SecurityStore
+				if o.Server != nil {
+					liveSecurity = o.Server.Security()
+					// Only unwrap the known transparent daemon decorator; arbitrary
+					// wrappers cannot attest that their lookup store is the same.
+					if wrapped, isRevoking := liveSecurity.(*coap.RevokingSecurityStore); isRevoking && wrapped != nil {
+						liveSecurity = wrapped.SecurityStore
+					}
 				}
-				return
+				if !ok || !owned || !hasOutcomes || liveSecurity == nil || !owner.OwnsSecurity(liveSecurity) {
+					WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
+					return
+				}
+				var nonce [16]byte
+				if _, err := rand.Read(nonce[:]); err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot create operation ID")
+					return
+				}
+				id := hex.EncodeToString(nonce[:])
+				encoded, err := json.Marshal(input)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot fingerprint create")
+					return
+				}
+				digest := sha256.Sum256(encoded)
+				result, _, err := creator.CreateDeviceWithSecurity(r.Context(), tenant, id, hex.EncodeToString(digest[:]), store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}, *security)
+				if err != nil {
+					if errors.Is(err, server.ErrDuplicatePSKIdentity) {
+						WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
+					} else {
+						WriteProblem(w, 500, "internal_error", "Cannot create device with credential")
+					}
+					return
+				}
+				// This internal outcome has no public operation ID to acknowledge.
+				_ = outcomes.DeleteDeviceCreate(r.Context(), tenant, id)
+				if result.Status != "committed" {
+					WriteProblem(w, 409, "device_exists", "Device already exists")
+					return
+				}
+				d, err = o.Devices.Get(tenant, input.Endpoint)
+				if err != nil {
+					WriteProblem(w, 500, "internal_error", "Cannot read created device")
+					return
+				}
+			} else {
+				var err error
+				d, err = o.Devices.Create(tenant, store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels})
+				if err != nil {
+					if errors.Is(err, store.ErrDeviceExists) {
+						WriteProblem(w, 409, "device_exists", "Device already exists")
+					} else {
+						WriteProblem(w, 500, "internal_error", "Cannot create device")
+					}
+					return
+				}
 			}
 			w.Header().Set("Location", "/v1/devices/"+url.PathEscape(d.Endpoint))
 			o.emitDevice(tenant, "lwm2m.device.created", d)

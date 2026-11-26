@@ -43,6 +43,20 @@ import (
 	"github.com/fiumaralabs/lwm2m/webhooks"
 )
 
+// validateAtomicSecurity refuses a device/security pair without a shared transaction boundary.
+func validateAtomicSecurity(devices store.Devices, security server.SecurityStore) error {
+	if wrapped, ok := security.(*coap.RevokingSecurityStore); ok {
+		security = wrapped.SecurityStore
+	}
+	owner, ok := devices.(interface {
+		OwnsSecurity(server.SecurityStore) bool
+	})
+	if !ok || !owner.OwnsSecurity(security) {
+		return errors.New("device and security stores do not share an atomic boundary")
+	}
+	return nil
+}
+
 func newDaemon(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
 	return newDaemonWithTimeSeries(cfg, api, keys, true, stores...)
 }
@@ -59,6 +73,14 @@ func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys,
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
+	}
+	if cfg.Security == nil {
+		switch d := devices.(type) {
+		case *memory.Devices:
+			cfg.Security = d.Security()
+		case *sqlite.Devices:
+			cfg.Security = d.Security()
+		}
 	}
 	var auditStore apiv1.AuditStore = &apiv1.MemoryAuditStore{}
 	var operationStore operations.Operations = memory.NewOperations()
@@ -242,9 +264,17 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var cb *coap.Binding
-	var securityStore server.SecurityStore = server.NewMemorySecurityStore()
-	if durable, ok := devices.(*sqlite.Devices); ok {
-		securityStore = durable.Security()
+	var securityStore server.SecurityStore
+	switch d := devices.(type) {
+	case *memory.Devices:
+		securityStore = d.Security()
+	case *sqlite.Devices:
+		securityStore = d.Security()
+	default:
+		log.Fatal("device store has no shared security store")
+	}
+	if err := validateAtomicSecurity(devices, securityStore); err != nil {
+		log.Fatal(err)
 	}
 	security := coap.NewRevokingSecurityStore(securityStore, func(id string) { cb.RevokePSKIdentity(id) })
 	sessions := apiv1.NewMemoryBootstrapSessionStore()

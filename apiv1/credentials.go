@@ -37,7 +37,7 @@ type credentialResponse struct {
 func (o Options) credentials(w http.ResponseWriter, r *http.Request) {
 	scope := "devices:read"
 	if r.Method != http.MethodGet {
-		scope = "devices:write"
+		scope = "credentials:write"
 	}
 	RequireScope(scope)(http.HandlerFunc(o.serveCredentials)).ServeHTTP(w, r)
 }
