@@ -119,15 +119,14 @@ func TestProfileApplyTwoDevicesAndRerun(t *testing.T) {
 		}
 	}
 	for _, task := range jobs.ListTasks("tenant", "first", "") {
-		if task.Status != "failed" || task.Error != "profile observations not supported" {
-			t.Errorf("mixed profile must not succeed without observations: %+v", task)
+		if task.Status != "succeeded" {
+			t.Errorf("profile apply failed: %+v", task)
 		}
 	}
 	t.Run("observations and rerun", func(t *testing.T) {
-		t.Skip("slice 2 #229")
 		for _, device := range []string{"a", "b"} {
 			items, err := observations.List("tenant", device)
-			if err != nil || len(items) != 1 || items[0].Source != "profile" || items[0].ProfileID != "profile" || len(items[0].Paths) != 1 || items[0].Paths[0] != "/3303/0/5700" {
+			if err != nil || len(items) != 1 || items[0].Source != "profile" || items[0].ProfileID != "profile" || len(items[0].Paths) != 1 || items[0].Paths[0] != "/3303/0/5700" || string(items[0].Attributes["pmin"]) != "60" || !items[0].Persistent {
 				t.Errorf("%s observations=%+v err=%v", device, items, err)
 			}
 		}
@@ -205,6 +204,7 @@ func TestProfileApplyChangedProfileFailsInsteadOfSkippingStep(t *testing.T) {
 func TestProfileApplyObservationsFailClosed(t *testing.T) {
 	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3303/0/5700"]}]`)}
 	jobs, _, _, _, runner := profileApplyFixture(t, profile)
+	runner.Observations = nil
 	profileApplyJob(t, jobs, "observations")
 	profileApplyTicks(t, runner)
 	for _, task := range jobs.ListTasks("tenant", "observations", "") {

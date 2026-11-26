@@ -288,12 +288,41 @@ func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessag
 	}
 	step -= len(attrs)
 	if step >= len(ops) {
-		var observations []json.RawMessage
+		var observations []observationInput
 		if len(profile.Observations) > 0 && json.Unmarshal(profile.Observations, &observations) != nil {
 			return nil, false, fmt.Errorf("invalid profile observations")
 		}
-		if len(observations) > 0 {
-			return nil, false, fmt.Errorf("profile observations not supported")
+		if len(observations) > 0 && r.Observations == nil {
+			return nil, false, fmt.Errorf("observation store unavailable")
+		}
+		for _, input := range observations {
+			if err := validateObservation(input.Paths, input.Attributes); err != nil {
+				return nil, false, fmt.Errorf("invalid profile observation: %w", err)
+			}
+			persistent := true
+			if input.Persistent != nil {
+				persistent = *input.Persistent
+			}
+			if input.Attributes == nil {
+				input.Attributes = map[string]json.RawMessage{}
+			}
+			key, err := json.Marshal(struct {
+				Device, Profile string
+				Input           observationInput
+			}{task.Device, id, input})
+			if err != nil {
+				return nil, false, err
+			}
+			v := store.Observation{Tenant: tenant, ID: fmt.Sprintf("obs_%x", sha256.Sum256(key)), Device: task.Device, ProfileID: id, Source: "profile", Paths: input.Paths, Attributes: input.Attributes, Persistent: persistent, Status: "pending", Prefix: input.Prefix, Format: input.Format, Accept: input.Accept}
+			if err := r.Observations.Create(tenant, v); err != nil {
+				if !errors.Is(err, store.ErrExists) {
+					return nil, false, fmt.Errorf("create profile observation: %w", err)
+				}
+				existing, getErr := r.Observations.Get(tenant, v.ID)
+				if getErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" || existing.Status == "ended" {
+					return nil, false, fmt.Errorf("profile observation conflict")
+				}
+			}
 		}
 		return nil, true, nil
 	}
