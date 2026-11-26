@@ -288,12 +288,59 @@ func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessag
 	}
 	step -= len(attrs)
 	if step >= len(ops) {
-		var observations []json.RawMessage
+		var observations []observationInput
 		if len(profile.Observations) > 0 && json.Unmarshal(profile.Observations, &observations) != nil {
 			return nil, false, fmt.Errorf("invalid profile observations")
 		}
-		if len(observations) > 0 {
-			return nil, false, fmt.Errorf("profile observations not supported")
+		if len(observations) > 0 && r.Observations == nil {
+			return nil, false, fmt.Errorf("observation store unavailable")
+		}
+		for _, input := range observations {
+			if err := validateObservation(input.Paths, input.Attributes); err != nil {
+				return nil, false, fmt.Errorf("invalid profile observation: %w", err)
+			}
+			persistent := true
+			if input.Persistent != nil {
+				persistent = *input.Persistent
+			}
+			if input.Attributes == nil {
+				input.Attributes = map[string]json.RawMessage{}
+			}
+			key, err := json.Marshal(struct {
+				Device, Profile string
+				Input           observationInput
+			}{task.Device, id, input})
+			if err != nil {
+				return nil, false, err
+			}
+			v := store.Observation{Tenant: tenant, ID: fmt.Sprintf("obs_%x", sha256.Sum256(key)), Device: task.Device, ProfileID: id, Source: "profile", Paths: input.Paths, Attributes: input.Attributes, Persistent: persistent, Status: "pending", Prefix: input.Prefix, Format: input.Format, Accept: input.Accept}
+			for {
+				err := r.Observations.Create(tenant, v)
+				if err == nil {
+					break
+				}
+				if !errors.Is(err, store.ErrExists) {
+					return nil, false, fmt.Errorf("create profile observation: %w", err)
+				}
+				existing, getErr := r.Observations.Get(tenant, v.ID)
+				if getErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" {
+					return nil, false, fmt.Errorf("profile observation conflict")
+				}
+				if existing.Status != "ended" {
+					actual, actualErr := json.Marshal(existing.Attributes)
+					wanted, wantedErr := json.Marshal(v.Attributes)
+					if actualErr != nil || wantedErr != nil || !bytes.Equal(actual, wanted) {
+						return nil, false, fmt.Errorf("profile observation conflict")
+					}
+					break
+				}
+				if existing.Persistent || v.Persistent {
+					return nil, false, fmt.Errorf("profile observation conflict")
+				}
+				// Each ended intent names a single successor, so concurrent applies
+				// converge without overwriting historical delivery state.
+				v.ID = fmt.Sprintf("obs_%x", sha256.Sum256([]byte(v.ID)))
+			}
 		}
 		return nil, true, nil
 	}

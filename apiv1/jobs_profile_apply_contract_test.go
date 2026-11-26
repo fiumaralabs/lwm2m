@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -119,15 +120,14 @@ func TestProfileApplyTwoDevicesAndRerun(t *testing.T) {
 		}
 	}
 	for _, task := range jobs.ListTasks("tenant", "first", "") {
-		if task.Status != "failed" || task.Error != "profile observations not supported" {
-			t.Errorf("mixed profile must not succeed without observations: %+v", task)
+		if task.Status != "succeeded" {
+			t.Errorf("profile apply failed: %+v", task)
 		}
 	}
 	t.Run("observations and rerun", func(t *testing.T) {
-		t.Skip("slice 2 #229")
 		for _, device := range []string{"a", "b"} {
 			items, err := observations.List("tenant", device)
-			if err != nil || len(items) != 1 || items[0].Source != "profile" || items[0].ProfileID != "profile" || len(items[0].Paths) != 1 || items[0].Paths[0] != "/3303/0/5700" {
+			if err != nil || len(items) != 1 || items[0].Source != "profile" || items[0].ProfileID != "profile" || len(items[0].Paths) != 1 || items[0].Paths[0] != "/3303/0/5700" || string(items[0].Attributes["pmin"]) != "60" || !items[0].Persistent {
 				t.Errorf("%s observations=%+v err=%v", device, items, err)
 			}
 		}
@@ -205,6 +205,7 @@ func TestProfileApplyChangedProfileFailsInsteadOfSkippingStep(t *testing.T) {
 func TestProfileApplyObservationsFailClosed(t *testing.T) {
 	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3303/0/5700"]}]`)}
 	jobs, _, _, _, runner := profileApplyFixture(t, profile)
+	runner.Observations = nil
 	profileApplyJob(t, jobs, "observations")
 	profileApplyTicks(t, runner)
 	for _, task := range jobs.ListTasks("tenant", "observations", "") {
@@ -245,5 +246,125 @@ func TestProfileApplyRevisionPersistedBeforeFirstSubmit(t *testing.T) {
 		if task.Status != "succeeded" {
 			t.Errorf("recovered task: %+v", task)
 		}
+	}
+}
+
+func TestProfileApplyDriftDoesNotSucceed(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"attributes":{"pmin":60}}]`)}
+	jobs, _, observations, _, runner := profileApplyFixture(t, profile)
+	profileApplyJob(t, jobs, "first-drift")
+	profileApplyTicks(t, runner)
+	items, _ := observations.List("tenant", "a")
+	if len(items) != 1 {
+		t.Fatalf("observations: %+v", items)
+	}
+	if _, err := observations.UpdateAttributes("tenant", items[0].ID, map[string]json.RawMessage{"pmin": json.RawMessage(`10`)}); err != nil {
+		t.Fatal(err)
+	}
+	profileApplyJob(t, jobs, "second-drift")
+	profileApplyTicks(t, runner)
+	seen := false
+	for _, task := range jobs.ListTasks("tenant", "second-drift", "") {
+		if task.Device == "a" {
+			seen = true
+			if task.Status != "failed" || task.Error != "profile observation conflict" {
+				t.Fatalf("drifted observation must fail: %+v", task)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("missing device task")
+	}
+}
+
+func TestProfileApplyRenewsEndedNonpersistentObservation(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"attributes":{"pmin":60},"persistent":false}]`)}
+	jobs, _, observations, _, runner := profileApplyFixture(t, profile)
+	profileApplyJob(t, jobs, "first-ended")
+	profileApplyTicks(t, runner)
+	initial, _ := observations.List("tenant", "a")
+	if len(initial) != 1 {
+		t.Fatalf("initial observations: %+v", initial)
+	}
+	if _, err := observations.UpdateAttributes("tenant", initial[0].ID, map[string]json.RawMessage{"pmin": json.RawMessage(`10`)}); err != nil {
+		t.Fatal(err)
+	}
+	delivery := NewObservationDelivery(nil, observations, nil, nil, "tenant")
+	delivery.drop("a")
+	old, _ := observations.List("tenant", "a")
+	if len(old) != 1 || old[0].Status != "ended" {
+		t.Fatalf("drop: %+v", old)
+	}
+	profileApplyJob(t, jobs, "second-ended")
+	profileApplyTicks(t, runner)
+	for _, task := range jobs.ListTasks("tenant", "second-ended", "") {
+		if task.Status != "succeeded" {
+			t.Fatalf("reapply: %+v", task)
+		}
+	}
+	items, _ := observations.List("tenant", "a")
+	if len(items) != 2 {
+		t.Fatalf("expected old and fresh intent: %+v", items)
+	}
+	var pending int
+	for _, v := range items {
+		if v.Status == "pending" {
+			pending++
+			if string(v.Attributes["pmin"]) != "60" {
+				t.Fatalf("renewed attributes: %+v", v.Attributes)
+			}
+		} else if v.Status == "ended" && string(v.Attributes["pmin"]) != "10" {
+			t.Fatalf("historical attributes changed: %+v", v.Attributes)
+		}
+	}
+	if pending != 1 {
+		t.Fatalf("expected one fresh intent: %+v", items)
+	}
+	profileApplyJob(t, jobs, "third-ended")
+	profileApplyTicks(t, runner)
+	items, _ = observations.List("tenant", "a")
+	if len(items) != 2 {
+		t.Fatalf("rerun duplicated intent: %+v", items)
+	}
+}
+
+func TestProfileApplyConcurrentRenewalConverges(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"attributes":{"pmin":60},"persistent":false}]`)}
+	_, _, observations, _, runner := profileApplyFixture(t, profile)
+	task := JobTask{Device: "a"}
+	if _, _, err := runner.profileStep("tenant", "profile", &task); err != nil {
+		t.Fatal(err)
+	}
+	initial, err := observations.List("tenant", "a")
+	if err != nil || len(initial) != 1 {
+		t.Fatalf("initial observations: %+v %v", initial, err)
+	}
+	if _, err := observations.UpdateAttributes("tenant", initial[0].ID, map[string]json.RawMessage{"pmin": json.RawMessage(`10`)}); err != nil {
+		t.Fatal(err)
+	}
+	NewObservationDelivery(nil, observations, nil, nil, "tenant").drop("a")
+	var wg sync.WaitGroup
+	errs := make(chan error, 32)
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			task := JobTask{Device: "a"}
+			_, done, err := runner.profileStep("tenant", "profile", &task)
+			if err != nil {
+				errs <- err
+			} else if !done {
+				errs <- fmt.Errorf("apply incomplete")
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	items, err := observations.List("tenant", "a")
+	if err != nil || len(items) != 2 {
+		t.Fatalf("renewal must converge: %+v %v", items, err)
 	}
 }
