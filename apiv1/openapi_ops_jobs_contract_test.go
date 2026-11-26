@@ -143,6 +143,15 @@ func TestOpenAPIOpsJobsContract(t *testing.T) {
 					if err := validate(p, v); err != nil {
 						return fmt.Errorf("%s: %w", k, err)
 					}
+				} else if len(s.Additional) > 0 {
+					if string(s.Additional) == "false" {
+						return fmt.Errorf("undocumented field %s", k)
+					}
+					if string(s.Additional) != "true" {
+						if err := validate(s.Additional, v); err != nil {
+							return fmt.Errorf("%s: %w", k, err)
+						}
+					}
 				} else if len(s.Properties) > 0 {
 					return fmt.Errorf("undocumented field %s", k)
 				}
@@ -191,6 +200,23 @@ func TestOpenAPIOpsJobsContract(t *testing.T) {
 		t.Fatal(obs.Code, obs.Body)
 	}
 	check("post", "/v1/devices/{ep}/observations", "201", obs.Body.Bytes())
+	// A mismatched map value schema must reject the real handler response.
+	original := doc.Components.Schemas["ObservationResponse"]
+	var mutated map[string]any
+	if err := json.Unmarshal(original, &mutated); err != nil {
+		t.Fatal(err)
+	}
+	attributes := mutated["properties"].(map[string]any)["attributes"].(map[string]any)
+	attributes["additionalProperties"].(map[string]any)["type"] = "string"
+	doc.Components.Schemas["ObservationResponse"], _ = json.Marshal(mutated)
+	var observation any
+	if err := json.Unmarshal(obs.Body.Bytes(), &observation); err != nil {
+		t.Fatal(err)
+	}
+	if err := validate(schemaFor("post", "/v1/devices/{ep}/observations", "201"), observation); err == nil {
+		t.Error("numeric observation attribute accepted by string additionalProperties")
+	}
+	doc.Components.Schemas["ObservationResponse"] = original
 	page := deviceRequest(h, "GET", "/v1/devices/pump%2Fa/observations", "")
 	if page.Code != 200 {
 		t.Fatal(page.Code, page.Body)
