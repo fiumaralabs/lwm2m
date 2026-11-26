@@ -278,10 +278,17 @@ func TestProfileApplyDriftDoesNotSucceed(t *testing.T) {
 }
 
 func TestProfileApplyRenewsEndedNonpersistentObservation(t *testing.T) {
-	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"persistent":false}]`)}
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"attributes":{"pmin":60},"persistent":false}]`)}
 	jobs, _, observations, _, runner := profileApplyFixture(t, profile)
 	profileApplyJob(t, jobs, "first-ended")
 	profileApplyTicks(t, runner)
+	initial, _ := observations.List("tenant", "a")
+	if len(initial) != 1 {
+		t.Fatalf("initial observations: %+v", initial)
+	}
+	if _, err := observations.UpdateAttributes("tenant", initial[0].ID, map[string]json.RawMessage{"pmin": json.RawMessage(`10`)}); err != nil {
+		t.Fatal(err)
+	}
 	delivery := NewObservationDelivery(nil, observations, nil, nil, "tenant")
 	delivery.drop("a")
 	old, _ := observations.List("tenant", "a")
@@ -303,6 +310,11 @@ func TestProfileApplyRenewsEndedNonpersistentObservation(t *testing.T) {
 	for _, v := range items {
 		if v.Status == "pending" {
 			pending++
+			if string(v.Attributes["pmin"]) != "60" {
+				t.Fatalf("renewed attributes: %+v", v.Attributes)
+			}
+		} else if v.Status == "ended" && string(v.Attributes["pmin"]) != "10" {
+			t.Fatalf("historical attributes changed: %+v", v.Attributes)
 		}
 	}
 	if pending != 1 {
@@ -317,10 +329,17 @@ func TestProfileApplyRenewsEndedNonpersistentObservation(t *testing.T) {
 }
 
 func TestProfileApplyConcurrentRenewalConverges(t *testing.T) {
-	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"persistent":false}]`)}
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"attributes":{"pmin":60},"persistent":false}]`)}
 	_, _, observations, _, runner := profileApplyFixture(t, profile)
 	task := JobTask{Device: "a"}
 	if _, _, err := runner.profileStep("tenant", "profile", &task); err != nil {
+		t.Fatal(err)
+	}
+	initial, err := observations.List("tenant", "a")
+	if err != nil || len(initial) != 1 {
+		t.Fatalf("initial observations: %+v %v", initial, err)
+	}
+	if _, err := observations.UpdateAttributes("tenant", initial[0].ID, map[string]json.RawMessage{"pmin": json.RawMessage(`10`)}); err != nil {
 		t.Fatal(err)
 	}
 	NewObservationDelivery(nil, observations, nil, nil, "tenant").drop("a")

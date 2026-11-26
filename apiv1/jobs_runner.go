@@ -323,12 +323,15 @@ func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessag
 					return nil, false, fmt.Errorf("create profile observation: %w", err)
 				}
 				existing, getErr := r.Observations.Get(tenant, v.ID)
-				actual, actualErr := json.Marshal(existing.Attributes)
-				wanted, wantedErr := json.Marshal(v.Attributes)
-				if getErr != nil || actualErr != nil || wantedErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" || !bytes.Equal(actual, wanted) {
+				if getErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" {
 					return nil, false, fmt.Errorf("profile observation conflict")
 				}
 				if existing.Status != "ended" {
+					actual, actualErr := json.Marshal(existing.Attributes)
+					wanted, wantedErr := json.Marshal(v.Attributes)
+					if actualErr != nil || wantedErr != nil || !bytes.Equal(actual, wanted) {
+						return nil, false, fmt.Errorf("profile observation conflict")
+					}
 					break
 				}
 				if existing.Persistent || v.Persistent {
