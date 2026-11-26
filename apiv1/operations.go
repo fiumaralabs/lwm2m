@@ -127,19 +127,22 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var input struct {
-			Type        string                     `json:"type"`
-			Attributes  map[string]json.RawMessage `json:"attributes,omitempty"`
-			TTL         *int                       `json:"ttlSeconds"`
-			WhenOffline string                     `json:"whenOffline"`
-			Prefix      string                     `json:"prefix"`
-			Format      string                     `json:"format"`
-			Accept      string                     `json:"accept"`
-			Paths       []string                   `json:"paths,omitempty"`
-			Path        string                     `json:"path,omitempty"`
-			Depth       *int                       `json:"depth,omitempty"`
-			Values      []json.RawMessage          `json:"values,omitempty"`
-			Mode        string                     `json:"mode,omitempty"`
-			Arguments   string                     `json:"arguments,omitempty"`
+			Type            string                     `json:"type"`
+			Attributes      map[string]json.RawMessage `json:"attributes,omitempty"`
+			TTL             *int                       `json:"ttlSeconds"`
+			WhenOffline     string                     `json:"whenOffline"`
+			Prefix          string                     `json:"prefix"`
+			Format          string                     `json:"format"`
+			Accept          string                     `json:"accept"`
+			Paths           []string                   `json:"paths,omitempty"`
+			Path            string                     `json:"path,omitempty"`
+			Depth           *int                       `json:"depth,omitempty"`
+			Values          []json.RawMessage          `json:"values,omitempty"`
+			Mode            string                     `json:"mode,omitempty"`
+			Arguments       string                     `json:"arguments,omitempty"`
+			LifetimeSeconds *uint32                    `json:"lifetimeSeconds,omitempty"`
+			Binding         string                     `json:"binding,omitempty"`
+			Suite           *uint8                     `json:"suite,omitempty"`
 		}
 		if !DecodeJSON(w, r, &input) {
 			return
@@ -149,14 +152,17 @@ func (o Options) serveOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		request, _ := json.Marshal(struct {
-			Attributes map[string]json.RawMessage `json:"attributes,omitempty"`
-			Paths      []string                   `json:"paths,omitempty"`
-			Path       string                     `json:"path,omitempty"`
-			Depth      *int                       `json:"depth,omitempty"`
-			Values     []json.RawMessage          `json:"values,omitempty"`
-			Mode       string                     `json:"mode,omitempty"`
-			Arguments  string                     `json:"arguments,omitempty"`
-		}{input.Attributes, input.Paths, input.Path, input.Depth, input.Values, input.Mode, input.Arguments})
+			Attributes      map[string]json.RawMessage `json:"attributes,omitempty"`
+			Paths           []string                   `json:"paths,omitempty"`
+			Path            string                     `json:"path,omitempty"`
+			Depth           *int                       `json:"depth,omitempty"`
+			Values          []json.RawMessage          `json:"values,omitempty"`
+			Mode            string                     `json:"mode,omitempty"`
+			Arguments       string                     `json:"arguments,omitempty"`
+			LifetimeSeconds *uint32                    `json:"lifetimeSeconds,omitempty"`
+			Binding         string                     `json:"binding,omitempty"`
+			Suite           *uint8                     `json:"suite,omitempty"`
+		}{input.Attributes, input.Paths, input.Path, input.Depth, input.Values, input.Mode, input.Arguments, input.LifetimeSeconds, input.Binding, input.Suite})
 		op := operations.New(tenant, ep, input.Type, request, input.TTL, time.Now().UTC())
 		keyID := strings.SplitN(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer lwm_"), "_", 2)[0]
 		op.CreatedBy = operations.Actor{Kind: "apiKey", ID: "key_" + keyID}
