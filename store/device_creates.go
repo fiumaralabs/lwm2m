@@ -30,6 +30,19 @@ func DeviceCreateReplayFrom(ctx context.Context) *DeviceCreateReplay {
 	return r
 }
 
+// WithDeviceCreateCapture receives the device snapshot on successful commit.
+func WithDeviceCreateCapture(ctx context.Context, capture func(Device)) context.Context {
+	return context.WithValue(ctx, deviceCreateCaptureKey{}, capture)
+}
+
+type deviceCreateCaptureKey struct{}
+
+func CaptureDeviceCreate(ctx context.Context, d Device) {
+	if capture, ok := ctx.Value(deviceCreateCaptureKey{}).(func(Device)); ok {
+		capture(d)
+	}
+}
+
 // DeviceCreateOutcome is the durable result of an idempotent device create.
 // Fingerprint identifies the request; the request body is never retained here.
 type DeviceCreateOutcome struct {
@@ -37,6 +50,9 @@ type DeviceCreateOutcome struct {
 	Status, Reason                             string
 	CreatedAt, CompletedAt                     time.Time
 }
+
+var ErrBootstrapConfigExists = errors.New("store: bootstrap config already exists")
+var ErrCredentialExists = errors.New("store: endpoint credential already exists")
 
 var ErrOperationIDReused = errors.New("store: operation id reused with a different request")
 

@@ -75,6 +75,9 @@ func New(o Options) http.Handler {
 	if o.BootstrapSessions == nil {
 		o.BootstrapSessions = NewMemoryBootstrapSessionStore()
 	}
+	if o.Devices == nil {
+		o.Devices = &memory.Devices{}
+	}
 	if o.BootstrapConfigs == nil {
 		if shared, ok := o.Devices.(store.DeviceBootstrapCreateStore); ok {
 			o.BootstrapConfigs = sharedBootstrapConfigs{shared}
@@ -104,9 +107,6 @@ func New(o Options) http.Handler {
 	}
 	if o.WebhookDeliveries == nil {
 		o.Webhooks, o.WebhookDeliveries = memory.NewWebhookDeliveryStores(o.Webhooks)
-	}
-	if o.Devices == nil {
-		o.Devices = &memory.Devices{}
 	}
 	if o.DeviceCreates == nil {
 		o.DeviceCreates, _ = o.Devices.(store.DeviceCreateStore)

@@ -304,6 +304,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				digest := sha256.Sum256(encoded)
+				ctx := store.WithDeviceCreateCapture(r.Context(), func(committed store.Device) { d = committed })
 				var result store.DeviceCreateOutcome
 				device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}
 				if len(input.Bootstrap) != 0 {
@@ -332,12 +333,16 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					if security != nil {
 						sec = *security
 					}
-					result, _, err = bootstrapCreator.CreateDeviceWithSecurityAndBootstrap(r.Context(), tenant, id, hex.EncodeToString(digest[:]), device, sec, input.Bootstrap)
+					result, _, err = bootstrapCreator.CreateDeviceWithSecurityAndBootstrap(ctx, tenant, id, hex.EncodeToString(digest[:]), device, sec, input.Bootstrap)
 				} else {
-					result, _, err = creator.CreateDeviceWithSecurity(r.Context(), tenant, id, hex.EncodeToString(digest[:]), device, *security)
+					result, _, err = creator.CreateDeviceWithSecurity(ctx, tenant, id, hex.EncodeToString(digest[:]), device, *security)
 				}
 				if err != nil {
-					if errors.Is(err, server.ErrDuplicatePSKIdentity) {
+					if errors.Is(err, store.ErrBootstrapConfigExists) {
+						WriteProblem(w, 409, "bootstrap_exists", "Bootstrap config already exists")
+					} else if errors.Is(err, store.ErrCredentialExists) {
+						WriteProblem(w, 409, "credential_exists", "Credential already exists")
+					} else if errors.Is(err, server.ErrDuplicatePSKIdentity) {
 						WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
 					} else {
 						WriteProblem(w, 500, "internal_error", "Cannot create device with credential")
@@ -350,11 +355,7 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 					WriteProblem(w, 409, "device_exists", "Device already exists")
 					return
 				}
-				d, err = o.Devices.Get(tenant, input.Endpoint)
-				if err != nil {
-					WriteProblem(w, 500, "internal_error", "Cannot read created device")
-					return
-				}
+
 			} else if store.DeviceCreateReplayFrom(r.Context()) != nil {
 				creator, ok := o.Devices.(store.DeviceCreateStore)
 				if !ok {

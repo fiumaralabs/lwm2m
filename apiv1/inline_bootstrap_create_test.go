@@ -9,8 +9,10 @@ import (
 	. "github.com/fiumaralabs/lwm2m/apiv1"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
@@ -52,12 +54,27 @@ type failingBootstrap struct {
 	store.DeviceBootstrapCreateStore
 	security server.SecurityStore
 	fail     bool
+	failGet  bool
+	conflict bool
 }
 
+func (f *failingBootstrap) Get(tenant, endpoint string) (store.Device, error) {
+	if f.failGet {
+		return store.Device{}, errors.New("injected read error")
+	}
+	return f.Devices.Get(tenant, endpoint)
+}
 func (f *failingBootstrap) OwnsSecurity(s server.SecurityStore) bool { return s == f.security }
 func (f *failingBootstrap) CreateDeviceWithSecurityAndBootstrap(ctx context.Context, tenant, id, fingerprint string, d store.Device, sec server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
 	if f.fail {
 		return store.DeviceCreateOutcome{}, false, errors.New("injected failure")
+	}
+	if f.conflict {
+		result := make(chan error, 1)
+		go func() { result <- f.PutBootstrapConfig(ctx, tenant, d.Endpoint, json.RawMessage(`{"servers":[]}`)) }()
+		if err := <-result; err != nil {
+			return store.DeviceCreateOutcome{}, false, err
+		}
 	}
 	return f.DeviceBootstrapCreateStore.CreateDeviceWithSecurityAndBootstrap(ctx, tenant, id, fingerprint, d, sec, config)
 }
@@ -168,6 +185,43 @@ func TestInlineBootstrapStores(t *testing.T) {
 			if _, ok := security.ByEndpoint("orphan"); ok {
 				t.Fatal("conflict created credential")
 			}
+			wrapped.conflict = true
+			raced := post("lwm_test_secret", body("raced", "raced", `{"servers":[]}`))
+			wrapped.conflict = false
+			if raced.Code != 409 || !strings.HasPrefix(raced.Header().Get("Content-Type"), "application/problem+json") {
+				t.Fatalf("race: %d %s", raced.Code, raced.Body)
+			}
+			if _, err := devices.Get("default", "raced"); err == nil {
+				t.Fatal("race created device")
+			}
+			if _, ok := security.ByEndpoint("raced"); ok {
+				t.Fatal("race created credential")
+			}
+			if _, ok, err := wrapped.GetBootstrapConfig(context.Background(), "default", "raced"); err != nil || !ok {
+				t.Fatal("orphan config lost", err)
+			}
+			for _, point := range []string{"after-device", "after-security", "after-bootstrap"} {
+				field := "deviceSecurityHook"
+				if backend == "sqlite" {
+					field = "deviceCreateHook"
+				}
+				hook := reflect.ValueOf(devices).Elem().FieldByName(field)
+				writable := reflect.NewAt(hook.Type(), unsafe.Pointer(hook.UnsafeAddr())).Elem()
+				fn := func(p string) error {
+					if p == point {
+						return errors.New("injected transaction failure")
+					}
+					return nil
+				}
+				writable.Set(reflect.ValueOf(fn))
+				ep := "fault-" + point
+				failed := post("lwm_test_secret", body(ep, ep, `{"servers":[]}`))
+				writable.Set(reflect.Zero(hook.Type()))
+				if failed.Code != 500 {
+					t.Fatalf("%s fault: %d %s", point, failed.Code, failed.Body)
+				}
+				checkAbsent(ep)
+			}
 			wrapped.fail = true
 			failed := post("lwm_test_secret", body("failed", "failed", `{"servers":[]}`))
 			wrapped.fail = false
@@ -175,6 +229,19 @@ func TestInlineBootstrapStores(t *testing.T) {
 				t.Fatalf("failure: %d %s", failed.Code, failed.Body)
 			}
 			checkAbsent("failed")
+			wrapped.failGet = true
+			committed := post("lwm_test_secret", body("committed", "committed", `{"servers":[]}`))
+			wrapped.failGet = false
+			if committed.Code != 201 {
+				t.Fatalf("post-commit read failure: %d %s", committed.Code, committed.Body)
+			}
+			var response struct {
+				Endpoint  string `json:"endpoint"`
+				CreatedAt string `json:"createdAt"`
+			}
+			if err := json.Unmarshal(committed.Body.Bytes(), &response); err != nil || response.Endpoint != "committed" || response.CreatedAt == "" {
+				t.Fatalf("committed response: %s (%v)", committed.Body, err)
+			}
 			good := post("lwm_test_secret", body("good", "shared", `{"servers":[]}`))
 			if good.Code != 201 || strings.Contains(good.Body.String(), "000102030405") || strings.Contains(good.Body.String(), "shared") {
 				t.Fatalf("create: %d %s", good.Code, good.Body)
@@ -198,5 +265,21 @@ func TestInlineBootstrapStores(t *testing.T) {
 				t.Fatal("tenant config leaked")
 			}
 		})
+	}
+}
+
+func TestInlineBootstrapDefaultDevices(t *testing.T) {
+	hash := sha256.Sum256([]byte("lwm_test_secret"))
+	keys, err := LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:read,devices:write,bootstrap:write", hash)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(Options{Keys: keys})
+	r := httptest.NewRequest("POST", "/v1/devices", strings.NewReader(`{"endpoint":"default","bootstrap":{"servers":[]}}`))
+	r.Header.Set("Authorization", "Bearer lwm_test_secret")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 201 {
+		t.Fatalf("create: %d %s", w.Code, w.Body)
 	}
 }
