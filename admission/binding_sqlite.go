@@ -3,12 +3,20 @@ package admission
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"sync"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
 
 // SQLiteBindingStore persists binding tombstones in a SQLite database.
-type SQLiteBindingStore struct{ db *sql.DB }
+type SQLiteBindingStore struct {
+	db        *sql.DB
+	owned     bool
+	retention time.Duration
+	mu        sync.Mutex
+}
 
 func OpenSQLiteBindingStore(path string) (*SQLiteBindingStore, error) {
 	db, err := sql.Open("sqlite", path)
@@ -16,19 +24,56 @@ func OpenSQLiteBindingStore(path string) (*SQLiteBindingStore, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	if _, err = db.Exec(`PRAGMA busy_timeout=5000`); err == nil {
-		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS admission_exchange_bindings (
-   exchange_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, identity_id TEXT NOT NULL,
-   fingerprint TEXT NOT NULL, request_digest TEXT NOT NULL, decision_digest TEXT NOT NULL,
-   applied INTEGER NOT NULL CHECK(applied = 1))`)
+	if _, err = db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
+		db.Close()
+		return nil, err
 	}
+	s, err := NewSQLiteBindingStoreDB(db)
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
-	return &SQLiteBindingStore{db: db}, nil
+	s.owned = true
+	return s, nil
 }
-func (s *SQLiteBindingStore) Close() error { return s.db.Close() }
+
+// NewSQLiteBindingStoreDB uses the caller's database without taking ownership.
+// Retention defaults to seven days; at most one optional duration is accepted.
+func NewSQLiteBindingStoreDB(db *sql.DB, retention ...time.Duration) (*SQLiteBindingStore, error) {
+	if db == nil || len(retention) > 1 {
+		return nil, errors.New("admission: invalid database or retention")
+	}
+	d := DefaultBindingRetention
+	if len(retention) == 1 {
+		d = retention[0]
+	}
+	if d < MaxExchangeIDLifetime {
+		return nil, errors.New("admission: retention shorter than exchange ID lifetime")
+	}
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS admission_exchange_bindings (
+   exchange_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, identity_id TEXT NOT NULL,
+   fingerprint TEXT NOT NULL, request_digest TEXT NOT NULL, decision_digest TEXT NOT NULL,
+   applied INTEGER NOT NULL CHECK(applied = 1))`)
+	if err != nil {
+		return nil, err
+	}
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS admission_receipts (
+   exchange_id TEXT PRIMARY KEY, decision_id TEXT NOT NULL, decision_digest TEXT NOT NULL,
+   issued_at TEXT NOT NULL, expires_at TEXT NOT NULL, committed_at INTEGER NOT NULL)`)
+	if err != nil {
+		return nil, err
+	}
+	return &SQLiteBindingStore{db: db, retention: d}, nil
+}
+
+// Close closes databases opened by OpenSQLiteBindingStore, not borrowed databases.
+func (s *SQLiteBindingStore) Close() error {
+	if s.owned {
+		return s.db.Close()
+	}
+	return nil
+}
+
 func (s *SQLiteBindingStore) BindAndMarkApplied(ctx context.Context, b Binding) (bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
