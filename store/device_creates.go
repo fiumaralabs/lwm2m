@@ -54,10 +54,13 @@ type DeviceSecurityCreateStore interface {
 // and bootstrap configuration. An existing configuration is never overwritten
 // by create. PutBootstrapConfig replaces only the specified tenant's value.
 // GetBootstrapConfig returns an owned copy and reports storage errors.
+// A zero SecurityInfo with a bootstrap config creates no credential.
+// DeleteBootstrapConfig reports whether a tenant-scoped value existed.
 type DeviceBootstrapCreateStore interface {
 	CreateDeviceWithSecurityAndBootstrap(context.Context, string, string, string, Device, server.SecurityInfo, json.RawMessage) (DeviceCreateOutcome, bool, error)
 	PutBootstrapConfig(context.Context, string, string, json.RawMessage) error
 	GetBootstrapConfig(context.Context, string, string) (json.RawMessage, bool, error)
+	DeleteBootstrapConfig(context.Context, string, string) (bool, error)
 }
 
 // DeviceCreateStore serializes device creation, outcomes, fencing and deletion.

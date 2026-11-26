@@ -475,7 +475,10 @@ func (o Options) serveDevices(w http.ResponseWriter, r *http.Request) {
 		WriteProblem(w, 500, "internal_error", "Cannot delete device")
 		return
 	}
-	o.BootstrapConfigs.Delete(tenant, ep)
+	if _, err := o.BootstrapConfigs.Delete(tenant, ep); err != nil {
+		WriteProblem(w, 500, "internal_error", "Cannot delete bootstrap config")
+		return
+	}
 	o.emitDevice(tenant, "lwm2m.device.deleted", d)
 	w.WriteHeader(204)
 }

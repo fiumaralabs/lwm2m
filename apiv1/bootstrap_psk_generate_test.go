@@ -64,7 +64,7 @@ func TestBootstrapGeneratedPSK(t *testing.T) {
 		if get.Code != 200 || strings.Contains(get.Body.String(), p.Key) || strings.Contains(get.Body.String(), `"key"`) || !strings.Contains(get.Body.String(), "9007199254740993") {
 			t.Fatal("bootstrap GET mismatch")
 		}
-		raw, ok := configs.Get("default", "a")
+		raw, ok, _ := configs.Get("default", "a")
 		if !ok || !strings.Contains(string(raw), p.Key) {
 			t.Fatal("generated key not stored")
 		}

@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"time"
 
 	"github.com/fiumaralabs/lwm2m/server"
@@ -88,6 +89,9 @@ func (s *Devices) CreateDeviceWithSecurity(ctx context.Context, tenant, id, fing
 func (s *Devices) CreateDeviceWithSecurityAndBootstrap(ctx context.Context, tenant, id, fingerprint string, d store.Device, security server.SecurityInfo, config json.RawMessage) (store.DeviceCreateOutcome, bool, error) {
 	if config == nil {
 		return store.DeviceCreateOutcome{}, false, errors.New("store: missing bootstrap config")
+	}
+	if reflect.DeepEqual(security, server.SecurityInfo{}) {
+		return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, nil, config)
 	}
 	return s.createDeviceWithOutcome(ctx, tenant, id, fingerprint, d, &security, config)
 }
@@ -286,4 +290,13 @@ func (s *Devices) GetBootstrapConfig(ctx context.Context, tenant, endpoint strin
 		return nil, false, nil
 	}
 	return b, err == nil, err
+}
+
+func (s *Devices) DeleteBootstrapConfig(ctx context.Context, tenant, endpoint string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM bootstrap_configs WHERE tenant=? AND endpoint=?`, tenant, endpoint)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n != 0, err
 }

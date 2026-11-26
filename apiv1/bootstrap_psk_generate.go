@@ -144,7 +144,10 @@ func (o Options) generateBootstrapPSKs(w http.ResponseWriter, tenant, ep string,
 			o.Server.RemoveRegistration(ep)
 		}
 	}
-	o.BootstrapConfigs.Put(tenant, ep, stored)
+	if err := o.BootstrapConfigs.Put(tenant, ep, stored); err != nil {
+		WriteProblem(w, 500, "internal_error", "Cannot store bootstrap config")
+		return nil, false
+	}
 	redactBootstrap(config)
 	for _, p := range generated {
 		security := servers[p.index].(map[string]any)["security"].(map[string]any)

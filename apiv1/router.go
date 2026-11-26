@@ -76,7 +76,11 @@ func New(o Options) http.Handler {
 		o.BootstrapSessions = NewMemoryBootstrapSessionStore()
 	}
 	if o.BootstrapConfigs == nil {
-		o.BootstrapConfigs = NewMemoryBootstrapConfigStore()
+		if shared, ok := o.Devices.(store.DeviceBootstrapCreateStore); ok {
+			o.BootstrapConfigs = sharedBootstrapConfigs{shared}
+		} else {
+			o.BootstrapConfigs = NewMemoryBootstrapConfigStore()
+		}
 	}
 	if o.DeviceProfiles == nil {
 		o.DeviceProfiles = NewMemoryDeviceProfileStore()
