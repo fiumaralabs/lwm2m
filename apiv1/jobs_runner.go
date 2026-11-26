@@ -3,6 +3,7 @@ package apiv1
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,7 +65,11 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					}
 					switch op.Status {
 					case operations.Succeeded:
-						task.Status = "succeeded"
+						if job.Action.ProfileApply != nil && job.Status != "cancelled" {
+							task.Status, task.Operation, task.Step = "pending", "", task.Step+1
+						} else {
+							task.Status = "succeeded"
+						}
 					case operations.Failed, operations.Timeout, operations.Dropped:
 						task.Status = "failed"
 					case operations.Expired:
@@ -96,7 +101,7 @@ func (r JobRunner) Tick(ctx context.Context) error {
 			if serverTenant == "" {
 				serverTenant = "default"
 			}
-			if job.Status == "running" && r.Executor != nil && tenant == serverTenant && len(job.Action.Operation) > 0 {
+			if job.Status == "running" && r.Executor != nil && tenant == serverTenant && (len(job.Action.Operation) > 0 || job.Action.ProfileApply != nil) {
 				if r.submit == nil {
 					return fmt.Errorf("job runner requires handler operation admission")
 				}
@@ -120,6 +125,27 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						}
 						continue
 					}
+					action := job.Action.Operation
+					if job.Action.ProfileApply != nil {
+						var done bool
+						var actionErr error
+						action, done, actionErr = r.profileStep(tenant, job.Action.ProfileApply.Profile, &task)
+						if actionErr != nil || done {
+							if actionErr != nil {
+								task.Status, task.Error = "failed", actionErr.Error()
+							} else {
+								task.Status = "succeeded"
+							}
+							if !r.Jobs.PutTask(tenant, job.ID, task) {
+								return fmt.Errorf("cannot record task")
+							}
+							continue
+						}
+						// Keep the claim recoverable with its revision before submitting an operation.
+						if !r.Jobs.PutTask(tenant, job.ID, task) {
+							return fmt.Errorf("cannot record profile revision")
+						}
+					}
 					var input struct {
 						Type        string                     `json:"type"`
 						TTL         *int                       `json:"ttlSeconds"`
@@ -135,14 +161,14 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						Arguments   string                     `json:"arguments,omitempty"`
 						Attributes  map[string]json.RawMessage `json:"attributes,omitempty"`
 					}
-					decoder := json.NewDecoder(bytes.NewReader(job.Action.Operation))
+					decoder := json.NewDecoder(bytes.NewReader(action))
 					decoder.DisallowUnknownFields()
 					parseErr := decoder.Decode(&input)
 					// Profile operations may contain fields the executor cannot handle.
 					// Preserve invalid-input errors for supported types, but classify
 					// valid unsupported types consistently even when decoding rejects
 					// their type-specific fields.
-					if parseErr != nil && validProfileOperation(job.Action.Operation) {
+					if parseErr != nil && validProfileOperation(action) {
 						switch input.Type {
 						case "read", "write", "execute", "delete", "write-attributes", "sync-clock", "discover", "create":
 						default:
@@ -163,6 +189,10 @@ func (r JobRunner) Tick(ctx context.Context) error {
 					}{input.Paths, input.Path, input.Depth, input.Values, input.Mode, input.Arguments, input.Attributes})
 					op := operations.New(tenant, task.Device, input.Type, request, input.TTL, now)
 					op.Job = &job.ID
+					if job.Action.ProfileApply != nil {
+						step := task.Step
+						op.JobStep = &step
+					}
 					if input.WhenOffline != "" {
 						op.WhenOffline = input.WhenOffline
 					}
@@ -180,7 +210,9 @@ func (r JobRunner) Tick(ctx context.Context) error {
 						}
 					} else if err != nil && op.ID == "" {
 						task.Status, task.Error = "failed", err.Error()
-						if errors.Is(err, operations.ErrInvalid) {
+						if errors.Is(err, operations.ErrInvalid) && job.Action.ProfileApply != nil {
+							task.Error = "unsupported_operation"
+						} else if errors.Is(err, operations.ErrInvalid) {
 							switch input.Type {
 							case "read", "write", "execute", "delete", "write-attributes", "sync-clock", "discover", "create":
 							default:
@@ -213,4 +245,57 @@ func (r JobRunner) Tick(ctx context.Context) error {
 		}
 	}
 	return ctx.Err()
+}
+
+// profileStep selects one sequential operation from the tenant-scoped profile.
+func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessage, bool, error) {
+	if r.DeviceProfiles == nil {
+		return nil, false, fmt.Errorf("profile store unavailable")
+	}
+	profile, ok := r.DeviceProfiles.Get(tenant, id)
+	if !ok {
+		return nil, false, fmt.Errorf("profile not found")
+	}
+	revision := fmt.Sprintf("%x", sha256.Sum256(append(append([]byte(nil), profile.Attributes...), append([]byte{0}, profile.OnRegister...)...)))
+	if task.ProfileRevision == "" && task.Step == 0 {
+		task.ProfileRevision = revision
+	}
+	if task.ProfileRevision != revision {
+		return nil, false, fmt.Errorf("profile changed during apply")
+	}
+	step := task.Step
+	var attrs []struct {
+		Path       string          `json:"path"`
+		Attributes json.RawMessage `json:"attributes"`
+	}
+	var ops []json.RawMessage
+	if len(profile.Attributes) > 0 && json.Unmarshal(profile.Attributes, &attrs) != nil {
+		return nil, false, fmt.Errorf("invalid profile attributes")
+	}
+	if len(profile.OnRegister) > 0 && json.Unmarshal(profile.OnRegister, &ops) != nil {
+		return nil, false, fmt.Errorf("invalid profile operations")
+	}
+	if step < 0 {
+		return nil, false, fmt.Errorf("invalid profile step")
+	}
+	if step < len(attrs) {
+		raw, err := json.Marshal(struct {
+			Type       string          `json:"type"`
+			Path       string          `json:"path"`
+			Attributes json.RawMessage `json:"attributes"`
+		}{"write-attributes", attrs[step].Path, attrs[step].Attributes})
+		return raw, false, err
+	}
+	step -= len(attrs)
+	if step >= len(ops) {
+		var observations []json.RawMessage
+		if len(profile.Observations) > 0 && json.Unmarshal(profile.Observations, &observations) != nil {
+			return nil, false, fmt.Errorf("invalid profile observations")
+		}
+		if len(observations) > 0 {
+			return nil, false, fmt.Errorf("profile observations not supported")
+		}
+		return nil, true, nil
+	}
+	return ops[step], false, nil
 }

@@ -194,7 +194,7 @@ func (s *Jobs) PutTask(tenant, id string, t apiv1.JobTask) bool {
 		return false
 	}
 	switch t.Status {
-	case "pending", "running", "succeeded", "failed", "expired", "cancelled":
+	case "pending", "dispatching", "running", "succeeded", "failed", "expired", "cancelled":
 	default:
 		return false
 	}
