@@ -314,14 +314,29 @@ func (r JobRunner) profileStep(tenant, id string, task *JobTask) (json.RawMessag
 				return nil, false, err
 			}
 			v := store.Observation{Tenant: tenant, ID: fmt.Sprintf("obs_%x", sha256.Sum256(key)), Device: task.Device, ProfileID: id, Source: "profile", Paths: input.Paths, Attributes: input.Attributes, Persistent: persistent, Status: "pending", Prefix: input.Prefix, Format: input.Format, Accept: input.Accept}
-			if err := r.Observations.Create(tenant, v); err != nil {
+			for {
+				err := r.Observations.Create(tenant, v)
+				if err == nil {
+					break
+				}
 				if !errors.Is(err, store.ErrExists) {
 					return nil, false, fmt.Errorf("create profile observation: %w", err)
 				}
 				existing, getErr := r.Observations.Get(tenant, v.ID)
-				if getErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" || existing.Status == "ended" {
+				actual, actualErr := json.Marshal(existing.Attributes)
+				wanted, wantedErr := json.Marshal(v.Attributes)
+				if getErr != nil || actualErr != nil || wantedErr != nil || existing.Device != task.Device || existing.ProfileID != id || existing.Source != "profile" || !bytes.Equal(actual, wanted) {
 					return nil, false, fmt.Errorf("profile observation conflict")
 				}
+				if existing.Status != "ended" {
+					break
+				}
+				if existing.Persistent || v.Persistent {
+					return nil, false, fmt.Errorf("profile observation conflict")
+				}
+				// Each ended intent names a single successor, so concurrent applies
+				// converge without overwriting historical delivery state.
+				v.ID = fmt.Sprintf("obs_%x", sha256.Sum256([]byte(v.ID)))
 			}
 		}
 		return nil, true, nil

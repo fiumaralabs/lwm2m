@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -245,5 +246,106 @@ func TestProfileApplyRevisionPersistedBeforeFirstSubmit(t *testing.T) {
 		if task.Status != "succeeded" {
 			t.Errorf("recovered task: %+v", task)
 		}
+	}
+}
+
+func TestProfileApplyDriftDoesNotSucceed(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"attributes":{"pmin":60}}]`)}
+	jobs, _, observations, _, runner := profileApplyFixture(t, profile)
+	profileApplyJob(t, jobs, "first-drift")
+	profileApplyTicks(t, runner)
+	items, _ := observations.List("tenant", "a")
+	if len(items) != 1 {
+		t.Fatalf("observations: %+v", items)
+	}
+	if _, err := observations.UpdateAttributes("tenant", items[0].ID, map[string]json.RawMessage{"pmin": json.RawMessage(`10`)}); err != nil {
+		t.Fatal(err)
+	}
+	profileApplyJob(t, jobs, "second-drift")
+	profileApplyTicks(t, runner)
+	seen := false
+	for _, task := range jobs.ListTasks("tenant", "second-drift", "") {
+		if task.Device == "a" {
+			seen = true
+			if task.Status != "failed" || task.Error != "profile observation conflict" {
+				t.Fatalf("drifted observation must fail: %+v", task)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("missing device task")
+	}
+}
+
+func TestProfileApplyRenewsEndedNonpersistentObservation(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"persistent":false}]`)}
+	jobs, _, observations, _, runner := profileApplyFixture(t, profile)
+	profileApplyJob(t, jobs, "first-ended")
+	profileApplyTicks(t, runner)
+	delivery := NewObservationDelivery(nil, observations, nil, nil, "tenant")
+	delivery.drop("a")
+	old, _ := observations.List("tenant", "a")
+	if len(old) != 1 || old[0].Status != "ended" {
+		t.Fatalf("drop: %+v", old)
+	}
+	profileApplyJob(t, jobs, "second-ended")
+	profileApplyTicks(t, runner)
+	for _, task := range jobs.ListTasks("tenant", "second-ended", "") {
+		if task.Status != "succeeded" {
+			t.Fatalf("reapply: %+v", task)
+		}
+	}
+	items, _ := observations.List("tenant", "a")
+	if len(items) != 2 {
+		t.Fatalf("expected old and fresh intent: %+v", items)
+	}
+	var pending int
+	for _, v := range items {
+		if v.Status == "pending" {
+			pending++
+		}
+	}
+	if pending != 1 {
+		t.Fatalf("expected one fresh intent: %+v", items)
+	}
+	profileApplyJob(t, jobs, "third-ended")
+	profileApplyTicks(t, runner)
+	items, _ = observations.List("tenant", "a")
+	if len(items) != 2 {
+		t.Fatalf("rerun duplicated intent: %+v", items)
+	}
+}
+
+func TestProfileApplyConcurrentRenewalConverges(t *testing.T) {
+	profile := DeviceProfile{ID: "profile", Name: "pump", Observations: json.RawMessage(`[{"paths":["/3/0/9"],"persistent":false}]`)}
+	_, _, observations, _, runner := profileApplyFixture(t, profile)
+	task := JobTask{Device: "a"}
+	if _, _, err := runner.profileStep("tenant", "profile", &task); err != nil {
+		t.Fatal(err)
+	}
+	NewObservationDelivery(nil, observations, nil, nil, "tenant").drop("a")
+	var wg sync.WaitGroup
+	errs := make(chan error, 32)
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			task := JobTask{Device: "a"}
+			_, done, err := runner.profileStep("tenant", "profile", &task)
+			if err != nil {
+				errs <- err
+			} else if !done {
+				errs <- fmt.Errorf("apply incomplete")
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	items, err := observations.List("tenant", "a")
+	if err != nil || len(items) != 2 {
+		t.Fatalf("renewal must converge: %+v %v", items, err)
 	}
 }
