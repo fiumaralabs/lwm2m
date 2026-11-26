@@ -46,10 +46,10 @@ type blockedBootstrapPut struct {
 	entered, release chan struct{}
 }
 
-func (s *blockedBootstrapPut) Put(tenant, endpoint string, b json.RawMessage) {
+func (s *blockedBootstrapPut) Put(tenant, endpoint string, b json.RawMessage) error {
 	close(s.entered)
 	<-s.release
-	s.BootstrapConfigStore.Put(tenant, endpoint, b)
+	return s.BootstrapConfigStore.Put(tenant, endpoint, b)
 }
 
 func TestBootstrapPutConcurrentDeviceDeletion(t *testing.T) {
@@ -83,7 +83,7 @@ func TestBootstrapPutConcurrentDeviceDeletion(t *testing.T) {
 	if code := <-deleted; code != 204 {
 		t.Fatalf("DELETE: %d", code)
 	}
-	if _, ok := configs.Get("default", "a"); ok {
+	if _, ok, _ := configs.Get("default", "a"); ok {
 		t.Fatal("in-flight PUT restored deleted config")
 	}
 	if w := deviceRequest(other, "POST", "/v1/devices", `{"endpoint":"a"}`); w.Code != 201 {
@@ -115,7 +115,7 @@ func TestBootstrapRemovedWhenDeviceRecreated(t *testing.T) {
 			t.Fatalf("%s %s: got %d, want %d: %s", step.method, step.path, w.Code, step.status, w.Body.String())
 		}
 	}
-	if _, ok := configs.Get("default", "a"); ok {
+	if _, ok, _ := configs.Get("default", "a"); ok {
 		t.Fatal("deleted device bootstrap config remains in store")
 	}
 }

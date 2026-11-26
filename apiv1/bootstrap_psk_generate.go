@@ -126,12 +126,33 @@ func (o Options) generateBootstrapPSKs(w http.ResponseWriter, tenant, ep string,
 		WriteProblem(w, 500, "internal_error", "Cannot encode bootstrap config")
 		return nil, false
 	}
+	previous, hadPrevious, err := o.BootstrapConfigs.Get(tenant, ep)
+	if err != nil {
+		WriteProblem(w, 500, "internal_error", "Cannot read bootstrap config")
+		return nil, false
+	}
+	if err := o.BootstrapConfigs.Put(tenant, ep, stored); err != nil {
+		WriteProblem(w, 500, "internal_error", "Cannot store bootstrap config")
+		return nil, false
+	}
 	for _, p := range generated {
 		if !p.self {
 			continue
 		}
 		_, existed := o.Server.Security().ByEndpoint(ep)
 		err := o.Server.Security().Put(server.SecurityInfo{Endpoint: ep, PSKIdentity: p.identity, PSKKey: p.key})
+		if err != nil {
+			var rollbackErr error
+			if hadPrevious {
+				rollbackErr = o.BootstrapConfigs.Put(tenant, ep, previous)
+			} else {
+				_, rollbackErr = o.BootstrapConfigs.Delete(tenant, ep)
+			}
+			if rollbackErr != nil {
+				WriteProblem(w, 500, "internal_error", "Cannot restore bootstrap config")
+				return nil, false
+			}
+		}
 		if errors.Is(err, server.ErrDuplicatePSKIdentity) {
 			WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
 			return nil, false
@@ -144,7 +165,6 @@ func (o Options) generateBootstrapPSKs(w http.ResponseWriter, tenant, ep string,
 			o.Server.RemoveRegistration(ep)
 		}
 	}
-	o.BootstrapConfigs.Put(tenant, ep, stored)
 	redactBootstrap(config)
 	for _, p := range generated {
 		security := servers[p.index].(map[string]any)["security"].(map[string]any)

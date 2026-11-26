@@ -2,6 +2,7 @@ package apiv1
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -23,9 +24,23 @@ var bootstrapLifecycle tenantLimiter
 
 // BootstrapConfigStore owns copies of complete JSON configurations per tenant and endpoint.
 type BootstrapConfigStore interface {
-	Put(tenant, endpoint string, config json.RawMessage)
-	Get(tenant, endpoint string) (json.RawMessage, bool)
-	Delete(tenant, endpoint string) bool
+	Put(tenant, endpoint string, config json.RawMessage) error
+	Get(tenant, endpoint string) (json.RawMessage, bool, error)
+	Delete(tenant, endpoint string) (bool, error)
+}
+
+type sharedBootstrapConfigs struct {
+	store.DeviceBootstrapCreateStore
+}
+
+func (s sharedBootstrapConfigs) Put(t, ep string, b json.RawMessage) error {
+	return s.PutBootstrapConfig(context.Background(), t, ep, b)
+}
+func (s sharedBootstrapConfigs) Get(t, ep string) (json.RawMessage, bool, error) {
+	return s.GetBootstrapConfig(context.Background(), t, ep)
+}
+func (s sharedBootstrapConfigs) Delete(t, ep string) (bool, error) {
+	return s.DeleteBootstrapConfig(context.Background(), t, ep)
 }
 
 type memoryBootstrapConfigs struct {
@@ -36,26 +51,27 @@ type memoryBootstrapConfigs struct {
 func NewMemoryBootstrapConfigStore() BootstrapConfigStore {
 	return &memoryBootstrapConfigs{data: make(map[string]map[string]json.RawMessage)}
 }
-func (s *memoryBootstrapConfigs) Put(t, ep string, b json.RawMessage) {
+func (s *memoryBootstrapConfigs) Put(t, ep string, b json.RawMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.data[t] == nil {
 		s.data[t] = make(map[string]json.RawMessage)
 	}
 	s.data[t][ep] = bytes.Clone(b)
+	return nil
 }
-func (s *memoryBootstrapConfigs) Get(t, ep string) (json.RawMessage, bool) {
+func (s *memoryBootstrapConfigs) Get(t, ep string) (json.RawMessage, bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	b, ok := s.data[t][ep]
-	return bytes.Clone(b), ok
+	return bytes.Clone(b), ok, nil
 }
-func (s *memoryBootstrapConfigs) Delete(t, ep string) bool {
+func (s *memoryBootstrapConfigs) Delete(t, ep string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, ok := s.data[t][ep]
 	delete(s.data[t], ep)
-	return ok
+	return ok, nil
 }
 
 type bootstrapInput struct {
@@ -220,10 +236,17 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 		if generated != nil {
 			return
 		}
-		o.BootstrapConfigs.Put(tenant, ep, b)
+		if err := o.BootstrapConfigs.Put(tenant, ep, b); err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot store bootstrap config")
+			return
+		}
 		w.WriteHeader(204)
 	case "GET":
-		b, ok := o.BootstrapConfigs.Get(tenant, ep)
+		b, ok, err := o.BootstrapConfigs.Get(tenant, ep)
+		if err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot get bootstrap config")
+			return
+		}
 		if !ok {
 			WriteProblem(w, 404, "not_found", "Bootstrap config not found")
 			return
@@ -238,7 +261,12 @@ func (o Options) serveBootstrap(w http.ResponseWriter, r *http.Request) {
 		redactBootstrap(v)
 		deviceJSON(w, 200, v)
 	case "DELETE":
-		if !o.BootstrapConfigs.Delete(tenant, ep) {
+		deleted, err := o.BootstrapConfigs.Delete(tenant, ep)
+		if err != nil {
+			WriteProblem(w, 500, "internal_error", "Cannot delete bootstrap config")
+			return
+		}
+		if !deleted {
 			WriteProblem(w, 404, "not_found", "Bootstrap config not found")
 			return
 		}

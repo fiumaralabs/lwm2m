@@ -14,6 +14,7 @@ type bootstrapCreator interface {
 	CreateDeviceWithSecurityAndBootstrap(context.Context, string, string, string, store.Device, server.SecurityInfo, json.RawMessage) (store.DeviceCreateOutcome, bool, error)
 	PutBootstrapConfig(context.Context, string, string, json.RawMessage) error
 	GetBootstrapConfig(context.Context, string, string) (json.RawMessage, bool, error)
+	DeleteBootstrapConfig(context.Context, string, string) (bool, error)
 }
 
 func DeviceBootstrap(t *testing.T, devices store.Devices, security server.SecurityStore, hook func(func(string) error)) {
@@ -23,6 +24,13 @@ func DeviceBootstrap(t *testing.T, devices store.Devices, security server.Securi
 		t.Fatal("atomic bootstrap create store not implemented")
 	}
 	ctx := context.Background()
+	outOnly, insertedOnly, errOnly := s.CreateDeviceWithSecurityAndBootstrap(ctx, "a", "only-op", "fp", store.Device{Endpoint: "only"}, server.SecurityInfo{}, json.RawMessage(`{}`))
+	if errOnly != nil || !insertedOnly || outOnly.Status != "committed" {
+		t.Fatalf("bootstrap-only create: %+v %v %v", outOnly, insertedOnly, errOnly)
+	}
+	if _, ok := security.ByEndpoint("only"); ok {
+		t.Fatal("bootstrap-only create wrote a credential")
+	}
 	if err := s.PutBootstrapConfig(ctx, "a", "nil", nil); err == nil {
 		t.Fatal("nil configuration accepted")
 	}
@@ -104,5 +112,14 @@ func DeviceBootstrap(t *testing.T, devices store.Devices, security server.Securi
 	b, _, _ = s.GetBootstrapConfig(ctx, "b", "pump")
 	if string(b) != string(original) {
 		t.Fatal("other tenant changed")
+	}
+	if deleted, err := s.DeleteBootstrapConfig(ctx, "a", "pump"); err != nil || !deleted {
+		t.Fatalf("delete: %v %v", deleted, err)
+	}
+	if deleted, err := s.DeleteBootstrapConfig(ctx, "a", "pump"); err != nil || deleted {
+		t.Fatalf("delete missing: %v %v", deleted, err)
+	}
+	if b, ok, err := s.GetBootstrapConfig(ctx, "b", "pump"); err != nil || !ok || string(b) != string(original) {
+		t.Fatalf("other tenant changed after delete: %s %v %v", b, ok, err)
 	}
 }

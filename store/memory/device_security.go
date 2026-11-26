@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 
 	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
@@ -85,7 +86,8 @@ func (s *Devices) createDeviceWithSecurity(ctx context.Context, tenant, id, fing
 		o, err := replayOutcome(o, fingerprint)
 		return o, false, err
 	}
-	if security.Endpoint != d.Endpoint {
+	hasSecurity := !reflect.DeepEqual(security, server.SecurityInfo{})
+	if !hasSecurity && config == nil || hasSecurity && security.Endpoint != d.Endpoint {
 		return store.DeviceCreateOutcome{}, false, errors.New("store: security endpoint mismatch")
 	}
 	for _, devices := range s.records {
@@ -115,15 +117,17 @@ func (s *Devices) createDeviceWithSecurity(ctx context.Context, tenant, id, fing
 			return store.DeviceCreateOutcome{}, false, err
 		}
 	}
-	if err := sec.Put(copySecurity(security)); err != nil {
-		rollback()
-		return store.DeviceCreateOutcome{}, false, err
-	}
-	if s.deviceSecurityHook != nil {
-		if err := s.deviceSecurityHook("after-security"); err != nil {
-			sec.Remove(d.Endpoint)
+	if hasSecurity {
+		if err := sec.Put(copySecurity(security)); err != nil {
 			rollback()
 			return store.DeviceCreateOutcome{}, false, err
+		}
+		if s.deviceSecurityHook != nil {
+			if err := s.deviceSecurityHook("after-security"); err != nil {
+				sec.Remove(d.Endpoint)
+				rollback()
+				return store.DeviceCreateOutcome{}, false, err
+			}
 		}
 	}
 	if config != nil {
@@ -175,4 +179,15 @@ func (s *Devices) GetBootstrapConfig(ctx context.Context, tenant, endpoint strin
 	}
 	b, ok := s.bootstrapConfigs[tenant][endpoint]
 	return bytes.Clone(b), ok, nil
+}
+
+func (s *Devices) DeleteBootstrapConfig(ctx context.Context, tenant, endpoint string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	_, ok := s.bootstrapConfigs[tenant][endpoint]
+	delete(s.bootstrapConfigs[tenant], endpoint)
+	return ok, nil
 }
