@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 )
 
 // Binding identifies a validated decision and its original request.
@@ -20,15 +21,26 @@ type BindingStore interface {
 	BindAndMarkApplied(context.Context, Binding) (alreadyApplied bool, err error)
 }
 
-// TODO(#257): define retention no shorter than the maximum exchange ID lifetime.
-// Until then bindings are durable tombstones and must never be purged.
+// MaxExchangeIDLifetime bounds how long an exchange ID may be retried.
+const MaxExchangeIDLifetime = 24 * time.Hour
+const DefaultBindingRetention = 7 * 24 * time.Hour
+
+// Receipt is the authenticated decision persisted with its binding.
+type Receipt struct {
+	DecisionID, DecisionDigest string
+	IssuedAt, ExpiresAt        time.Time
+}
+
+// MemoryBindingStore is process-local and non-durable. Its callback receives a
+// nil transaction and must not mutate external state before it succeeds.
 type MemoryBindingStore struct {
 	mu       sync.Mutex
 	bindings map[string]Binding
+	receipts map[string]Receipt
 }
 
 func NewMemoryBindingStore() *MemoryBindingStore {
-	return &MemoryBindingStore{bindings: make(map[string]Binding)}
+	return &MemoryBindingStore{bindings: make(map[string]Binding), receipts: make(map[string]Receipt)}
 }
 func (s *MemoryBindingStore) BindAndMarkApplied(ctx context.Context, b Binding) (bool, error) {
 	if err := ctx.Err(); err != nil {
