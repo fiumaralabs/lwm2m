@@ -87,6 +87,9 @@ var deviceProfileMigration string
 //go:embed 029_operation_job_steps.sql
 var operationJobStepsMigration string
 
+//go:embed 030_bootstrap_configs.sql
+var bootstrapConfigsMigration string
+
 type Devices struct {
 	db               *sql.DB
 	deviceCreateHook func(string) error
@@ -290,6 +293,9 @@ func (s *Devices) migrate() error {
 		return err
 	}
 	if _, err = tx.Exec(operationJobStepsMigration); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(bootstrapConfigsMigration); err != nil {
 		return err
 	}
 	return tx.Commit()

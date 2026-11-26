@@ -10,3 +10,8 @@ func TestDeviceSecurityContract(t *testing.T) {
 	d := &memory.Devices{}
 	storetest.DeviceSecurity(t, d, d.Security())
 }
+
+func TestDeviceBootstrapContract(t *testing.T) {
+	d := &memory.Devices{}
+	storetest.DeviceBootstrap(t, d, d.Security(), nil)
+}
