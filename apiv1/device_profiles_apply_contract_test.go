@@ -65,7 +65,7 @@ func TestDeviceProfileApplyContract(t *testing.T) {
 	}
 	other := validJob()
 	other.ID = "collision"
-	if _, err := jobs.CreateJobResult("default", "profile-apply:ZHBfb3duZWQ:collision", JobCreateResult{Job: &other}); err != nil {
+	if _, err := jobs.CreateJobResult("default", "\x00profile-apply:ZHBfb3duZWQ:collision", JobCreateResult{Job: &other}); err != nil {
 		t.Fatal(err)
 	}
 	if collision := profileWriteRequest(h, "POST", "/v1/device-profiles/dp_owned/apply", "{}", "lwm_test_secret", "collision"); collision.Code != 409 {

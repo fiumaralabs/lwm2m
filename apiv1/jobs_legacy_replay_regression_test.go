@@ -82,10 +82,37 @@ func TestJobLegacyReplayUpgrade(t *testing.T) {
 					if before != expected {
 						t.Fatalf("created duplicate job: %d", before)
 					}
+					if forged := request("/v1/jobs", "\x00profile-apply:ZHA:k", valid); forged.Code != 400 {
+						t.Fatalf("internal namespace accepted as HTTP key: %d", forged.Code)
+					}
 					if key == "profile-apply:ZHA:k" {
 						a := request("/v1/device-profiles/dp/apply", "k", "{}")
 						if a.Code != 202 {
 							t.Fatalf("legacy key collided with apply: %d %s", a.Code, a.Body)
+						}
+						bad := request("/v1/device-profiles/dp/apply", "other", `{"invalid":true}`)
+						if bad.Code != 400 {
+							t.Fatalf("distinct apply key: %d %s", bad.Code, bad.Body)
+						}
+						if db != nil {
+							if err := db.Close(); err != nil {
+								t.Fatal(err)
+							}
+							db, err = sqlite.Open(path)
+							if err != nil {
+								t.Fatal(err)
+							}
+							defer db.Close()
+							jobs = db.Jobs()
+							h = apiv1.New(apiv1.Options{Keys: keys, DeviceProfiles: profiles, Jobs: jobs})
+						}
+						badRetry := request("/v1/device-profiles/dp/apply", "other", "{}")
+						if badRetry.Code != bad.Code || badRetry.Body.String() != bad.Body.String() {
+							t.Fatalf("apply error replay after restart: %d %s", badRetry.Code, badRetry.Body)
+						}
+						retry := request("/v1/device-profiles/dp/apply", "k", "{}")
+						if retry.Code != a.Code || retry.Body.String() != a.Body.String() {
+							t.Fatalf("apply replay after restart: %d %s", retry.Code, retry.Body)
 						}
 					}
 				})
