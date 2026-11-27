@@ -47,6 +47,10 @@ func TestCheckedSQLiteConcurrentRegisterDeregister(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000"); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { db.Close() })
 	store := &transactionalStore{Registrations: devices.Registrations(), db: db}
 	h := newHarness(t, func(c *server.Config) { c.Store = store })
@@ -92,6 +96,10 @@ func TestCheckedSQLitePeerAfterCommit(t *testing.T) {
 	t.Cleanup(func() { devices.Close() })
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000"); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
