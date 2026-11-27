@@ -79,7 +79,7 @@ func TestRegistrationRestartAndRollback(t *testing.T) {
 	}
 	injected := errors.New("injected failure")
 	binding := admission.Binding{ExchangeID: "x", DecisionDigest: "digest"}
-	receipt := admission.Receipt{DecisionID: "d", DecisionDigest: "digest", IssuedAt: time.Unix(100, 0), ExpiresAt: time.Unix(200, 0)}
+	receipt := admission.Receipt{DecisionID: "d", DecisionDigest: "digest", IssuedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
 	err = bindings.CommitAdmitted(context.Background(), binding, receipt, func(tx *sql.Tx) error {
 		if _, err := d.Registrations().AddTx(context.Background(), tx, &server.Registration{ID: "rolled", Endpoint: "device"}); err != nil {
 			return err

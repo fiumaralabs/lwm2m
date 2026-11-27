@@ -9,10 +9,40 @@ import (
 	"modernc.org/sqlite"
 )
 
+// ReceiptExpiredError reports a receipt that is no longer valid.
+type ReceiptExpiredError struct{ ExpiresAt time.Time }
+
+func (e *ReceiptExpiredError) Error() string { return "admission: receipt expired" }
+
+type receiptClockKey struct{}
+
+// WithReceiptClock injects a trusted clock for receipt validation. Production
+// callers should use the default system clock, not untrusted request input.
+func WithReceiptClock(ctx context.Context, clock func() time.Time) context.Context {
+	return context.WithValue(ctx, receiptClockKey{}, clock)
+}
+
+func receiptNow(ctx context.Context) time.Time {
+	if clock, ok := ctx.Value(receiptClockKey{}).(func() time.Time); ok {
+		return clock()
+	}
+	return time.Now()
+}
+
+func checkReceiptExpiry(ctx context.Context, r Receipt) error {
+	if !r.ExpiresAt.After(receiptNow(ctx)) {
+		return &ReceiptExpiredError{ExpiresAt: r.ExpiresAt}
+	}
+	return nil
+}
+
 // CommitAdmitted serializes retries. Memory callbacks receive nil, cannot use
 // SQL transactions and must not expose side effects on error or panic.
 func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Receipt, effect func(*sql.Tx) error) error {
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := checkReceiptExpiry(ctx, r); err != nil {
 		return err
 	}
 	if r.DecisionDigest != b.DecisionDigest {
@@ -20,6 +50,9 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -33,6 +66,9 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	if effect == nil {
 		return errors.New("admission: nil effect")
 	}
+	if err := checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
 	if err := effect(nil); err != nil {
 		return err
 	}
@@ -45,6 +81,9 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 // transaction. The callback must use only the provided transaction for effects.
 // A repeated identical commit is a no-op; a different binding or receipt fails.
 func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Receipt, effect func(*sql.Tx) error) error {
+	if err := checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
 	if r.DecisionDigest != b.DecisionDigest {
 		return ErrBindingConflict
 	}
@@ -60,7 +99,7 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	for {
 		tx, err = s.db.BeginTx(ctx, nil)
 		if err == nil {
-			result, err = tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings VALUES (?, ?, ?, ?, ?, ?, 1) ON CONFLICT(exchange_id) DO NOTHING`, b.ExchangeID, b.TenantID, b.IdentityID, b.Fingerprint, b.RequestDigest, b.DecisionDigest)
+			result, err = tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings (exchange_id,tenant_id,identity_id,fingerprint,request_digest,decision_digest,applied,expires_at,first_seen) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT(exchange_id) DO NOTHING`, b.ExchangeID, b.TenantID, b.IdentityID, b.Fingerprint, b.RequestDigest, b.DecisionDigest, r.ExpiresAt.UTC().Format(time.RFC3339Nano), receiptNow(ctx).UnixNano())
 			if err == nil {
 				break
 			}
@@ -81,6 +120,9 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 		}
 	}
 	defer tx.Rollback()
+	if err := checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
 	n, err := result.RowsAffected()
 	if err != nil {
 		return err
@@ -105,16 +147,58 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	if err != nil {
 		return err
 	}
+	if err = checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
 	if err = effect(tx); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-// Prune retains all barriers: CommitAdmitted does not yet enforce exchange
-// expiry, so no receipt is safe to delete, even after its retention period.
-// The caller's context is still honored. Retention remains a lower bound, not
-// a promise that records will be removed after that time.
+// Prune removes expired receipt and binding payloads only after the retention
+// boundary. A minimal per-exchange tombstone is kept forever, so storage
+// grows by one small row per exchange. Legacy rows without expiry are retained.
 func (s *SQLiteBindingStore) Prune(ctx context.Context, now time.Time) error {
-	return ctx.Err()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT exchange_id, expires_at FROM admission_exchange_bindings WHERE expires_at IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	var ids []string
+	for rows.Next() {
+		var id, raw string
+		if err = rows.Scan(&id, &raw); err != nil {
+			rows.Close()
+			return err
+		}
+		expiry, parseErr := time.Parse(time.RFC3339Nano, raw)
+		if parseErr != nil {
+			rows.Close()
+			return parseErr
+		}
+		if now.After(expiry.Add(s.retention)) {
+			ids = append(ids, id)
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM admission_receipts WHERE exchange_id=?`, id); err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE admission_exchange_bindings SET tenant_id='',identity_id='',fingerprint='',request_digest='',expires_at=NULL WHERE exchange_id=?`, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

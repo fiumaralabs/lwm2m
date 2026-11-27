@@ -47,8 +47,8 @@ func NewSQLiteBindingStoreDB(db *sql.DB, retention ...time.Duration) (*SQLiteBin
 	if len(retention) == 1 {
 		d = retention[0]
 	}
-	if d < MaxExchangeIDLifetime {
-		return nil, errors.New("admission: retention shorter than exchange ID lifetime")
+	if d <= 0 {
+		return nil, errors.New("admission: retention must be positive")
 	}
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS admission_exchange_bindings (
    exchange_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, identity_id TEXT NOT NULL,
@@ -56,6 +56,36 @@ func NewSQLiteBindingStoreDB(db *sql.DB, retention ...time.Duration) (*SQLiteBin
    applied INTEGER NOT NULL CHECK(applied = 1))`)
 	if err != nil {
 		return nil, err
+	}
+	// Legacy rows have no authenticated expiry and remain permanent barriers.
+	for _, col := range []struct{ name, typ string }{{"expires_at", "TEXT"}, {"first_seen", "INTEGER"}} {
+		rows, err := db.Query(`PRAGMA table_info(admission_exchange_bindings)`)
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for rows.Next() {
+			var cid, notnull, pk int
+			var name, typ string
+			var defaultValue any
+			if err = rows.Scan(&cid, &name, &typ, &notnull, &defaultValue, &pk); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if name == col.name {
+				found = true
+			}
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			if _, err = db.Exec(`ALTER TABLE admission_exchange_bindings ADD COLUMN ` + col.name + ` ` + col.typ); err != nil {
+				return nil, err
+			}
+		}
 	}
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS admission_receipts (
    exchange_id TEXT PRIMARY KEY, decision_id TEXT NOT NULL, decision_digest TEXT NOT NULL,
@@ -80,7 +110,7 @@ func (s *SQLiteBindingStore) BindAndMarkApplied(ctx context.Context, b Binding) 
 		return false, err
 	}
 	defer tx.Rollback()
-	result, err := tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings VALUES (?, ?, ?, ?, ?, ?, 1) ON CONFLICT(exchange_id) DO NOTHING`, b.ExchangeID, b.TenantID, b.IdentityID, b.Fingerprint, b.RequestDigest, b.DecisionDigest)
+	result, err := tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings (exchange_id,tenant_id,identity_id,fingerprint,request_digest,decision_digest,applied) VALUES (?, ?, ?, ?, ?, ?, 1) ON CONFLICT(exchange_id) DO NOTHING`, b.ExchangeID, b.TenantID, b.IdentityID, b.Fingerprint, b.RequestDigest, b.DecisionDigest)
 	if err != nil {
 		return false, err
 	}
