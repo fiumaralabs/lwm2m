@@ -206,7 +206,7 @@ Objects with no known definition have `"definition": null`.
 
 Device create outcomes let a client resolve an uncertain create and retry without creating a second device. The client generates `operationId`, an opaque string of 1–128 characters from `[A-Za-z0-9._~-]`; an invalid ID returns 400 `invalid-argument`. Records are keyed by `(tenant, operationId)`, with the tenant taken only from the authenticated key. Different tenants can use the same ID independently.
 
-`PUT /v1/device-creates/{operationId}` takes the same body as `POST /v1/devices`. Inline credentials on this endpoint currently return the `inline_credentials_unavailable` problem (501); support is tracked in [#256](https://github.com/fiumaralabs/lwm2m/issues/256). The server computes `fingerprint = "sha256:" + hex(SHA-256(canonical JSON of the body, keys sorted))`. The outcome record never stores the plaintext body or credentials.
+`PUT /v1/device-creates/{operationId}` accepts inline PSK credentials with `credentials:write` scope when the device store owns the server's security store. Unsupported inline security modes or non-owned security stores return 501. For requests without credentials, the server computes `fingerprint = "sha256:" + hex(SHA-256(canonical JSON of the body, keys sorted))`. For requests containing credentials, the fingerprint uses a random per-operation salt: `salted-sha256:<hex salt>:<hex SHA-256(salt || canonical JSON)>`. The outcome record never stores the plaintext body or credentials. Retrying requires the identical body and, for credential-bearing outcomes, `credentials:write` scope.
 
 | Case | Response |
 |---|---|

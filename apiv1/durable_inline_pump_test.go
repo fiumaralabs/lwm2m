@@ -110,7 +110,7 @@ func TestInlineConflictDoesNotInstallCredential(t *testing.T) {
 
 func TestDeviceCreatePutInlineFailsClosed(t *testing.T) {
 	d := &memory.Devices{}
-	s := server.New(server.Config{Security: d.Security()})
+	s := server.New(server.Config{Security: server.NewMemorySecurityStore()})
 	t.Cleanup(func() { _ = s.Close() })
 	keys := Keys{entries: map[string]credential{"allowed": {hash: sha256.Sum256([]byte("lwm_allowed_secret")), scopes: ",devices:write,credentials:write,", tenant: "default"}}}
 	h := New(Options{Keys: keys, Devices: d, Server: s})
