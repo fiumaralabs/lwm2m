@@ -3,6 +3,7 @@ package server
 import (
 	"crypto/rand"
 	"encoding/base32"
+	"errors"
 	"net"
 	"slices"
 	"strings"
@@ -92,6 +93,16 @@ type Store interface {
 	Update(*Registration) bool
 	Remove(id string) (*Registration, bool)
 	All() []*Registration
+}
+
+// ErrRegistrationUnavailable indicates a temporary registration store failure.
+var ErrRegistrationUnavailable = errors.New("server: registration unavailable")
+
+// CheckedAdder optionally lets a Store reject a Register before it is acknowledged.
+// On error, AddChecked must leave the store and any existing registration unchanged.
+// Implementations must be safe for concurrent use.
+type CheckedAdder interface {
+	AddChecked(*Registration) (replaced *Registration, err error)
 }
 
 // MemoryStore is an in-memory Store.
