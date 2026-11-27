@@ -15,6 +15,9 @@ import (
 type fileConfig struct {
 	CoAP                    *string `json:"coap"`
 	CoAPS                   *string `json:"coaps"`
+	AdvertiseCoAP           *string `json:"advertise-coap"`
+	AdvertiseCoAPS          *string `json:"advertise-coaps"`
+	ServerCertificate       *string `json:"server-certificate"`
 	TCP                     *string `json:"tcp"`
 	HTTP                    *string `json:"http"`
 	Metrics                 *bool   `json:"metrics"`

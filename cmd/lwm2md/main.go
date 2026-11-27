@@ -71,11 +71,22 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 
 // newDaemonWithAdmission is the seam for future Register integration. The
 // hook is deliberately unused until admission and registration commit together.
-func newDaemonWithAdmission(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, _ *admissionHook, devices store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
-	return newDaemonWithRunner(cfg, api, keys, enabled, sessions, runner, devices)
+func newDaemonWithAdmission(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, _ *admissionHook, devices store.Devices, info ...daemonInfo) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	var advertised daemonInfo
+	if len(info) != 0 {
+		advertised = info[0]
+	}
+	return newDaemonWithInfo(cfg, api, keys, enabled, sessions, runner, advertised, devices)
 }
 
 func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	return newDaemonWithInfo(cfg, api, keys, enabled, sessions, runner, daemonInfo{}, stores...)
+}
+
+func newDaemonWithInfo(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, info daemonInfo, stores ...store.Devices) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	if info.endpoints == nil {
+		info.endpoints = map[string]map[string]string{}
+	}
 	var devices store.Devices = &memory.Devices{}
 	if len(stores) > 0 {
 		devices = stores[0]
@@ -157,7 +168,7 @@ func newDaemonWithRunner(cfg server.Config, api *leshanapi.API, keys apiv1.Keys,
 	deviceCreates, _ := devices.(store.DeviceCreateStore)
 	native := apiv1.New(apiv1.Options{WebhookDeliveries: deliveries, JobRunner: runner, ESTConfigs: estConfigs, ESTIssuerRotator: estRotator, TrustAnchors: trustAnchors, BootstrapCredentials: apiv1.NewMemoryBootstrapCredentialStore(), Jobs: jobStore, BootstrapSessions: sessions, DeviceProfiles: profiles, Firmware: firmwareStore, FirmwareUpdates: firmwareUpdates, Gateway: daemonGateway{server: srv, tenant: "default"}, Models: models, Settings: settings, TimeSeries: series, AuditOptions: apiv1.AuditOptions{Audit: auditStore}, Observations: observations, State: state, EventOptions: apiv1.EventOptions{Events: events}, Webhooks: hooks, Operations: operationStore, Executor: executor, Devices: devices, DeviceCreates: deviceCreates, Server: srv, ServerTenant: "default", Keys: keys, Version: "dev",
 		LwM2MVersions: []string{"1.0", "1.1", "1.2"}, Capabilities: map[string]bool{},
-		Endpoints: map[string]map[string]string{}})
+		Endpoints: info.endpoints, ServerCertificate: info.certificate})
 	return srv, native, executor, webhooks.New("default", events, hooks, devices, webhooks.Options{Deliveries: deliveries})
 }
 
@@ -209,6 +220,9 @@ func main() {
 	}
 	coapAddr := flag.String("coap", ":5683", "CoAP/UDP (NoSec) address; empty disables")
 	coaps := flag.String("coaps", ":5684", "CoAP/DTLS address; empty disables")
+	advertiseCoAP := flag.String("advertise-coap", "", "device-facing CoAP URI to advertise")
+	advertiseCoAPS := flag.String("advertise-coaps", "", "device-facing CoAPS URI to advertise")
+	serverCertificate := flag.String("server-certificate", "", "path to public PEM certificate chain for /v1/info")
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
 	httpAddr := flag.String("http", ":8080", "Leshan-compatible REST address; empty disables")
 	metrics := flag.Bool("metrics", true, "expose Prometheus metrics on /metrics")
@@ -239,6 +253,10 @@ func main() {
 	}
 	if *jobInterval <= 0 {
 		log.Fatal("job-tick-interval must be positive")
+	}
+	info, err := advertisedInfo(*coapAddr, *coaps, *advertiseCoAP, *advertiseCoAPS, *serverCertificate)
+	if err != nil {
+		log.Fatal(err)
 	}
 	hook, err := buildAdmissionHook(admissionSettings{URL: *admissionURL, Timeout: *admissionTimeout, RequestKeyRef: *admissionRequestKeyRef, ResponseKeyRef: *admissionResponseKeyRef}, *storeFlag)
 	if err != nil {
@@ -318,7 +336,7 @@ func main() {
 			log.Fatalf("recover job claims: %v", err)
 		}
 	}
-	srv, native, executor, dispatcher := newDaemonWithAdmission(server.Config{Store: registrations, OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, hook, devices)
+	srv, native, executor, dispatcher := newDaemonWithAdmission(server.Config{Store: registrations, OnEvent: onEvent, Schema: models.Schema, Security: security}, api, keys, *timeSeries, sessions, runner, hook, devices, info)
 	cb = coap.New(srv)
 	if err := dispatcher.Start(ctx); err != nil {
 		log.Fatal(err)

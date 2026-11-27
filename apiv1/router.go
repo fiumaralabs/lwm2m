@@ -45,12 +45,13 @@ type Options struct {
 	DeviceCreates store.DeviceCreateStore `json:"-"`
 	Server        *server.Server          `json:"-"`
 	// ServerTenant identifies the sole tenant served by Server (default: default).
-	ServerTenant  string                       `json:"-"`
-	Keys          Keys                         `json:"-"`
-	Version       string                       `json:"version"`
-	LwM2MVersions []string                     `json:"lwm2mVersions"`
-	Capabilities  map[string]bool              `json:"capabilities"`
-	Endpoints     map[string]map[string]string `json:"endpoints"`
+	ServerTenant      string                       `json:"-"`
+	Keys              Keys                         `json:"-"`
+	Version           string                       `json:"version"`
+	LwM2MVersions     []string                     `json:"lwm2mVersions"`
+	Capabilities      map[string]bool              `json:"capabilities"`
+	Endpoints         map[string]map[string]string `json:"endpoints"`
+	ServerCertificate string                       `json:"serverCertificate,omitempty"`
 }
 
 // New returns the authenticated native API handler.
