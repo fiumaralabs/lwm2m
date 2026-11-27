@@ -36,6 +36,9 @@ func TestRegisterContextAcrossMessageIDs(t *testing.T) {
 		}
 	}
 	first, second := <-store.contexts, <-store.contexts
+	if first.Exchange == nil || second.Exchange == nil || *first.Exchange == *second.Exchange {
+		t.Fatal("distinct message IDs must have distinct exchange discriminators")
+	}
 	if first.Fingerprint != second.Fingerprint {
 		t.Fatal("message ID affected request fingerprint")
 	}
