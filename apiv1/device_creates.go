@@ -21,6 +21,29 @@ import (
 )
 
 type createAuditKey struct{}
+
+// validationOutcomeWriter defers credential validation errors to the outcome
+// store, while preserving unsupported-mode and authorization responses.
+type validationOutcomeWriter struct {
+	http.ResponseWriter
+	invalid bool
+}
+
+func (w *validationOutcomeWriter) WriteHeader(status int) {
+	if status == http.StatusBadRequest {
+		w.invalid = true
+		return
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *validationOutcomeWriter) Write(p []byte) (int, error) {
+	if w.invalid {
+		return len(p), nil
+	}
+	return w.ResponseWriter.Write(p)
+}
+
 type createAuditStore struct {
 	AuditStore
 	skip *bool
@@ -159,19 +182,19 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case http.MethodPut:
+		existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
+		if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
+			WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
+			return
+		}
+		if lookupErr == nil && existing.Reason == "fenced" {
+			if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
+				*skip = true
+			}
+			deviceJSON(w, http.StatusOK, outcomeJSON(existing))
+			return
+		}
 		if invalidJSON {
-			existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
-			if lookupErr == nil && existing.Reason == "fenced" {
-				if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
-					*skip = true
-				}
-				deviceJSON(w, http.StatusOK, outcomeJSON(existing))
-				return
-			}
-			if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
-				WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
-				return
-			}
 			WriteProblem(w, 400, "invalid_json", "Expected one JSON value")
 			return
 		}
@@ -182,11 +205,6 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		credentialBody := false
 		if object, ok := body.(map[string]any); ok {
 			_, credentialBody = object["credentials"]
-		}
-		existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
-		if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
-			WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
-			return
 		}
 		if (credentialBody || strings.HasPrefix(existing.Fingerprint, "salted-sha256:")) && !authorizeDeviceReplayCredentials(w, r) {
 			return
@@ -253,30 +271,35 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			}
 			device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels}
 			if credentialBody {
-				security, ok := o.decodeInlineCredentials(w, r, tenant, input.Endpoint, input.Credentials)
-				if !ok {
+				validation := &validationOutcomeWriter{ResponseWriter: w}
+				security, ok := o.decodeInlineCredentials(validation, r, tenant, input.Endpoint, input.Credentials)
+				if !ok && !validation.invalid {
 					return
 				}
-				creator, ok := o.Devices.(store.DeviceSecurityCreateStore)
-				owner, owned := o.Devices.(interface {
-					OwnsSecurity(server.SecurityStore) bool
-				})
-				outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
-				var live server.SecurityStore
-				if o.Server != nil {
-					live = o.Server.Security()
-				}
-				if wrapped, ok := live.(*coap.RevokingSecurityStore); ok && wrapped != nil {
-					live = wrapped.SecurityStore
-				}
-				if !ok || !owned || !hasOutcomes || !reflect.TypeOf(outcomes).Comparable() || outcomes != s || live == nil || !owner.OwnsSecurity(live) {
-					WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
-					return
-				}
-				result, inserted, err = creator.CreateDeviceWithSecurity(r.Context(), tenant, id, fingerprint, device, *security)
-				if errors.Is(err, store.ErrCredentialExists) {
-					WriteProblem(w, 409, "credential_exists", "Credential already exists")
-					return
+				if validation.invalid {
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+				} else {
+					creator, ok := o.Devices.(store.DeviceSecurityCreateStore)
+					owner, owned := o.Devices.(interface {
+						OwnsSecurity(server.SecurityStore) bool
+					})
+					outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
+					var live server.SecurityStore
+					if o.Server != nil {
+						live = o.Server.Security()
+					}
+					if wrapped, ok := live.(*coap.RevokingSecurityStore); ok && wrapped != nil {
+						live = wrapped.SecurityStore
+					}
+					if !ok || !owned || !hasOutcomes || !reflect.TypeOf(outcomes).Comparable() || outcomes != s || live == nil || !owner.OwnsSecurity(live) {
+						WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
+						return
+					}
+					result, inserted, err = creator.CreateDeviceWithSecurity(r.Context(), tenant, id, fingerprint, device, *security)
+					if errors.Is(err, store.ErrCredentialExists) {
+						WriteProblem(w, 409, "credential_exists", "Credential already exists")
+						return
+					}
 				}
 			} else {
 				result, inserted, err = s.CreateDeviceWithOutcome(r.Context(), tenant, id, fingerprint, device)
