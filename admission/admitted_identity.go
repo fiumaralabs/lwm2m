@@ -35,9 +35,12 @@ func (s *SQLiteBindingStore) IsAdmitted(ctx context.Context, tenant, identity, f
 
 // CommitExisting records a subsequent exchange and its effect. Memory callbacks
 // receive nil and must not expose side effects on failure or panic.
-func (s *MemoryBindingStore) CommitExisting(ctx context.Context, exchangeID, tenant, identity, fingerprint string, effect func(*sql.Tx) error) error {
+func (s *MemoryBindingStore) CommitExisting(ctx context.Context, exchangeID, tenant, identity, fingerprint, requestDigest string, effect func(*sql.Tx) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if requestDigest == "" {
+		return errors.New("admission: empty request digest")
 	}
 	if effect == nil {
 		return errors.New("admission: nil effect")
@@ -52,7 +55,7 @@ func (s *MemoryBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 		return ErrNotAdmitted
 	}
 	if old, ok := s.existing[exchangeID]; ok {
-		if old != key {
+		if old != key || s.bindings[exchangeID].RequestDigest != requestDigest {
 			return ErrBindingConflict
 		}
 		return nil
@@ -64,14 +67,18 @@ func (s *MemoryBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 		return err
 	}
 	s.existing[exchangeID] = key
-	s.bindings[exchangeID] = Binding{ExchangeID: exchangeID, TenantID: tenant, IdentityID: identity, Fingerprint: fingerprint}
+	s.bindings[exchangeID] = Binding{ExchangeID: exchangeID, TenantID: tenant, IdentityID: identity, Fingerprint: fingerprint, RequestDigest: requestDigest}
 	s.receipts[exchangeID] = Receipt{Kind: "existing_admission"}
 	return nil
 }
 
 // CommitExisting atomically records the receipt and effect. The callback must
-// use only the provided transaction. Identical exchange retries are no-ops.
-func (s *SQLiteBindingStore) CommitExisting(ctx context.Context, exchangeID, tenant, identity, fingerprint string, effect func(*sql.Tx) error) error {
+// use only the provided transaction. The requestDigest must identify the authenticated
+// canonical request; identical exchange retries are no-ops.
+func (s *SQLiteBindingStore) CommitExisting(ctx context.Context, exchangeID, tenant, identity, fingerprint, requestDigest string, effect func(*sql.Tx) error) error {
+	if requestDigest == "" {
+		return errors.New("admission: empty request digest")
+	}
 	if effect == nil {
 		return errors.New("admission: nil effect")
 	}
@@ -83,7 +90,7 @@ func (s *SQLiteBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 	}
 	defer tx.Rollback()
 	// Acquire the write lock before checking identity and exchange state.
-	result, err := tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings (exchange_id,tenant_id,identity_id,fingerprint,request_digest,decision_digest,applied) SELECT ?,?,?,?,'','',1 WHERE EXISTS (SELECT 1 FROM admission_identities WHERE tenant_id=? AND identity_id=? AND fingerprint=?) ON CONFLICT(exchange_id) DO NOTHING`, exchangeID, tenant, identity, fingerprint, tenant, identity, fingerprint)
+	result, err := tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings (exchange_id,tenant_id,identity_id,fingerprint,request_digest,decision_digest,applied) SELECT ?,?,?,?,?,'',1 WHERE EXISTS (SELECT 1 FROM admission_identities WHERE tenant_id=? AND identity_id=? AND fingerprint=?) ON CONFLICT(exchange_id) DO NOTHING`, exchangeID, tenant, identity, fingerprint, requestDigest, tenant, identity, fingerprint)
 	if err != nil {
 		return err
 	}
@@ -99,15 +106,15 @@ func (s *SQLiteBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 		if admitted == 0 {
 			return ErrNotAdmitted
 		}
-		var t, i, f, kind string
-		err = tx.QueryRowContext(ctx, `SELECT b.tenant_id,b.identity_id,b.fingerprint,r.kind FROM admission_exchange_bindings b JOIN admission_receipts r ON r.exchange_id=b.exchange_id WHERE b.exchange_id=?`, exchangeID).Scan(&t, &i, &f, &kind)
+		var t, i, f, digest, kind string
+		err = tx.QueryRowContext(ctx, `SELECT b.tenant_id,b.identity_id,b.fingerprint,b.request_digest,r.kind FROM admission_exchange_bindings b JOIN admission_receipts r ON r.exchange_id=b.exchange_id WHERE b.exchange_id=?`, exchangeID).Scan(&t, &i, &f, &digest, &kind)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrBindingConflict
 		}
 		if err != nil {
 			return err
 		}
-		if t != tenant || i != identity || f != fingerprint || kind != "existing_admission" {
+		if t != tenant || i != identity || f != fingerprint || digest != requestDigest || kind != "existing_admission" {
 			return ErrBindingConflict
 		}
 		return tx.Commit()

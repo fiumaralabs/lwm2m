@@ -66,7 +66,7 @@ func TestCommitExistingAtomicReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	boom := errors.New("failure")
-	err = s.CommitExisting(ctx, "second", "tenant", "device", "fp", func(tx *sql.Tx) error {
+	err = s.CommitExisting(ctx, "second", "tenant", "device", "fp", "request-digest", func(tx *sql.Tx) error {
 		_, e := tx.Exec(`INSERT INTO effects VALUES ('x')`)
 		if e != nil {
 			return e
@@ -83,7 +83,7 @@ func TestCommitExistingAtomicReceipt(t *testing.T) {
 	if err = s.db.QueryRow(`SELECT count(*) FROM effects`).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("effect after failure: %d %v", count, err)
 	}
-	err = s.CommitExisting(ctx, "second", "tenant", "device", "fp", func(tx *sql.Tx) error { _, e := tx.Exec(`INSERT INTO effects VALUES ('x')`); return e })
+	err = s.CommitExisting(ctx, "second", "tenant", "device", "fp", "request-digest", func(tx *sql.Tx) error { _, e := tx.Exec(`INSERT INTO effects VALUES ('x')`); return e })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,14 +94,14 @@ func TestCommitExistingAtomicReceipt(t *testing.T) {
 	}
 
 	calls := 0
-	if err = s.CommitExisting(ctx, "second", "tenant", "device", "fp", func(*sql.Tx) error { calls++; return nil }); err != nil || calls != 0 {
+	if err = s.CommitExisting(ctx, "second", "tenant", "device", "fp", "request-digest", func(*sql.Tx) error { calls++; return nil }); err != nil || calls != 0 {
 		t.Fatalf("replay: %v calls=%d", err, calls)
 	}
-	if err = s.CommitExisting(ctx, "first", "tenant", "device", "fp", func(*sql.Tx) error { calls++; return nil }); !errors.Is(err, ErrBindingConflict) || calls != 0 {
+	if err = s.CommitExisting(ctx, "first", "tenant", "device", "fp", "request-digest", func(*sql.Tx) error { calls++; return nil }); !errors.Is(err, ErrBindingConflict) || calls != 0 {
 		t.Fatalf("exchange collision: %v", err)
 	}
 	called := false
-	err = s.CommitExisting(ctx, "third", "tenant", "other", "fp", func(*sql.Tx) error { called = true; return nil })
+	err = s.CommitExisting(ctx, "third", "tenant", "other", "fp", "request-digest", func(*sql.Tx) error { called = true; return nil })
 	if err == nil || called {
 		t.Fatalf("unknown identity: called=%v err=%v", called, err)
 	}
@@ -125,7 +125,7 @@ func TestMemoryAdmissionAndExisting(t *testing.T) {
 	if ok, err := s.IsAdmitted(ctx, "t", "i", "f"); err != nil || !ok {
 		t.Fatalf("admitted: %v %v", ok, err)
 	}
-	if err := s.CommitExisting(ctx, "next", "t", "i", "f", func(*sql.Tx) error { return boom }); !errors.Is(err, boom) {
+	if err := s.CommitExisting(ctx, "next", "t", "i", "f", "request-digest", func(*sql.Tx) error { return boom }); !errors.Is(err, boom) {
 		t.Fatal(err)
 	}
 	if _, ok := s.receipts["next"]; ok {
@@ -133,16 +133,78 @@ func TestMemoryAdmissionAndExisting(t *testing.T) {
 	}
 	calls := 0
 	effect := func(*sql.Tx) error { calls++; return nil }
-	if err := s.CommitExisting(ctx, "next", "t", "i", "f", effect); err != nil {
+	if err := s.CommitExisting(ctx, "next", "t", "i", "f", "request-digest", effect); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CommitExisting(ctx, "next", "t", "i", "f", effect); err != nil || calls != 1 {
+	if err := s.CommitExisting(ctx, "next", "t", "i", "f", "request-digest", effect); err != nil || calls != 1 {
 		t.Fatalf("replay: %v calls=%d", err, calls)
 	}
 	if s.receipts["next"].Kind != "existing_admission" || s.receipts["next"].DecisionID != "" || s.receipts["next"].ReservationID != "" {
 		t.Fatal("incorrect receipt")
 	}
-	if err := s.CommitExisting(ctx, "unknown", "t", "i", "other", effect); !errors.Is(err, ErrNotAdmitted) || calls != 1 {
+	if err := s.CommitExisting(ctx, "unknown", "t", "i", "other", "request-digest", effect); !errors.Is(err, ErrNotAdmitted) || calls != 1 {
 		t.Fatalf("unknown: %v", err)
+	}
+}
+
+func TestExistingExchangeRequestDigest(t *testing.T) {
+	ctx := context.Background()
+	for _, persistent := range []bool{false, true} {
+		t.Run(map[bool]string{false: "memory", true: "sqlite"}[persistent], func(t *testing.T) {
+			var store interface {
+				CommitAdmitted(context.Context, Binding, Receipt, func(*sql.Tx) error) error
+				CommitExisting(context.Context, string, string, string, string, string, func(*sql.Tx) error) error
+			}
+			path := filepath.Join(t.TempDir(), "db")
+			if persistent {
+				s, err := OpenSQLiteBindingStore(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer s.Close()
+				store = s
+			} else {
+				store = NewMemoryBindingStore()
+			}
+			b := Binding{ExchangeID: "first", TenantID: "t", IdentityID: "i", Fingerprint: "f", DecisionDigest: "d"}
+			r := Receipt{DecisionDigest: "d", ExpiresAt: time.Now().Add(time.Hour)}
+			if err := store.CommitAdmitted(ctx, b, r, func(*sql.Tx) error { return nil }); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			effect := func(*sql.Tx) error { calls++; return nil }
+			commit := func(digest string) error { return store.CommitExisting(ctx, "next", "t", "i", "f", digest, effect) }
+			if err := commit(""); err == nil || calls != 0 {
+				t.Fatalf("empty digest %v calls %d", err, calls)
+			}
+			if err := commit("digest-a"); err != nil {
+				t.Fatal(err)
+			}
+			if err := commit("digest-a"); err != nil || calls != 1 {
+				t.Fatalf("identical replay %v calls %d", err, calls)
+			}
+			if err := commit("digest-b"); !errors.Is(err, ErrBindingConflict) || calls != 1 {
+				t.Fatalf("changed replay %v calls %d", err, calls)
+			}
+			if persistent {
+				original := store.(*SQLiteBindingStore)
+				if err := original.Close(); err != nil {
+					t.Fatal(err)
+				}
+				reopened, err := OpenSQLiteBindingStore(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer reopened.Close()
+				store = reopened
+				if err := commit("digest-a"); err != nil || calls != 1 {
+					t.Fatalf("restart replay %v calls %d", err, calls)
+				}
+				if err := commit("digest-b"); !errors.Is(err, ErrBindingConflict) || calls != 1 {
+					t.Fatalf("restart changed replay %v calls %d", err, calls)
+				}
+			}
+
+		})
 	}
 }

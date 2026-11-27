@@ -72,7 +72,7 @@ func TestCommitAdmittedRetriesAndRollback(t *testing.T) {
 				s = db
 			}
 			b := Binding{ExchangeID: "id", DecisionDigest: "digest"}
-			r := Receipt{DecisionID: "decision", DecisionDigest: "digest", IssuedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
+			r := Receipt{DecisionID: "decision", ReservationID: "reserve-1", DecisionDigest: "digest", IssuedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Hour)}
 			boom := errors.New("failed")
 			for _, panicEffect := range []bool{false, true} {
 				func() {
@@ -132,7 +132,16 @@ func TestCommitAdmittedRetriesAndRollback(t *testing.T) {
 			if err := s.CommitAdmitted(context.Background(), b, altered, func(*sql.Tx) error { t.Error("conflicting receipt called"); return nil }); !errors.Is(err, ErrBindingConflict) {
 				t.Fatalf("receipt conflict %v", err)
 			}
+			altered = r
+			altered.ReservationID = "reserve-2"
+			if err := s.CommitAdmitted(context.Background(), b, altered, func(*sql.Tx) error { t.Error("conflicting reservation effect called"); return nil }); !errors.Is(err, ErrBindingConflict) {
+				t.Fatalf("reservation conflict %v", err)
+			}
 			if db != nil {
+				var reservation string
+				if err := db.db.QueryRow(`SELECT reservation_id FROM admission_receipts WHERE exchange_id=?`, b.ExchangeID).Scan(&reservation); err != nil || reservation != r.ReservationID {
+					t.Fatalf("reservation=%q err=%v", reservation, err)
+				}
 				var count int
 				if err := db.db.QueryRow(`SELECT count(*) FROM effects`).Scan(&count); err != nil || count != 1 {
 					t.Fatalf("effects=%d err=%v", count, err)
@@ -445,5 +454,40 @@ func TestPruneUpgradesAndPreservesLegacyBindings(t *testing.T) {
 	var expiry sql.NullString
 	if err := s.db.QueryRow(`SELECT expires_at FROM admission_exchange_bindings WHERE exchange_id='legacy'`).Scan(&expiry); err != nil || expiry.Valid {
 		t.Fatalf("legacy expiry=%v err=%v", expiry, err)
+	}
+}
+
+func TestAdmittedReservationSurvivesRestart(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "db")
+	s, err := OpenSQLiteBindingStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := Binding{ExchangeID: "id", DecisionDigest: "digest"}
+	r := Receipt{DecisionID: "decision", ReservationID: "reserve-1", DecisionDigest: "digest", ExpiresAt: time.Now().Add(time.Hour)}
+	calls := 0
+	effect := func(*sql.Tx) error { calls++; return nil }
+	if err := s.CommitAdmitted(ctx, b, r, effect); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = OpenSQLiteBindingStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var reservation string
+	if err := s.db.QueryRow(`SELECT reservation_id FROM admission_receipts WHERE exchange_id=?`, b.ExchangeID).Scan(&reservation); err != nil || reservation != r.ReservationID {
+		t.Fatalf("reservation %q: %v", reservation, err)
+	}
+	if err := s.CommitAdmitted(ctx, b, r, effect); err != nil || calls != 1 {
+		t.Fatalf("replay %v calls %d", err, calls)
+	}
+	r.ReservationID = "reserve-2"
+	if err := s.CommitAdmitted(ctx, b, r, effect); !errors.Is(err, ErrBindingConflict) || calls != 1 {
+		t.Fatalf("conflict %v calls %d", err, calls)
 	}
 }
