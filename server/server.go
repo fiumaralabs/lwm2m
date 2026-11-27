@@ -70,15 +70,16 @@ type Server struct {
 	store    Store
 	security SecurityStore
 
-	mu       sync.Mutex
-	stop     chan struct{}
-	wg       sync.WaitGroup
-	obs      *observations
-	queues   *queues
-	profiles *profileCache
-	formats  sync.Map // registration ID -> learned multi-value format
-	live     sync.Map // Peer -> struct{}: sessions of live registrations (Registered)
-	closed   bool
+	mu                sync.Mutex
+	registrationLocks [64]sync.Mutex
+	stop              chan struct{}
+	wg                sync.WaitGroup
+	obs               *observations
+	queues            *queues
+	profiles          *profileCache
+	formats           sync.Map // registration ID -> learned multi-value format
+	live              sync.Map // Peer -> struct{}: sessions of live registrations (Registered)
+	closed            bool
 }
 
 // New returns a Server. Connect transports to it (e.g. coap.New) to serve

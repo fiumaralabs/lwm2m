@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"hash/fnv"
 	"regexp"
 	"slices"
 	"strconv"
@@ -18,6 +19,23 @@ import (
 )
 
 var versionRE = regexp.MustCompile(`^1\.([012])(\.\d+)?$`)
+
+// registrationLock serializes checked commits and removals for an endpoint.
+func (s *Server) registrationLock(endpoint string) func() {
+	if _, ok := s.store.(CommittedRegistrationPublisher); !ok {
+		return func() {}
+	}
+	_, contextChecked := s.store.(ContextCheckedAdder)
+	_, checked := s.store.(CheckedAdder)
+	if !contextChecked && !checked {
+		return func() {}
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(endpoint))
+	mu := &s.registrationLocks[h.Sum32()%uint32(len(s.registrationLocks))]
+	mu.Lock()
+	return mu.Unlock
+}
 
 // normaliseVersion maps the lwm2m= parameter to "1.0", "1.1" or "1.2";
 // ok=false for versions this server does not support (REG-04).
@@ -177,16 +195,32 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		peer:           peer,
 	}
 	var old *Registration
+	unlock := s.registrationLock(ep)
+	defer unlock()
+	var previous *Registration
+	if _, ok := s.store.(CommittedRegistrationPublisher); ok {
+		previous, _ = s.store.ByEndpoint(ep)
+	}
 	if err := guardPeer(peer, func() error {
 		if checked, ok := s.store.(ContextCheckedAdder); ok {
 			var err error
 			ctx := RegisterContext{Endpoint: ep, Identity: id, Fingerprint: registerFingerprint(ep, id, m)}
 			old, err = checked.AddCheckedContext(ctx, reg)
+			if err == nil {
+				if publisher, ok := s.store.(CommittedRegistrationPublisher); ok {
+					publisher.PublishCommitted(reg)
+				}
+			}
 			return err
 		}
 		if checked, ok := s.store.(CheckedAdder); ok {
 			var err error
 			old, err = checked.AddChecked(reg)
+			if err == nil {
+				if publisher, ok := s.store.(CommittedRegistrationPublisher); ok {
+					publisher.PublishCommitted(reg)
+				}
+			}
 			return err
 		}
 		old = s.store.Add(reg)
@@ -196,6 +230,9 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			return replyCode(codes.ServiceUnavailable)
 		}
 		return replyCode(codes.Forbidden)
+	}
+	if old != nil && previous != nil && old.ID == previous.ID {
+		old = previous
 	}
 	if len(pids) > 0 && payload != nil {
 		s.learnProfiles(pids, objs) // PROF-11: learn only from committed registrations
@@ -262,6 +299,8 @@ func sameClient(reg *Registration, peer Identity) bool {
 }
 
 func (s *Server) update(peerConn Peer, m *Message, reg *Registration) reply {
+	unlock := s.registrationLock(reg.Endpoint)
+	defer unlock()
 	peer := peerConn.Identity()
 	if !sameClient(reg, peer) {
 		if reg.Identity.Secure() {
@@ -340,6 +379,8 @@ func (s *Server) update(peerConn Peer, m *Message, reg *Registration) reply {
 }
 
 func (s *Server) deregister(reg *Registration, peer Identity) reply {
+	unlock := s.registrationLock(reg.Endpoint)
+	defer unlock()
 	if !sameClient(reg, peer) {
 		// int-105: a NoSec registration with no credentials on file can be
 		// removed from any address; secured ones only by their identity.

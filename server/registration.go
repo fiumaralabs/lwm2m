@@ -122,6 +122,12 @@ type CheckedAdder interface {
 	AddChecked(*Registration) (replaced *Registration, err error)
 }
 
+// CommittedRegistrationPublisher attaches a live peer after a checked commit.
+// It must ignore registrations that have since been replaced or removed.
+type CommittedRegistrationPublisher interface {
+	PublishCommitted(*Registration)
+}
+
 // MemoryStore is an in-memory Store.
 type MemoryStore struct {
 	mu   sync.RWMutex
