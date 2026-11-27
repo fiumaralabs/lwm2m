@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"regexp"
 	"slices"
 	"strconv"
@@ -143,7 +144,18 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		peer:           peer,
 	}
 	var old *Registration
-	if err := guardPeer(peer, func() error { old = s.store.Add(reg); return nil }); err != nil {
+	if err := guardPeer(peer, func() error {
+		if checked, ok := s.store.(CheckedAdder); ok {
+			var err error
+			old, err = checked.AddChecked(reg)
+			return err
+		}
+		old = s.store.Add(reg)
+		return nil
+	}); err != nil {
+		if errors.Is(err, ErrRegistrationUnavailable) {
+			return replyCode(codes.ServiceUnavailable)
+		}
 		return replyCode(codes.Forbidden)
 	}
 	if old != nil {
