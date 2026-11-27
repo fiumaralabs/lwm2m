@@ -21,6 +21,23 @@ type BindingStore interface {
 	BindAndMarkApplied(context.Context, Binding) (alreadyApplied bool, err error)
 }
 
+// committedBindingStore reports whether an exchange has been committed.
+// It keeps transactional stores separate from legacy replay barriers.
+type committedBindingStore interface {
+	BindingStore
+	exchangeCommitted(context.Context, string) (bool, error)
+}
+
+func (s *MemoryBindingStore) exchangeCommitted(ctx context.Context, id string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, exists := s.bindings[id]
+	return exists, nil
+}
+
 // MaxExchangeIDLifetime is the intended maximum retry lifetime. Enforcement
 // is not implemented here; bindings must not be pruned until it is enforced.
 const MaxExchangeIDLifetime = 24 * time.Hour

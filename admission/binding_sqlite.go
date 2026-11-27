@@ -173,3 +173,9 @@ func (s *SQLiteBindingStore) BindAndMarkApplied(ctx context.Context, b Binding) 
 	}
 	return n == 0, nil
 }
+
+func (s *SQLiteBindingStore) exchangeCommitted(ctx context.Context, id string) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM admission_exchange_bindings WHERE exchange_id=?)`, id).Scan(&exists)
+	return exists != 0, err
+}
