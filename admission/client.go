@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -36,7 +37,7 @@ type Config struct {
 	Transport                             http.RoundTripper
 	// BindingStore checks committed exchanges. Built-in stores require callers to
 	// commit admitted decisions with CommitAdmitted. Configured stores must also
-	// implement PendingBindingStore; unsupported stores fail closed.
+	// implement PendingBindingStore and CommitAdmitted; unsupported stores fail closed.
 	BindingStore BindingStore
 }
 type Request struct {
@@ -179,6 +180,26 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 	httpClient := http.Client{Transport: cfg.Transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	digest := sha256.Sum256(body)
 
+	if cfg.BindingStore != nil {
+		store, ok := cfg.BindingStore.(PendingBindingStore)
+		if !ok {
+			return failure, ErrUnavailable
+		}
+		if _, ok := cfg.BindingStore.(interface {
+			CommitAdmitted(context.Context, Binding, Receipt, func(*sql.Tx) error) error
+		}); !ok {
+			return failure, ErrUnavailable
+		}
+		body, e = store.SavePending(ctx, request.ExchangeID, body, fmt.Sprintf("%x", digest))
+		if errors.Is(e, ErrBindingConflict) {
+			return failure, ErrUnavailable
+		}
+		if e != nil {
+			return failure, e
+		}
+		digest = sha256.Sum256(body)
+	}
+
 	c.mu.Lock()
 	if c.used == nil {
 		c.used = make(map[string]*exchangeState)
@@ -196,23 +217,6 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		c.mu.Unlock()
 		return failure, ErrUnavailable
 	}
-	if cfg.BindingStore != nil {
-		store, ok := cfg.BindingStore.(PendingBindingStore)
-		if !ok {
-			c.mu.Unlock()
-			return failure, ErrUnavailable
-		}
-		body, e = store.SavePending(ctx, request.ExchangeID, body, fmt.Sprintf("%x", digest))
-		if errors.Is(e, ErrBindingConflict) {
-			c.mu.Unlock()
-			return failure, ErrUnavailable
-		}
-		if e != nil {
-			c.mu.Unlock()
-			return failure, e
-		}
-		digest = sha256.Sum256(body)
-	}
 	state := c.used[request.ExchangeID]
 	if state == nil {
 		if len(c.used) >= 100000 {
@@ -225,26 +229,16 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		c.mu.Unlock()
 		return failure, ErrUnavailable
 	}
-	if transactional, ok := cfg.BindingStore.(committedBindingStore); ok {
-		committed, err := transactional.exchangeCommitted(ctx, request.ExchangeID)
-		if err != nil {
+	if cfg.BindingStore != nil && state.decision != nil {
+		result := *state.decision
+		if err := checkReceiptExpiry(ctx, result.Receipt); err != nil {
 			c.mu.Unlock()
 			return failure, err
 		}
-		if committed {
-			c.mu.Unlock()
-			return failure, ErrUnavailable
-		}
-		if state.decision != nil {
-			result := *state.decision
-			if err := checkReceiptExpiry(ctx, result.Receipt); err != nil {
-				c.mu.Unlock()
-				return failure, err
-			}
-			c.mu.Unlock()
-			return result, nil
-		}
+		c.mu.Unlock()
+		return result, nil
 	}
+
 	c.used[request.ExchangeID] = state
 	if state.element != nil {
 		c.expiry.Remove(state.element)
@@ -321,18 +315,9 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 			Fingerprint: request.RequestFingerprint, RequestDigest: fmt.Sprintf("%x", digest), DecisionDigest: fmt.Sprintf("%x", decisionDigest),
 		}
 		receipt := Receipt{DecisionID: result.DecisionID, DecisionDigest: binding.DecisionDigest, IssuedAt: issuedAt, ExpiresAt: expiresAt}
-		if _, transactional := cfg.BindingStore.(committedBindingStore); cfg.BindingStore != nil && !transactional {
-			already, err := cfg.BindingStore.BindAndMarkApplied(ctx, binding)
-			if err != nil {
-				return failure, err
-			}
-			if already {
-				return failure, ErrUnavailable
-			}
-		}
 		decision := Decision{Admitted: true, DecisionID: result.DecisionID, ReservationID: result.ReservationID, Binding: binding, Receipt: receipt}
 		c.mu.Lock()
-		if _, transactional := cfg.BindingStore.(committedBindingStore); transactional {
+		if cfg.BindingStore != nil {
 			state.decision = &decision
 		} else {
 			state.admitted = true

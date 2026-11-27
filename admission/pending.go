@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -53,11 +54,32 @@ func samePending(old, body []byte, oldDigest string) bool {
 	return true
 }
 
+// lockPending waits for store access without ignoring caller cancellation.
+func lockPending(ctx context.Context, mu *sync.Mutex) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if mu.TryLock() {
+			return nil
+		}
+		timer := time.NewTimer(time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
 func (s *MemoryBindingStore) SavePending(ctx context.Context, id string, body []byte, digest string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
+	if err := lockPending(ctx, &s.mu); err != nil {
+		return nil, err
+	}
 	defer s.mu.Unlock()
 	if s.pending == nil {
 		s.pending = make(map[string]pendingRequest)
@@ -76,7 +98,9 @@ func (s *MemoryBindingStore) SavePending(ctx context.Context, id string, body []
 }
 
 func (s *SQLiteBindingStore) SavePending(ctx context.Context, id string, body []byte, digest string) ([]byte, error) {
-	s.mu.Lock()
+	if err := lockPending(ctx, &s.mu); err != nil {
+		return nil, err
+	}
 	defer s.mu.Unlock()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
