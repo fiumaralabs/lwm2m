@@ -329,7 +329,7 @@ func ParseWAPPush(m SMS) ([]byte, error) {
 		return nil, fmt.Errorf("sms: WDP port %d, want %d", port, PushPort)
 	}
 	d := m.Data
-	if len(d) < 3 || d[1] != 0x06 || len(d) < 3+int(d[2]) {
+	if len(d) < 3 || d[1] != 0x06 || d[2] == 0 || len(d) < 3+int(d[2]) {
 		return nil, errors.New("sms: not a WSP push PDU")
 	}
 	hdr := d[3 : 3+int(d[2])]
