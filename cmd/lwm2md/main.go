@@ -201,6 +201,12 @@ func registrationEvent(events store.Events, e server.Event) {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "backup" {
+		if err := runBackup(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	coapAddr := flag.String("coap", ":5683", "CoAP/UDP (NoSec) address; empty disables")
 	coaps := flag.String("coaps", ":5684", "CoAP/DTLS address; empty disables")
 	tcp := flag.String("tcp", "", "CoAP/TCP address (RFC 8323); empty disables")
