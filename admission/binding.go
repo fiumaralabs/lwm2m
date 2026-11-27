@@ -28,6 +28,7 @@ const DefaultBindingRetention = 7 * 24 * time.Hour
 
 // Receipt is the authenticated decision persisted with its binding.
 type Receipt struct {
+	Kind, ReservationID        string
 	DecisionID, DecisionDigest string
 	IssuedAt, ExpiresAt        time.Time
 }
@@ -38,10 +39,12 @@ type MemoryBindingStore struct {
 	mu       sync.Mutex
 	bindings map[string]Binding
 	receipts map[string]Receipt
+	admitted map[admittedIdentity]struct{}
+	existing map[string]admittedIdentity
 }
 
 func NewMemoryBindingStore() *MemoryBindingStore {
-	return &MemoryBindingStore{bindings: make(map[string]Binding), receipts: make(map[string]Receipt)}
+	return &MemoryBindingStore{bindings: make(map[string]Binding), receipts: make(map[string]Receipt), admitted: make(map[admittedIdentity]struct{}), existing: make(map[string]admittedIdentity)}
 }
 func (s *MemoryBindingStore) BindAndMarkApplied(ctx context.Context, b Binding) (bool, error) {
 	if err := ctx.Err(); err != nil {

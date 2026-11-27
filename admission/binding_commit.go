@@ -58,7 +58,7 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	}
 	if old, ok := s.bindings[b.ExchangeID]; ok {
 		previous, hasReceipt := s.receipts[b.ExchangeID]
-		if old != b || !hasReceipt || previous.DecisionID != r.DecisionID || previous.DecisionDigest != r.DecisionDigest || !previous.IssuedAt.Equal(r.IssuedAt) || !previous.ExpiresAt.Equal(r.ExpiresAt) {
+		if old != b || !hasReceipt || previous.DecisionID != r.DecisionID || previous.ReservationID != r.ReservationID || previous.DecisionDigest != r.DecisionDigest || !previous.IssuedAt.Equal(r.IssuedAt) || !previous.ExpiresAt.Equal(r.ExpiresAt) {
 			return ErrBindingConflict
 		}
 		return nil
@@ -74,6 +74,7 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	}
 	s.bindings[b.ExchangeID] = b
 	s.receipts[b.ExchangeID] = r
+	s.admitted[admittedIdentity{b.TenantID, b.IdentityID, b.Fingerprint}] = struct{}{}
 	return nil
 }
 
@@ -129,25 +130,28 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	}
 	if n == 0 {
 		var old Binding
-		var decisionID, digest, issued, expires string
+		var decisionID, reservationID, digest, issued, expires string
 		old.ExchangeID = b.ExchangeID
-		err = tx.QueryRowContext(ctx, `SELECT b.tenant_id,b.identity_id,b.fingerprint,b.request_digest,b.decision_digest,r.decision_id,r.decision_digest,r.issued_at,r.expires_at FROM admission_exchange_bindings b JOIN admission_receipts r ON r.exchange_id=b.exchange_id WHERE b.exchange_id=?`, b.ExchangeID).Scan(&old.TenantID, &old.IdentityID, &old.Fingerprint, &old.RequestDigest, &old.DecisionDigest, &decisionID, &digest, &issued, &expires)
+		err = tx.QueryRowContext(ctx, `SELECT b.tenant_id,b.identity_id,b.fingerprint,b.request_digest,b.decision_digest,r.decision_id,r.reservation_id,r.decision_digest,r.issued_at,r.expires_at FROM admission_exchange_bindings b JOIN admission_receipts r ON r.exchange_id=b.exchange_id WHERE b.exchange_id=?`, b.ExchangeID).Scan(&old.TenantID, &old.IdentityID, &old.Fingerprint, &old.RequestDigest, &old.DecisionDigest, &decisionID, &reservationID, &digest, &issued, &expires)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrBindingConflict
 		}
 		if err != nil {
 			return err
 		}
-		if old != b || decisionID != r.DecisionID || digest != r.DecisionDigest || issued != r.IssuedAt.UTC().Format(time.RFC3339Nano) || expires != r.ExpiresAt.UTC().Format(time.RFC3339Nano) {
+		if old != b || decisionID != r.DecisionID || reservationID != r.ReservationID || digest != r.DecisionDigest || issued != r.IssuedAt.UTC().Format(time.RFC3339Nano) || expires != r.ExpiresAt.UTC().Format(time.RFC3339Nano) {
 			return ErrBindingConflict
 		}
 		return tx.Commit()
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO admission_receipts VALUES (?, ?, ?, ?, ?, ?)`, b.ExchangeID, r.DecisionID, r.DecisionDigest, r.IssuedAt.UTC().Format(time.RFC3339Nano), r.ExpiresAt.UTC().Format(time.RFC3339Nano), time.Now().UnixNano())
+	_, err = tx.ExecContext(ctx, `INSERT INTO admission_receipts (exchange_id,decision_id,decision_digest,issued_at,expires_at,committed_at,reservation_id) VALUES (?, ?, ?, ?, ?, ?, ?)`, b.ExchangeID, r.DecisionID, r.DecisionDigest, r.IssuedAt.UTC().Format(time.RFC3339Nano), r.ExpiresAt.UTC().Format(time.RFC3339Nano), time.Now().UnixNano(), r.ReservationID)
 	if err != nil {
 		return err
 	}
 	if err = checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO admission_identities (tenant_id,identity_id,fingerprint) VALUES (?,?,?)`, b.TenantID, b.IdentityID, b.Fingerprint); err != nil {
 		return err
 	}
 	if err = effect(tx); err != nil {
