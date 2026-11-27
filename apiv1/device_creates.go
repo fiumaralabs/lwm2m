@@ -3,6 +3,7 @@ package apiv1
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,13 +11,39 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
+	"github.com/fiumaralabs/lwm2m/transport/coap"
 )
 
 type createAuditKey struct{}
+
+// validationOutcomeWriter defers credential validation errors to the outcome
+// store, while preserving unsupported-mode and authorization responses.
+type validationOutcomeWriter struct {
+	http.ResponseWriter
+	invalid bool
+}
+
+func (w *validationOutcomeWriter) WriteHeader(status int) {
+	if status == http.StatusBadRequest {
+		w.invalid = true
+		return
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *validationOutcomeWriter) Write(p []byte) (int, error) {
+	if w.invalid {
+		return len(p), nil
+	}
+	return w.ResponseWriter.Write(p)
+}
+
 type createAuditStore struct {
 	AuditStore
 	skip *bool
@@ -55,6 +82,45 @@ type createOutcomeJSON struct {
 	CompletedAt *time.Time `json:"completedAt"`
 }
 
+func saltedCreateFingerprint(canonical []byte, salt []byte) string {
+	h := sha256.New()
+	_, _ = h.Write(salt)
+	_, _ = h.Write(canonical)
+	return "salted-sha256:" + hex.EncodeToString(salt) + ":" + hex.EncodeToString(h.Sum(nil))
+}
+
+// ambiguousCredentialKeys rejects spellings that encoding/json would fold onto
+// Credentials and repeated exact keys before any secret-bearing fingerprint.
+func ambiguousCredentialKeys(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	token, err := dec.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
+	}
+	seen := false
+	for dec.More() {
+		keyToken, err := dec.Token()
+		if err != nil {
+			return false // the normal JSON validation handles malformed input
+		}
+		key, ok := keyToken.(string)
+		if !ok {
+			return false
+		}
+		if strings.EqualFold(key, "credentials") {
+			if key != "credentials" || seen {
+				return true
+			}
+			seen = true
+		}
+		var value json.RawMessage
+		if dec.Decode(&value) != nil {
+			return false
+		}
+	}
+	return false
+}
+
 func outcomeJSON(o store.DeviceCreateOutcome) createOutcomeJSON {
 	v := createOutcomeJSON{OperationID: o.OperationID, Status: o.Status, Reason: o.Reason, Endpoint: o.Endpoint, CreatedAt: o.CreatedAt}
 	if o.Fingerprint != "" {
@@ -83,13 +149,18 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 	tenant := TenantFrom(r.Context())
 	// A slow client must not hold the tenant admission lock while sending data.
 	var body any
+	var raw json.RawMessage
 	var invalidJSON bool
 	if r.Method == http.MethodPut {
 		dec := json.NewDecoder(r.Body)
-		dec.UseNumber()
-		decodeErr := dec.Decode(&body)
+		decodeErr := dec.Decode(&raw)
 		var extra any
 		invalidJSON = decodeErr != nil || dec.Decode(&extra) != io.EOF
+		if !invalidJSON {
+			bodyDecoder := json.NewDecoder(bytes.NewReader(raw))
+			bodyDecoder.UseNumber()
+			invalidJSON = bodyDecoder.Decode(&body) != nil
+		}
 	}
 	// Serialize outcomes with normal device creation and outcome deletion so a
 	// replay cannot become a new create after the capacity check is skipped.
@@ -111,30 +182,32 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case http.MethodPut:
+		existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
+		if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
+			WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
+			return
+		}
+		if lookupErr == nil && existing.Reason == "fenced" {
+			if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
+				*skip = true
+			}
+			deviceJSON(w, http.StatusOK, outcomeJSON(existing))
+			return
+		}
 		if invalidJSON {
-			existing, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
-			if lookupErr == nil && existing.Reason == "fenced" {
-				if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
-					*skip = true
-				}
-				deviceJSON(w, http.StatusOK, outcomeJSON(existing))
-				return
-			}
-			if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
-				WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
-				return
-			}
 			WriteProblem(w, 400, "invalid_json", "Expected one JSON value")
 			return
 		}
+		if ambiguousCredentialKeys(raw) {
+			WriteProblem(w, 400, "invalid_json", "Ambiguous credentials field")
+			return
+		}
+		credentialBody := false
 		if object, ok := body.(map[string]any); ok {
-			if _, present := object["credentials"]; present {
-				if !authorizeDeviceReplayCredentials(w, r) {
-					return
-				}
-				WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
-				return
-			}
+			_, credentialBody = object["credentials"]
+		}
+		if (credentialBody || strings.HasPrefix(existing.Fingerprint, "salted-sha256:")) && !authorizeDeviceReplayCredentials(w, r) {
+			return
 		}
 		canonical, e := json.Marshal(body)
 		if e != nil {
@@ -143,10 +216,27 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		}
 		digest := sha256.Sum256(canonical)
 		fingerprint := "sha256:" + hex.EncodeToString(digest[:])
+		if credentialBody {
+			var salt [16]byte
+			parts := strings.Split(existing.Fingerprint, ":")
+			if len(parts) == 3 && parts[0] == "salted-sha256" {
+				decoded, err := hex.DecodeString(parts[1])
+				if err != nil || len(decoded) != len(salt) {
+					WriteProblem(w, 500, "internal_error", "Invalid stored fingerprint")
+					return
+				}
+				copy(salt[:], decoded)
+			} else if _, err := rand.Read(salt[:]); err != nil {
+				WriteProblem(w, 500, "internal_error", "Cannot fingerprint create")
+				return
+			}
+			fingerprint = saltedCreateFingerprint(canonical, salt[:])
+		}
 		var input struct {
-			Endpoint string            `json:"endpoint"`
-			Name     string            `json:"name"`
-			Labels   map[string]string `json:"labels"`
+			Endpoint    string            `json:"endpoint"`
+			Name        string            `json:"name"`
+			Labels      map[string]string `json:"labels"`
+			Credentials json.RawMessage   `json:"credentials"`
 		}
 		inputDecoder := json.NewDecoder(bytes.NewReader(canonical))
 		inputDecoder.DisallowUnknownFields()
@@ -154,9 +244,15 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		if e := inputDecoder.Decode(&input); e != nil || strings.TrimSpace(input.Endpoint) == "" {
 			result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
 		} else {
-			_, lookupErr := s.GetDeviceCreate(r.Context(), tenant, id)
-			if lookupErr != nil && !errors.Is(lookupErr, store.ErrNotFound) {
-				WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
+			if lookupErr == nil {
+				if existing.Reason != "fenced" && existing.Fingerprint != fingerprint {
+					WriteProblem(w, 409, "operation-id-reused", "Operation ID already used")
+					return
+				}
+				if skip, ok := r.Context().Value(createAuditKey{}).(*bool); ok {
+					*skip = true
+				}
+				deviceJSON(w, http.StatusOK, outcomeJSON(existing))
 				return
 			}
 			if errors.Is(lookupErr, store.ErrNotFound) {
@@ -173,11 +269,62 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			result, inserted, err = s.CreateDeviceWithOutcome(r.Context(), tenant, id, fingerprint, store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels})
+			device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels}
+			if credentialBody {
+				validation := &validationOutcomeWriter{ResponseWriter: w}
+				security, ok := o.decodeInlineCredentials(validation, r, tenant, input.Endpoint, input.Credentials)
+				if !ok && !validation.invalid {
+					return
+				}
+				if validation.invalid {
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+				} else {
+					creator, ok := o.Devices.(store.DeviceSecurityCreateStore)
+					owner, owned := o.Devices.(interface {
+						OwnsSecurity(server.SecurityStore) bool
+					})
+					outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
+					var live server.SecurityStore
+					if o.Server != nil {
+						live = o.Server.Security()
+					}
+					if wrapped, ok := live.(*coap.RevokingSecurityStore); ok && wrapped != nil {
+						live = wrapped.SecurityStore
+					}
+					if !ok || !owned || !hasOutcomes || !reflect.TypeOf(outcomes).Comparable() || outcomes != s || live == nil || !owner.OwnsSecurity(live) {
+						WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
+						return
+					}
+					result, inserted, err = creator.CreateDeviceWithSecurity(r.Context(), tenant, id, fingerprint, device, *security)
+					if errors.Is(err, store.ErrCredentialExists) {
+						WriteProblem(w, 409, "credential_exists", "Credential already exists")
+						return
+					}
+				}
+			} else {
+				result, inserted, err = s.CreateDeviceWithOutcome(r.Context(), tenant, id, fingerprint, device)
+			}
 			if inserted && err == nil && result.Status == "committed" {
 				status = 201
 				if d, e := o.Devices.Get(tenant, input.Endpoint); e == nil {
 					o.emitDevice(tenant, "lwm2m.device.created", d)
+				}
+			}
+		}
+		// Different server processes can race to choose a salt for the same ID.
+		// Compare again using the winner's salt after the atomic store rejects it.
+		if errors.Is(err, store.ErrOperationIDReused) {
+			winner, readErr := s.GetDeviceCreate(r.Context(), tenant, id)
+			if readErr == nil && strings.HasPrefix(winner.Fingerprint, "salted-sha256:") {
+				if !credentialBody && !authorizeDeviceReplayCredentials(w, r) {
+					return
+				}
+				parts := strings.Split(winner.Fingerprint, ":")
+				if credentialBody && len(parts) == 3 {
+					salt, decodeErr := hex.DecodeString(parts[1])
+					if decodeErr == nil && len(salt) == 16 && saltedCreateFingerprint(canonical, salt) == winner.Fingerprint {
+						result, inserted, err = winner, false, nil
+					}
 				}
 			}
 		}

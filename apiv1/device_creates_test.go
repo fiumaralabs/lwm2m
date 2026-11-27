@@ -38,7 +38,7 @@ func TestDeviceCreateFencedMalformedBody(t *testing.T) {
 	if fence.Code != 200 {
 		t.Fatalf("GET: %d %s", fence.Code, fence.Body)
 	}
-	for _, body := range []string{"{", "", "{} {}"} {
+	for _, body := range []string{"{", "", "{} {}", `{"endpoint":"x","Credentials":null}`, `{"credentials":null,"credentials":null}`} {
 		got := deviceRequest(h, "PUT", "/v1/device-creates/op1", body)
 		if got.Code != 200 || got.Body.String() != fence.Body.String() {
 			t.Fatalf("PUT %q: %d %s", body, got.Code, got.Body)
