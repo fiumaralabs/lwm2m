@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -146,6 +147,9 @@ func TestClientDecide(t *testing.T) {
 			if name == "store-restart" {
 				if err != nil || !got.Admitted {
 					t.Fatalf("first: %+v %v", got, err)
+				}
+				if err := bindingDB.CommitAdmitted(context.Background(), got.Binding, got.Receipt, func(*sql.Tx) error { return nil }); err != nil {
+					t.Fatal(err)
 				}
 				if err := bindingDB.Close(); err != nil {
 					t.Fatal(err)

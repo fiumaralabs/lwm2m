@@ -34,8 +34,8 @@ type Config struct {
 	MaxRetries                            int
 	Backoff, ReplayWindow                 time.Duration
 	Transport                             http.RoundTripper
-	// BindingStore uses the legacy non-transactional replay barrier. Leave it
-	// nil when committing the returned Binding and Receipt with CommitAdmitted.
+	// BindingStore checks committed exchanges. Built-in stores require callers to
+	// commit admitted decisions with CommitAdmitted. Other stores retain legacy behavior.
 	BindingStore BindingStore
 }
 type Request struct {
@@ -71,6 +71,7 @@ type exchangeState struct {
 	busy, admitted bool
 	expires        time.Time
 	element        *list.Element
+	decision       *Decision
 }
 
 var ErrUnavailable = errors.New("admission unavailable")
@@ -202,6 +203,26 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		c.mu.Unlock()
 		return failure, ErrUnavailable
 	}
+	if transactional, ok := cfg.BindingStore.(committedBindingStore); ok {
+		committed, err := transactional.exchangeCommitted(ctx, request.ExchangeID)
+		if err != nil {
+			c.mu.Unlock()
+			return failure, err
+		}
+		if committed {
+			c.mu.Unlock()
+			return failure, ErrUnavailable
+		}
+		if state.decision != nil {
+			result := *state.decision
+			if err := checkReceiptExpiry(ctx, result.Receipt); err != nil {
+				c.mu.Unlock()
+				return failure, err
+			}
+			c.mu.Unlock()
+			return result, nil
+		}
+	}
 	if state.element != nil {
 		c.expiry.Remove(state.element)
 		state.element = nil
@@ -277,7 +298,7 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 			Fingerprint: request.RequestFingerprint, RequestDigest: fmt.Sprintf("%x", digest), DecisionDigest: fmt.Sprintf("%x", decisionDigest),
 		}
 		receipt := Receipt{DecisionID: result.DecisionID, DecisionDigest: binding.DecisionDigest, IssuedAt: issuedAt, ExpiresAt: expiresAt}
-		if cfg.BindingStore != nil {
+		if _, transactional := cfg.BindingStore.(committedBindingStore); cfg.BindingStore != nil && !transactional {
 			already, err := cfg.BindingStore.BindAndMarkApplied(ctx, binding)
 			if err != nil {
 				return failure, err
@@ -286,10 +307,15 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 				return failure, ErrUnavailable
 			}
 		}
+		decision := Decision{Admitted: true, DecisionID: result.DecisionID, ReservationID: result.ReservationID, Binding: binding, Receipt: receipt}
 		c.mu.Lock()
-		state.admitted = true
+		if _, transactional := cfg.BindingStore.(committedBindingStore); transactional {
+			state.decision = &decision
+		} else {
+			state.admitted = true
+		}
 		c.mu.Unlock()
-		return Decision{Admitted: true, DecisionID: result.DecisionID, ReservationID: result.ReservationID, Binding: binding, Receipt: receipt}, nil
+		return decision, nil
 	}
 	return failure, ErrUnavailable
 }
