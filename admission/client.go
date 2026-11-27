@@ -35,7 +35,8 @@ type Config struct {
 	Backoff, ReplayWindow                 time.Duration
 	Transport                             http.RoundTripper
 	// BindingStore checks committed exchanges. Built-in stores require callers to
-	// commit admitted decisions with CommitAdmitted. Other stores retain legacy behavior.
+	// commit admitted decisions with CommitAdmitted. Configured stores must also
+	// implement PendingBindingStore; unsupported stores fail closed.
 	BindingStore BindingStore
 }
 type Request struct {
@@ -177,6 +178,7 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 	}
 	httpClient := http.Client{Transport: cfg.Transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	digest := sha256.Sum256(body)
+
 	c.mu.Lock()
 	if c.used == nil {
 		c.used = make(map[string]*exchangeState)
@@ -189,6 +191,27 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		}
 		delete(c.used, expired.id)
 		c.expiry.Remove(e)
+	}
+	if c.used[request.ExchangeID] == nil && len(c.used) >= 100000 {
+		c.mu.Unlock()
+		return failure, ErrUnavailable
+	}
+	if cfg.BindingStore != nil {
+		store, ok := cfg.BindingStore.(PendingBindingStore)
+		if !ok {
+			c.mu.Unlock()
+			return failure, ErrUnavailable
+		}
+		body, e = store.SavePending(ctx, request.ExchangeID, body, fmt.Sprintf("%x", digest))
+		if errors.Is(e, ErrBindingConflict) {
+			c.mu.Unlock()
+			return failure, ErrUnavailable
+		}
+		if e != nil {
+			c.mu.Unlock()
+			return failure, e
+		}
+		digest = sha256.Sum256(body)
 	}
 	state := c.used[request.ExchangeID]
 	if state == nil {

@@ -55,6 +55,7 @@ type Receipt struct {
 type MemoryBindingStore struct {
 	mu       sync.Mutex
 	bindings map[string]Binding
+	pending  map[string]pendingRequest
 	receipts map[string]Receipt
 	admitted map[admittedIdentity]struct{}
 	existing map[string]admittedIdentity
