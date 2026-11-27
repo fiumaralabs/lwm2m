@@ -242,7 +242,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			}
 			return err
 		}
-		if checked, ok := s.store.(ReplayCheckedAdder); ok {
+		if checked, ok := s.store.(ReplayCheckedAdder); ok && m.MessageID != nil && peer.RemoteAddr() != nil {
 			ctx := RegisterContext{Endpoint: ep, Identity: id, Fingerprint: registerFingerprint(ep, id, m)}
 			ctx.Exchange = registerExchange(peer, m, ctx.Fingerprint)
 			var err error
