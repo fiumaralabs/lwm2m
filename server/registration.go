@@ -152,10 +152,12 @@ type replayEntry struct {
 
 // MemoryStore is an in-memory Store.
 type MemoryStore struct {
-	mu      sync.RWMutex
-	byID    map[string]*Registration
-	byEP    map[string]string
-	replays map[[32]byte]replayEntry
+	mu          sync.RWMutex
+	byID        map[string]*Registration
+	byEP        map[string]string
+	replays     map[[32]byte]replayEntry
+	replayTTL   time.Duration
+	replayTimer *time.Timer
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -189,11 +191,15 @@ func (s *MemoryStore) AddCheckedReplay(ctx RegisterContext, r *Registration) (*R
 	if ctx.Exchange == nil {
 		return r, s.addLocked(r), false, nil
 	}
+	ttl := s.replayTTL
+	if ttl == 0 {
+		ttl = replayLifetime
+	}
 	now := time.Now()
 	var oldestKey [32]byte
 	var oldest time.Time
 	for key, entry := range s.replays {
-		if !now.Before(entry.at.Add(replayLifetime)) {
+		if !now.Before(entry.at.Add(ttl)) {
 			delete(s.replays, key)
 			continue
 		}
@@ -211,7 +217,30 @@ func (s *MemoryStore) AddCheckedReplay(ctx RegisterContext, r *Registration) (*R
 	}
 	old := s.addLocked(r)
 	s.replays[*ctx.Exchange] = replayEntry{registration: r, at: now}
+	if s.replayTimer == nil {
+		s.replayTimer = time.AfterFunc(ttl, func() { s.expireReplays(ttl) })
+	}
 	return r, old, false, nil
+}
+
+// expireReplays schedules only one timer per store and stops once idle history is empty.
+func (s *MemoryStore) expireReplays(ttl time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	var next time.Time
+	for key, entry := range s.replays {
+		expires := entry.at.Add(ttl)
+		if !now.Before(expires) {
+			delete(s.replays, key)
+		} else if next.IsZero() || expires.Before(next) {
+			next = expires
+		}
+	}
+	s.replayTimer = nil
+	if !next.IsZero() {
+		s.replayTimer = time.AfterFunc(time.Until(next), func() { s.expireReplays(ttl) })
+	}
 }
 
 func (s *MemoryStore) Update(r *Registration) bool {

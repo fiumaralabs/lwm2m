@@ -88,6 +88,24 @@ func TestMemoryReplayRetention(t *testing.T) {
 	}
 }
 
+func TestMemoryReplayExpiresWhileIdle(t *testing.T) {
+	store := NewMemoryStore()
+	store.replayTTL = 30 * time.Millisecond
+	var key [32]byte
+	store.AddCheckedReplay(RegisterContext{Exchange: &key}, &Registration{ID: "a", Endpoint: "node"})
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		store.mu.RLock()
+		remaining := len(store.replays)
+		store.mu.RUnlock()
+		if remaining == 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("expired replay retained while store was idle")
+}
+
 func TestRegisterWithoutMessageIDStillReplaces(t *testing.T) {
 	store := NewMemoryStore()
 	s := New(Config{Store: store})
