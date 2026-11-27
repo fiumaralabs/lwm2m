@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -157,8 +156,18 @@ func (s *MemoryBindingStore) LookupExchange(ctx context.Context, id string) (Exc
 func (s *SQLiteBindingStore) LookupExchange(ctx context.Context, id string) (ExchangeStatus, Receipt, error) {
 	var r Receipt
 	var issued, expires string
-	err := s.db.QueryRowContext(ctx, `SELECT kind,reservation_id,decision_id,decision_digest,issued_at,expires_at FROM admission_receipts WHERE exchange_id=?`, id).Scan(&r.Kind, &r.ReservationID, &r.DecisionID, &r.DecisionDigest, &issued, &expires)
-	if err == nil {
+	var accepted, pending bool
+	// One statement sees the receipt and pending rows in the same SQLite snapshot.
+	err := s.db.QueryRowContext(ctx, `SELECT r.exchange_id IS NOT NULL,
+		COALESCE(r.kind,''), COALESCE(r.reservation_id,''), COALESCE(r.decision_id,''),
+		COALESCE(r.decision_digest,''), COALESCE(r.issued_at,''), COALESCE(r.expires_at,''),
+		EXISTS(SELECT 1 FROM admission_pending_exchanges WHERE exchange_id=? AND NOT EXISTS(SELECT 1 FROM admission_exchange_bindings WHERE exchange_id=?))
+		FROM (SELECT 1) LEFT JOIN admission_receipts r ON r.exchange_id=?`, id, id, id).
+		Scan(&accepted, &r.Kind, &r.ReservationID, &r.DecisionID, &r.DecisionDigest, &issued, &expires, &pending)
+	if err != nil {
+		return "", Receipt{}, err
+	}
+	if accepted {
 		r.IssuedAt, err = time.Parse(time.RFC3339Nano, issued)
 		if err != nil {
 			return "", Receipt{}, err
@@ -171,14 +180,6 @@ func (s *SQLiteBindingStore) LookupExchange(ctx context.Context, id string) (Exc
 			return "", Receipt{}, ErrExchangeUnknown
 		}
 		return ExchangeAccepted, r, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return "", Receipt{}, err
-	}
-	var pending bool
-	err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM admission_pending_exchanges WHERE exchange_id=? AND NOT EXISTS(SELECT 1 FROM admission_exchange_bindings WHERE exchange_id=?))`, id, id).Scan(&pending)
-	if err != nil {
-		return "", Receipt{}, err
 	}
 	if pending {
 		return ExchangePending, Receipt{}, nil

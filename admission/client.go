@@ -180,8 +180,10 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 	httpClient := http.Client{Transport: cfg.Transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	digest := sha256.Sum256(body)
 
+	var pending PendingBindingStore
 	if cfg.BindingStore != nil {
-		store, ok := cfg.BindingStore.(PendingBindingStore)
+		var ok bool
+		pending, ok = cfg.BindingStore.(PendingBindingStore)
 		if !ok {
 			return failure, ErrUnavailable
 		}
@@ -190,14 +192,6 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		}); !ok {
 			return failure, ErrUnavailable
 		}
-		body, e = store.SavePending(ctx, request.ExchangeID, body, fmt.Sprintf("%x", digest))
-		if errors.Is(e, ErrBindingConflict) {
-			return failure, ErrUnavailable
-		}
-		if e != nil {
-			return failure, e
-		}
-		digest = sha256.Sum256(body)
 	}
 
 	c.mu.Lock()
@@ -218,27 +212,16 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		return failure, ErrUnavailable
 	}
 	state := c.used[request.ExchangeID]
-	if state == nil {
-		if len(c.used) >= 100000 {
-			c.mu.Unlock()
-			return failure, ErrUnavailable
-		}
+	isNew := state == nil
+	if isNew {
 		state = &exchangeState{id: request.ExchangeID, digest: digest}
 	}
-	if state.digest != digest || state.busy || state.admitted {
+	if state.busy || state.admitted {
 		c.mu.Unlock()
 		return failure, ErrUnavailable
 	}
-	if cfg.BindingStore != nil && state.decision != nil {
-		result := *state.decision
-		if err := checkReceiptExpiry(ctx, result.Receipt); err != nil {
-			c.mu.Unlock()
-			return failure, err
-		}
-		c.mu.Unlock()
-		return result, nil
-	}
 
+	// Reserve the bounded slot before persistence, without holding the lock over I/O.
 	c.used[request.ExchangeID] = state
 	if state.element != nil {
 		c.expiry.Remove(state.element)
@@ -246,13 +229,42 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 	}
 	state.busy = true
 	c.mu.Unlock()
+	persisted := pending == nil
 	defer func() {
 		c.mu.Lock()
+		defer c.mu.Unlock()
+		if isNew && !persisted {
+			delete(c.used, request.ExchangeID)
+			return
+		}
 		state.busy = false
 		state.expires = time.Now().Add(window)
 		state.element = c.expiry.PushBack(state)
-		c.mu.Unlock()
 	}()
+
+	if pending != nil {
+		body, e = pending.SavePending(ctx, request.ExchangeID, body, fmt.Sprintf("%x", digest))
+		if errors.Is(e, ErrBindingConflict) {
+			return failure, ErrUnavailable
+		}
+		if e != nil {
+			return failure, e
+		}
+		persisted = true
+		digest = sha256.Sum256(body)
+	}
+	if isNew {
+		state.digest = digest
+	} else if state.digest != digest {
+		return failure, ErrUnavailable
+	}
+	if pending != nil && state.decision != nil {
+		result := *state.decision
+		if err := checkReceiptExpiry(ctx, result.Receipt); err != nil {
+			return failure, err
+		}
+		return result, nil
+	}
 
 	for attempt := 0; attempt <= retries; attempt++ {
 		if attempt > 0 && backoff > 0 {
