@@ -34,7 +34,9 @@ type Config struct {
 	MaxRetries                            int
 	Backoff, ReplayWindow                 time.Duration
 	Transport                             http.RoundTripper
-	BindingStore                          BindingStore
+	// BindingStore uses the legacy non-transactional replay barrier. Leave it
+	// nil when committing the returned Binding and Receipt with CommitAdmitted.
+	BindingStore BindingStore
 }
 type Request struct {
 	TenantID           string    `json:"tenant_id"`
@@ -49,6 +51,8 @@ type Decision struct {
 	Admitted                  bool
 	MaxAge                    time.Duration
 	DecisionID, ReservationID string
+	Binding                   Binding // populated only for an admitted decision
+	Receipt                   Receipt // authenticated response data, for CommitAdmitted
 }
 
 // Client retains at most 100,000 in-flight or unexpired exchange IDs and
@@ -70,6 +74,10 @@ type exchangeState struct {
 }
 
 var ErrUnavailable = errors.New("admission unavailable")
+
+// ErrInvalidDecisionTime indicates invalid authenticated decision timestamps.
+// It also matches ErrUnavailable so existing callers can fail closed.
+var ErrInvalidDecisionTime = fmt.Errorf("invalid admission decision time: %w", ErrUnavailable)
 
 func NewClient(c Config) *Client { return &Client{config: c, used: make(map[string]*exchangeState)} }
 func key(s string) ([]byte, error) {
@@ -245,26 +253,32 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 			return failure, ErrUnavailable
 		}
 		var result struct {
-			TenantID      string    `json:"tenant_id"`
-			IdentityID    string    `json:"identity_id"`
-			ExchangeID    string    `json:"exchange_id"`
-			Fingerprint   string    `json:"request_fingerprint"`
-			Decision      string    `json:"decision"`
-			DecisionID    string    `json:"decision_id"`
-			ReservationID string    `json:"reservation_id"`
-			IssuedAt      time.Time `json:"issued_at"`
-			ExpiresAt     time.Time `json:"expires_at"`
+			TenantID      string          `json:"tenant_id"`
+			IdentityID    string          `json:"identity_id"`
+			ExchangeID    string          `json:"exchange_id"`
+			Fingerprint   string          `json:"request_fingerprint"`
+			Decision      string          `json:"decision"`
+			DecisionID    string          `json:"decision_id"`
+			ReservationID string          `json:"reservation_id"`
+			IssuedAt      json.RawMessage `json:"issued_at"`
+			ExpiresAt     json.RawMessage `json:"expires_at"`
 		}
-		if json.Unmarshal(raw, &result) != nil || result.TenantID != request.TenantID || result.IdentityID != request.IdentityID || result.ExchangeID != request.ExchangeID || result.Fingerprint != request.RequestFingerprint || result.DecisionID == "" || result.IssuedAt.IsZero() || result.IssuedAt.After(now) || !result.ExpiresAt.After(now) || !result.ExpiresAt.After(result.IssuedAt) || result.Decision != "allow" {
+		if json.Unmarshal(raw, &result) != nil || result.TenantID != request.TenantID || result.IdentityID != request.IdentityID || result.ExchangeID != request.ExchangeID || result.Fingerprint != request.RequestFingerprint || result.DecisionID == "" || result.Decision != "allow" {
 			return failure, ErrUnavailable
 		}
+		var issuedAt, expiresAt time.Time
+		if json.Unmarshal(result.IssuedAt, &issuedAt) != nil || json.Unmarshal(result.ExpiresAt, &expiresAt) != nil || issuedAt.IsZero() || expiresAt.IsZero() || issuedAt.After(now) || !expiresAt.After(now) || !expiresAt.After(issuedAt) {
+			return failure, ErrInvalidDecisionTime
+		}
+		decisionBytes, _ := json.Marshal([]string{result.Decision, result.DecisionID, result.ReservationID})
+		decisionDigest := sha256.Sum256(decisionBytes)
+		binding := Binding{
+			ExchangeID: request.ExchangeID, TenantID: request.TenantID, IdentityID: request.IdentityID,
+			Fingerprint: request.RequestFingerprint, RequestDigest: fmt.Sprintf("%x", digest), DecisionDigest: fmt.Sprintf("%x", decisionDigest),
+		}
+		receipt := Receipt{DecisionID: result.DecisionID, DecisionDigest: binding.DecisionDigest, IssuedAt: issuedAt, ExpiresAt: expiresAt}
 		if cfg.BindingStore != nil {
-			decisionBytes, _ := json.Marshal([]string{result.Decision, result.DecisionID, result.ReservationID})
-			decisionDigest := sha256.Sum256(decisionBytes)
-			already, err := cfg.BindingStore.BindAndMarkApplied(ctx, Binding{
-				ExchangeID: request.ExchangeID, TenantID: request.TenantID, IdentityID: request.IdentityID,
-				Fingerprint: request.RequestFingerprint, RequestDigest: fmt.Sprintf("%x", digest), DecisionDigest: fmt.Sprintf("%x", decisionDigest),
-			})
+			already, err := cfg.BindingStore.BindAndMarkApplied(ctx, binding)
 			if err != nil {
 				return failure, err
 			}
@@ -275,7 +289,7 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 		c.mu.Lock()
 		state.admitted = true
 		c.mu.Unlock()
-		return Decision{Admitted: true, DecisionID: result.DecisionID, ReservationID: result.ReservationID}, nil
+		return Decision{Admitted: true, DecisionID: result.DecisionID, ReservationID: result.ReservationID, Binding: binding, Receipt: receipt}, nil
 	}
 	return failure, ErrUnavailable
 }
