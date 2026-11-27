@@ -14,15 +14,17 @@ import (
 // options one to one; the MQTT and HTTP bindings (T §7, §8) map it to
 // their own framing.
 type Message struct {
-	Code     codes.Code // method or response code (CoAP numbering)
-	Path     string     // request URI path, "/" for the root
-	Query    []string   // "k=v" or "k"
-	Format   *lwm2m.ContentFormat
-	Accept   *lwm2m.ContentFormat
-	Observe  *uint32
-	Token    []byte
-	Payload  []byte
-	Location []string // response Location-Path segments
+	Code    codes.Code // method or response code (CoAP numbering)
+	Path    string     // request URI path, "/" for the root
+	Query   []string   // "k=v" or "k"
+	Format  *lwm2m.ContentFormat
+	Accept  *lwm2m.ContentFormat
+	Observe *uint32
+	Token   []byte
+	// MessageID is present for datagram CoAP messages, including ID zero.
+	MessageID *uint16
+	Payload   []byte
+	Location  []string // response Location-Path segments
 }
 
 // Peer is one transport session with a client: a CoAP/UDP or DTLS

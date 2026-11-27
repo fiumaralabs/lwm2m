@@ -120,6 +120,23 @@ func registerFingerprint(ep string, id Identity, m *Message) [32]byte {
 	return sha256.Sum256(canonical)
 }
 
+// registerExchange binds a datagram to its authenticated identity, network peer,
+// request content, token and message ID. IDs may be reused after exchange expiry.
+func registerExchange(peer Peer, m *Message, fingerprint [32]byte) *[32]byte {
+	if m.MessageID == nil || peer.RemoteAddr() == nil {
+		return nil
+	}
+	canonical, _ := json.Marshal(struct {
+		Fingerprint [32]byte
+		Binding     string
+		Peer        string
+		MessageID   uint16
+		Token       []byte
+	}{fingerprint, peer.Binding(), peer.RemoteAddr().String(), *m.MessageID, m.Token})
+	exchange := sha256.Sum256(canonical)
+	return &exchange
+}
+
 func (s *Server) register(peer Peer, m *Message) reply {
 	p, err := regparam.ParseRegister(m.Query)
 	if err != nil {
@@ -205,6 +222,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		if checked, ok := s.store.(ContextCheckedAdder); ok {
 			var err error
 			ctx := RegisterContext{Endpoint: ep, Identity: id, Fingerprint: registerFingerprint(ep, id, m)}
+			ctx.Exchange = registerExchange(peer, m, ctx.Fingerprint)
 			old, err = checked.AddCheckedContext(ctx, reg)
 			if err == nil {
 				if publisher, ok := s.store.(CommittedRegistrationPublisher); ok {

@@ -166,6 +166,10 @@ func toPool(m *pool.Message, req *server.Message) error {
 // FromPool copies a go-coap message into a Message.
 func FromPool(m *pool.Message) (*server.Message, error) {
 	out := &server.Message{Code: m.Code(), Token: append([]byte(nil), m.Token()...)}
+	if message.ValidateMID(m.MessageID()) {
+		mid := uint16(m.MessageID())
+		out.MessageID = &mid
+	}
 	if p, err := m.Options().Path(); err == nil {
 		out.Path = "/" + strings.TrimPrefix(p, "/")
 	} else {

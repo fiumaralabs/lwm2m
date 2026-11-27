@@ -232,6 +232,11 @@ func (o *OSCORE) serve(in message.Message, peerOf func(*oscore.Entry) *oscorePee
 	if err != nil {
 		return oscore.PlainError(codes.BadRequest, ""), nop
 	}
+	// The transport header is outside OSCORE encryption.
+	if message.ValidateMID(in.MessageID) {
+		mid := uint16(in.MessageID)
+		msg.MessageID = &mid
+	}
 	peer := peerOf(q.Entry)
 	if code := o.bind(msg, q.Entry, peer); code != 0 {
 		return protect(q, message.Message{Code: code}), nop

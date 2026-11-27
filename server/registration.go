@@ -106,6 +106,10 @@ type RegisterContext struct {
 	Endpoint    string
 	Identity    Identity
 	Fingerprint [32]byte
+	// Exchange identifies a datagram exchange within the CoAP exchange lifetime.
+	// Nil means the binding does not expose a datagram message ID. It is not a
+	// globally unique identifier: message IDs and tokens can be reused.
+	Exchange *[32]byte
 }
 
 // ContextCheckedAdder optionally commits a Register using its exchange context.
