@@ -66,6 +66,38 @@ func saltedCreateFingerprint(canonical []byte, salt []byte) string {
 	return "salted-sha256:" + hex.EncodeToString(salt) + ":" + hex.EncodeToString(h.Sum(nil))
 }
 
+// ambiguousCredentialKeys rejects spellings that encoding/json would fold onto
+// Credentials and repeated exact keys before any secret-bearing fingerprint.
+func ambiguousCredentialKeys(raw json.RawMessage) bool {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	token, err := dec.Token()
+	if err != nil || token != json.Delim('{') {
+		return false
+	}
+	seen := false
+	for dec.More() {
+		keyToken, err := dec.Token()
+		if err != nil {
+			return false // the normal JSON validation handles malformed input
+		}
+		key, ok := keyToken.(string)
+		if !ok {
+			return false
+		}
+		if strings.EqualFold(key, "credentials") {
+			if key != "credentials" || seen {
+				return true
+			}
+			seen = true
+		}
+		var value json.RawMessage
+		if dec.Decode(&value) != nil {
+			return false
+		}
+	}
+	return false
+}
+
 func outcomeJSON(o store.DeviceCreateOutcome) createOutcomeJSON {
 	v := createOutcomeJSON{OperationID: o.OperationID, Status: o.Status, Reason: o.Reason, Endpoint: o.Endpoint, CreatedAt: o.CreatedAt}
 	if o.Fingerprint != "" {
@@ -94,13 +126,18 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 	tenant := TenantFrom(r.Context())
 	// A slow client must not hold the tenant admission lock while sending data.
 	var body any
+	var raw json.RawMessage
 	var invalidJSON bool
 	if r.Method == http.MethodPut {
 		dec := json.NewDecoder(r.Body)
-		dec.UseNumber()
-		decodeErr := dec.Decode(&body)
+		decodeErr := dec.Decode(&raw)
 		var extra any
 		invalidJSON = decodeErr != nil || dec.Decode(&extra) != io.EOF
+		if !invalidJSON {
+			bodyDecoder := json.NewDecoder(bytes.NewReader(raw))
+			bodyDecoder.UseNumber()
+			invalidJSON = bodyDecoder.Decode(&body) != nil
+		}
 	}
 	// Serialize outcomes with normal device creation and outcome deletion so a
 	// replay cannot become a new create after the capacity check is skipped.
@@ -136,6 +173,10 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			WriteProblem(w, 400, "invalid_json", "Expected one JSON value")
+			return
+		}
+		if ambiguousCredentialKeys(raw) {
+			WriteProblem(w, 400, "invalid_json", "Ambiguous credentials field")
 			return
 		}
 		credentialBody := false
