@@ -56,6 +56,9 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if p, ok := s.pending[b.ExchangeID]; ok && p.digest != b.RequestDigest {
+		return ErrBindingConflict
+	}
 	if old, ok := s.bindings[b.ExchangeID]; ok {
 		previous, hasReceipt := s.receipts[b.ExchangeID]
 		if old != b || !hasReceipt || previous.DecisionID != r.DecisionID || previous.ReservationID != r.ReservationID || previous.DecisionDigest != r.DecisionDigest || !previous.IssuedAt.Equal(r.IssuedAt) || !previous.ExpiresAt.Equal(r.ExpiresAt) {
@@ -74,6 +77,7 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	}
 	s.bindings[b.ExchangeID] = b
 	s.receipts[b.ExchangeID] = r
+	delete(s.pending, b.ExchangeID)
 	s.admitted[admittedIdentity{b.TenantID, b.IdentityID, b.Fingerprint}] = struct{}{}
 	return nil
 }
@@ -121,6 +125,14 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 		}
 	}
 	defer tx.Rollback()
+	var pendingDigest string
+	err = tx.QueryRowContext(ctx, `SELECT request_digest FROM admission_pending_exchanges WHERE exchange_id=?`, b.ExchangeID).Scan(&pendingDigest)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil && pendingDigest != b.RequestDigest {
+		return ErrBindingConflict
+	}
 	if err := checkReceiptExpiry(ctx, r); err != nil {
 		return err
 	}
@@ -155,6 +167,9 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 		return err
 	}
 	if err = effect(tx); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM admission_pending_exchanges WHERE exchange_id=?`, b.ExchangeID); err != nil {
 		return err
 	}
 	return tx.Commit()
