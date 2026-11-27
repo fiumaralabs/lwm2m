@@ -197,7 +197,6 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 			return failure, ErrUnavailable
 		}
 		state = &exchangeState{id: request.ExchangeID, digest: digest}
-		c.used[request.ExchangeID] = state
 	}
 	if state.digest != digest || state.busy || state.admitted {
 		c.mu.Unlock()
@@ -223,6 +222,7 @@ func (c *Client) Decide(ctx context.Context, request Request) (Decision, error) 
 			return result, nil
 		}
 	}
+	c.used[request.ExchangeID] = state
 	if state.element != nil {
 		c.expiry.Remove(state.element)
 		state.element = nil
