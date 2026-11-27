@@ -14,6 +14,7 @@ type checkedRegistrationStore struct {
 	*server.MemoryStore
 	err    error
 	reject atomic.Bool
+	allow  atomic.Bool
 	calls  atomic.Int32
 }
 
@@ -22,7 +23,7 @@ func (s *checkedRegistrationStore) AddChecked(r *server.Registration) (*server.R
 	if s.reject.Load() {
 		return nil, errors.New("rejected")
 	}
-	if s.err != nil {
+	if s.err != nil && !s.allow.Load() {
 		return nil, s.err
 	}
 	return s.MemoryStore.Add(r), nil
@@ -103,5 +104,36 @@ func TestCheckedRegistrationRejectedReplacementKeepsOld(t *testing.T) {
 	case event := <-h.ev.ch:
 		t.Fatalf("unexpected event: %T", event)
 	default:
+	}
+}
+
+func TestCheckedRegistrationFailureDoesNotLearnProfile(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		code string
+	}{
+		{"rejected", errors.New("rejected"), "4.03"},
+		{"unavailable", fmt.Errorf("backend: %w", server.ErrRegistrationUnavailable), "5.03"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &checkedRegistrationStore{MemoryStore: server.NewMemoryStore(), err: tc.err}
+			h := newHarness(t, func(c *server.Config) { c.Store = store })
+			c := h.device(testclient.Config{Endpoint: "profile", Version: "1.2"})
+			query := []string{"ep=profile", "lt=600", "lwm2m=1.2", "pid=6:00aabbcc"}
+			r, err := c.RegisterRaw(h.ctx, query, []byte("</3/0>"), true)
+			mustCode(t, r, err, tc.code)
+			store.allow.Store(true)
+			r, err = c.RegisterRaw(h.ctx, query, nil, false)
+			mustCode(t, r, err, "4.09")
+			r, err = c.RegisterRaw(h.ctx, query, []byte("</3/0>"), true)
+			mustCode(t, r, err, "2.01")
+			r, err = c.RegisterRaw(h.ctx, query, nil, false)
+			mustCode(t, r, err, "2.01")
+			reg, ok := store.ByEndpoint("profile")
+			if !ok || !reg.HasInstance(3, 0) {
+				t.Fatal("successfully registered profile was not learned")
+			}
+		})
 	}
 }

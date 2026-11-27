@@ -108,9 +108,6 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			return replyCode(codeConflict) // PROF-06
 		}
 		objs = mergeObjects(objs, resolved)
-		if payload != nil {
-			s.learnProfiles(pids, objs) // PROF-11
-		}
 	} else if payload == nil && version == "1.2" {
 		return replyCode(codeConflict) // PROF-08: no way to determine the object list
 	}
@@ -157,6 +154,9 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			return replyCode(codes.ServiceUnavailable)
 		}
 		return replyCode(codes.Forbidden)
+	}
+	if len(pids) > 0 && payload != nil {
+		s.learnProfiles(pids, objs) // PROF-11: learn only from committed registrations
 	}
 	if old != nil {
 		s.queues.handover(old.ID, reg.ID) // before dropClientState: queued requests follow the new registration (T24)
