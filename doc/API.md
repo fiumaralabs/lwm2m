@@ -1039,6 +1039,8 @@ Secrets never appear in `summary`. Successful recognized mutation paths are reco
 }
 ```
 
+In `lwm2md`, device-facing server URIs are advertised only when explicitly set with `advertise-coap` or `advertise-coaps` and their corresponding listener is enabled. Bind addresses are not advertised automatically. The optional `serverCertificate` is returned only when `server-certificate` names a public PEM certificate chain; see [configuration](config.md). It does not configure the DTLS listener.
+
 ## Appendix A. Coverage of the Go API
 
 Every exported operation of the server packages, and where the API exposes it.
