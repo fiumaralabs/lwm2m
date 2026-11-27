@@ -1,0 +1,104 @@
+From 108b1e9825946afbb0b43f0773e8673ab5e3c22e Mon Sep 17 00:00:00 2001
+From: LwM2M contributors <noreply@fiumaralabs.com>
+Date: Fri, 27 Nov 2026 01:26:36 +0100
+Subject: [PATCH] Add ECDHE ECDSA AES-128-CBC SHA-256 cipher suite
+
+---
+ e2e/e2e_openssl_test.go                       |  5 ++--
+ e2e/e2e_test.go                               |  2 +-
+ internal/ciphersuite/ciphersuite.go           |  1 +
+ .../ecdhe_ecdsa_aes128_cbc_sha256_test.go     | 28 +++++++++++++++++++
+ pkg/crypto/ciphersuite/registry.go            |  1 +
+ 5 files changed, 34 insertions(+), 3 deletions(-)
+ create mode 100644 internal/ciphersuite/ecdhe_ecdsa_aes128_cbc_sha256_test.go
+
+diff --git a/e2e/e2e_openssl_test.go b/e2e/e2e_openssl_test.go
+index 1ce8dc4..dd8c63a 100644
+--- a/e2e/e2e_openssl_test.go
++++ b/e2e/e2e_openssl_test.go
+@@ -194,8 +194,9 @@ func ciphersFromSuites(cipherSuites []cryptosuite.ID) string {
+ 		cryptosuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256: "ECDHE-RSA-AES128-GCM-SHA256",
+ 		cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384: "ECDHE-RSA-AES256-GCM-SHA384",
+ 
+-		cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA: "ECDHE-ECDSA-AES256-SHA",
+-		cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:   "ECDHE-RSA-AES256-SHA",
++		cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256: "ECDHE-ECDSA-AES128-SHA256",
++		cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:    "ECDHE-ECDSA-AES256-SHA",
++		cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:      "ECDHE-RSA-AES256-SHA",
+ 
+ 		cryptosuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256: "ECDHE-ECDSA-CHACHA20-POLY1305",
+ 		cryptosuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:   "ECDHE-RSA-CHACHA20-POLY1305",
+diff --git a/e2e/e2e_test.go b/e2e/e2e_test.go
+index 793ced2..6c39df9 100644
+--- a/e2e/e2e_test.go
++++ b/e2e/e2e_test.go
+@@ -391,7 +391,7 @@ func selfSignedRSACert(t *testing.T) tls.Certificate {
+ 
+ func testPionE2ESimple(t *testing.T, server, client func(*comm), opts ...dtlsTestOpts) {
+ 	t.Helper()
+-	testPionE2EWithCipherSuites(t, server, client, []cryptosuite.ID{cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA}, selfSignedECDSACert, opts...)
++	testPionE2EWithCipherSuites(t, server, client, []cryptosuite.ID{cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA}, selfSignedECDSACert, opts...)
+ }
+ 
+ func testPionE2ESimpleRSA(t *testing.T, server, client func(*comm), opts ...dtlsTestOpts) {
+diff --git a/internal/ciphersuite/ciphersuite.go b/internal/ciphersuite/ciphersuite.go
+index c2405ad..6064ce6 100644
+--- a/internal/ciphersuite/ciphersuite.go
++++ b/internal/ciphersuite/ciphersuite.go
+@@ -252,6 +252,7 @@ var builtinCipherSuites = map[cryptosuite.ID]cryptosuite.Suite{
+ 	cryptosuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256:         newSuite12(cryptosuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, clientcertificate.RSASign, cryptosuite.KeyExchangeAlgorithmEcdhe, sha256.New, protection12GCM, 16, nil, 0),
+ 	cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:       newSuite12(cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, clientcertificate.ECDSASign, cryptosuite.KeyExchangeAlgorithmEcdhe, sha512.New384, protection12GCM, 32, nil, 0),
+ 	cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:         newSuite12(cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, clientcertificate.RSASign, cryptosuite.KeyExchangeAlgorithmEcdhe, sha512.New384, protection12GCM, 32, nil, 0),
++	cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256:       newSuite12(cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256, clientcertificate.ECDSASign, cryptosuite.KeyExchangeAlgorithmEcdhe, sha256.New, protection12CBC, 16, sha256.New, 0),
+ 	cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA:          newSuite12(cryptosuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, clientcertificate.ECDSASign, cryptosuite.KeyExchangeAlgorithmEcdhe, sha256.New, protection12CBC, 32, sha1.New, 0),
+ 	cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA:            newSuite12(cryptosuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, clientcertificate.RSASign, cryptosuite.KeyExchangeAlgorithmEcdhe, sha256.New, protection12CBC, 32, sha1.New, 0),
+ 	cryptosuite.TLS_PSK_WITH_AES_128_CCM:                      newSuite12(cryptosuite.TLS_PSK_WITH_AES_128_CCM, 0, cryptosuite.KeyExchangeAlgorithmPsk, sha256.New, protection12CCM, 16, nil, ccmTagLength),
+diff --git a/internal/ciphersuite/ecdhe_ecdsa_aes128_cbc_sha256_test.go b/internal/ciphersuite/ecdhe_ecdsa_aes128_cbc_sha256_test.go
+new file mode 100644
+index 0000000..2aa30c8
+--- /dev/null
++++ b/internal/ciphersuite/ecdhe_ecdsa_aes128_cbc_sha256_test.go
+@@ -0,0 +1,28 @@
++// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
++// SPDX-License-Identifier: MIT
++
++package ciphersuite
++
++import (
++	"testing"
++
++	cryptosuite "github.com/pion/dtls/v4/pkg/crypto/ciphersuite"
++	"github.com/pion/dtls/v4/pkg/crypto/clientcertificate"
++)
++
++func TestECDHEECDSAAES128CBCSHA256(t *testing.T) {
++	const id cryptosuite.ID = 0xc023
++	s := ForID(id)
++	if s == nil {
++		t.Fatal("suite 0xc023 is not registered")
++	}
++	if s.ID() != id || s.String() != "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256" {
++		t.Fatalf("unexpected suite %v", s)
++	}
++	if s.CertificateType() != clientcertificate.ECDSASign || s.AuthenticationType() != cryptosuite.AuthenticationTypeCertificate || s.KeyExchangeAlgorithm() != cryptosuite.KeyExchangeAlgorithmEcdhe || !s.ECC() {
++		t.Fatal("unexpected suite authentication or key exchange")
++	}
++	if s.HashFunc()().Size() != 32 {
++		t.Fatal("expected SHA-256")
++	}
++}
+diff --git a/pkg/crypto/ciphersuite/registry.go b/pkg/crypto/ciphersuite/registry.go
+index d295fe7..6ebeb56 100644
+--- a/pkg/crypto/ciphersuite/registry.go
++++ b/pkg/crypto/ciphersuite/registry.go
+@@ -16,6 +16,7 @@ const (
+ 	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256         ID = 0xc02f // nolint: revive,staticcheck
+ 	TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384       ID = 0xc02c // nolint: revive,staticcheck
+ 	TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384         ID = 0xc030 // nolint: revive,staticcheck
++	TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256       ID = 0xc023 // nolint: revive,staticcheck
+ 	TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA          ID = 0xc00a // nolint: revive,staticcheck
+ 	TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA            ID = 0xc014 // nolint: revive,staticcheck
+ 	TLS_PSK_WITH_AES_128_CCM                      ID = 0xc0a4 // nolint: revive,staticcheck
+-- 
+2.54.0 (Apple Git-157)
+
