@@ -98,6 +98,23 @@ type Store interface {
 // ErrRegistrationUnavailable indicates a temporary registration store failure.
 var ErrRegistrationUnavailable = errors.New("server: registration unavailable")
 
+// RegisterContext describes the validated request and its transport identity.
+// Fingerprint is a SHA-256 digest of deterministic request content and identity,
+// independent of message IDs, tokens, registration IDs, and server time.
+// Identity is authenticated only for secured transports; NoSec uses the source address.
+type RegisterContext struct {
+	Endpoint    string
+	Identity    Identity
+	Fingerprint [32]byte
+}
+
+// ContextCheckedAdder optionally commits a Register using its exchange context.
+// It takes precedence over CheckedAdder. On error, it must leave the store and
+// any existing registration unchanged. Implementations must be concurrency-safe.
+type ContextCheckedAdder interface {
+	AddCheckedContext(RegisterContext, *Registration) (replaced *Registration, err error)
+}
+
 // CheckedAdder optionally lets a Store reject a Register before it is acknowledged.
 // On error, AddChecked must leave the store and any existing registration unchanged.
 // Implementations must be safe for concurrent use.
