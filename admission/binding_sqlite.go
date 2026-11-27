@@ -93,6 +93,45 @@ func NewSQLiteBindingStoreDB(db *sql.DB, retention ...time.Duration) (*SQLiteBin
 	if err != nil {
 		return nil, err
 	}
+	// Add receipt metadata without invalidating databases created by older versions.
+	for _, col := range []string{"kind", "reservation_id"} {
+		rows, err := db.Query(`PRAGMA table_info(admission_receipts)`)
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for rows.Next() {
+			var cid, nn, pk int
+			var name, typ string
+			var def any
+			if err = rows.Scan(&cid, &name, &typ, &nn, &def, &pk); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			found = found || name == col
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			def := "''"
+			if col == "kind" {
+				def = "'admitted'"
+			}
+			if _, err = db.Exec(`ALTER TABLE admission_receipts ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ` + def); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS admission_identities (tenant_id TEXT NOT NULL, identity_id TEXT NOT NULL, fingerprint TEXT NOT NULL, PRIMARY KEY (tenant_id, identity_id, fingerprint))`); err != nil {
+		return nil, err
+	}
+	// Recover identities from unpruned committed receipts, not bare replay bindings.
+	if _, err = db.Exec(`INSERT OR IGNORE INTO admission_identities SELECT b.tenant_id,b.identity_id,b.fingerprint FROM admission_exchange_bindings b JOIN admission_receipts r ON r.exchange_id=b.exchange_id WHERE b.tenant_id<>'' AND b.identity_id<>'' AND b.fingerprint<>'' AND r.kind='admitted'`); err != nil {
+		return nil, err
+	}
 	return &SQLiteBindingStore{db: db, retention: d}, nil
 }
 

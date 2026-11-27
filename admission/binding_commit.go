@@ -74,6 +74,7 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	}
 	s.bindings[b.ExchangeID] = b
 	s.receipts[b.ExchangeID] = r
+	s.admitted[admittedIdentity{b.TenantID, b.IdentityID, b.Fingerprint}] = struct{}{}
 	return nil
 }
 
@@ -143,11 +144,14 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 		}
 		return tx.Commit()
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO admission_receipts VALUES (?, ?, ?, ?, ?, ?)`, b.ExchangeID, r.DecisionID, r.DecisionDigest, r.IssuedAt.UTC().Format(time.RFC3339Nano), r.ExpiresAt.UTC().Format(time.RFC3339Nano), time.Now().UnixNano())
+	_, err = tx.ExecContext(ctx, `INSERT INTO admission_receipts (exchange_id,decision_id,decision_digest,issued_at,expires_at,committed_at) VALUES (?, ?, ?, ?, ?, ?)`, b.ExchangeID, r.DecisionID, r.DecisionDigest, r.IssuedAt.UTC().Format(time.RFC3339Nano), r.ExpiresAt.UTC().Format(time.RFC3339Nano), time.Now().UnixNano())
 	if err != nil {
 		return err
 	}
 	if err = checkReceiptExpiry(ctx, r); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO admission_identities (tenant_id,identity_id,fingerprint) VALUES (?,?,?)`, b.TenantID, b.IdentityID, b.Fingerprint); err != nil {
 		return err
 	}
 	if err = effect(tx); err != nil {
