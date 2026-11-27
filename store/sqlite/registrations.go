@@ -135,6 +135,18 @@ func (s *Registrations) AddTx(ctx context.Context, tx *sql.Tx, r *server.Registr
 	return old, err
 }
 
+// PublishCommitted installs a peer only while its registration still exists.
+// It performs no durable write and cannot undo a concurrent removal.
+func (s *Registrations) PublishCommitted(r *server.Registration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, token, err := s.read(context.Background(), s.db, "SELECT payload FROM registrations WHERE id=?", r.ID)
+	must(err)
+	if current != nil && current.Endpoint == r.Endpoint {
+		s.live[r.ID] = liveRegistration{token, r}
+	}
+}
+
 func (s *Registrations) scheduleReconcile() {
 	s.reconcileMu.Lock()
 	defer s.reconcileMu.Unlock()
