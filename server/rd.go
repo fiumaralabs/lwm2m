@@ -2,6 +2,8 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"slices"
@@ -65,6 +67,40 @@ type reply struct {
 }
 
 func replyCode(c codes.Code) reply { return reply{msg: status(c)} }
+
+// registerFingerprint uses request bytes rather than resolved profile state, so
+// a retry after a restart does not depend on the server's profile cache.
+func registerFingerprint(ep string, id Identity, m *Message) [32]byte {
+	var identity []byte
+	switch id.Mode {
+	case ModePSK:
+		identity = []byte(id.PSKIdentity)
+	case ModeRPK:
+		identity = id.PublicKey
+	case ModeX509:
+		if id.Cert != nil {
+			identity = id.Cert.Raw
+		}
+	default:
+		identity = []byte(id.Addr)
+	}
+	query := slices.Clone(m.Query)
+	slices.Sort(query)
+	queryBytes := make([][]byte, len(query))
+	for i, option := range query {
+		queryBytes[i] = []byte(option)
+	}
+	// Byte strings preserve arbitrary CoAP option and identity octets in JSON.
+	// This fixed schema contains only JSON-supported values, so Marshal cannot fail.
+	canonical, _ := json.Marshal(struct {
+		Endpoint []byte
+		Mode     SecurityMode
+		Identity []byte
+		Query    [][]byte
+		Payload  []byte
+	}{[]byte(ep), id.Mode, identity, queryBytes, m.Payload})
+	return sha256.Sum256(canonical)
+}
 
 func (s *Server) register(peer Peer, m *Message) reply {
 	p, err := regparam.ParseRegister(m.Query)
@@ -142,6 +178,12 @@ func (s *Server) register(peer Peer, m *Message) reply {
 	}
 	var old *Registration
 	if err := guardPeer(peer, func() error {
+		if checked, ok := s.store.(ContextCheckedAdder); ok {
+			var err error
+			ctx := RegisterContext{Endpoint: ep, Identity: id, Fingerprint: registerFingerprint(ep, id, m)}
+			old, err = checked.AddCheckedContext(ctx, reg)
+			return err
+		}
 		if checked, ok := s.store.(CheckedAdder); ok {
 			var err error
 			old, err = checked.AddChecked(reg)
