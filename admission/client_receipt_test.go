@@ -98,3 +98,57 @@ func TestClientRejectsInvalidReceiptTimes(t *testing.T) {
 		})
 	}
 }
+
+// A failed transactional effect must not consume the verified allow.
+func TestClientRetryAfterFailedCommit(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	req := Request{TenantID: "tenant", IdentityID: "device", ExchangeID: "retry", Operation: "Register", RequestFingerprint: "fp", ObservedAt: now}
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		raw, _ := json.Marshal(map[string]any{"tenant_id": req.TenantID, "identity_id": req.IdentityID, "exchange_id": req.ExchangeID, "request_fingerprint": req.RequestFingerprint, "decision": "allow", "decision_id": "decision", "reservation_id": "reservation", "issued_at": now.Add(-time.Second), "expires_at": now.Add(time.Minute)})
+		id, ts := r.Header.Get("webhook-id"), r.Header.Get("webhook-timestamp")
+		w.Header().Set("webhook-id", id)
+		w.Header().Set("webhook-timestamp", ts)
+		w.Header().Set("webhook-signature", testSign("whsec_Yg==", id, ts, raw))
+		_, _ = w.Write(raw)
+	}))
+	defer server.Close()
+	store, err := OpenSQLiteBindingStore(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	client := NewClient(Config{Enabled: true, Endpoint: server.URL + "/v1/admission-decisions", RequestSecrets: []string{"whsec_YQ=="}, ResponseSecrets: []string{"whsec_Yg=="}, Transport: server.Client().Transport, BindingStore: store})
+	ctx := context.Background()
+	first, err := client.Decide(ctx, req)
+	if err != nil || !first.Admitted {
+		t.Fatalf("first: %+v %v", first, err)
+	}
+	fail := errors.New("fail effect")
+	if err := store.CommitAdmitted(ctx, first.Binding, first.Receipt, func(*sql.Tx) error { return fail }); !errors.Is(err, fail) {
+		t.Fatalf("commit: %v", err)
+	}
+	changed := req
+	changed.Operation = "Bootstrap"
+	if _, err := client.Decide(ctx, changed); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("changed digest: %v", err)
+	}
+	retry, err := client.Decide(ctx, req)
+	if err != nil || retry != first {
+		t.Fatalf("retry: %+v %v", retry, err)
+	}
+	if err := store.CommitAdmitted(ctx, retry.Binding, retry.Receipt, func(*sql.Tx) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Decide(ctx, req); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("replay: %v", err)
+	}
+	var count int
+	if err := store.db.QueryRow(`SELECT count(*) FROM admission_receipts`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("receipts %d: %v", count, err)
+	}
+	if calls != 1 {
+		t.Fatalf("upstream decisions: %d", calls)
+	}
+}
