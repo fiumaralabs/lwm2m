@@ -132,11 +132,30 @@ type CommittedRegistrationPublisher interface {
 	PublishCommitted(*Registration)
 }
 
+// ReplayCheckedAdder atomically commits a registration or returns the original
+// committed location for a retained exchange. A replay must not mutate state.
+// ContextCheckedAdder and CheckedAdder take precedence, preserving existing
+// admission behavior for stores that embed MemoryStore. A replay-aware store
+// must not also expose those legacy interfaces. On error the store is unchanged.
+// Implementations must be concurrency-safe.
+type ReplayCheckedAdder interface {
+	AddCheckedReplay(RegisterContext, *Registration) (committed, replaced *Registration, replayed bool, err error)
+}
+
+const replayLifetime = 247 * time.Second
+const replayLimit = 1024
+
+type replayEntry struct {
+	registration *Registration
+	at           time.Time
+}
+
 // MemoryStore is an in-memory Store.
 type MemoryStore struct {
-	mu   sync.RWMutex
-	byID map[string]*Registration
-	byEP map[string]string
+	mu      sync.RWMutex
+	byID    map[string]*Registration
+	byEP    map[string]string
+	replays map[[32]byte]replayEntry
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -148,6 +167,10 @@ func NewMemoryStore() *MemoryStore {
 func (s *MemoryStore) Add(r *Registration) *Registration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.addLocked(r)
+}
+
+func (s *MemoryStore) addLocked(r *Registration) *Registration {
 	var old *Registration
 	if id, ok := s.byEP[r.Endpoint]; ok {
 		old = s.byID[id]
@@ -156,6 +179,39 @@ func (s *MemoryStore) Add(r *Registration) *Registration {
 	s.byID[r.ID] = r
 	s.byEP[r.Endpoint] = r.ID
 	return old
+}
+
+// AddCheckedReplay retains at most replayLimit exchanges for replayLifetime.
+// This in-memory history does not survive creation of a new store.
+func (s *MemoryStore) AddCheckedReplay(ctx RegisterContext, r *Registration) (*Registration, *Registration, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ctx.Exchange == nil {
+		return r, s.addLocked(r), false, nil
+	}
+	now := time.Now()
+	var oldestKey [32]byte
+	var oldest time.Time
+	for key, entry := range s.replays {
+		if !now.Before(entry.at.Add(replayLifetime)) {
+			delete(s.replays, key)
+			continue
+		}
+		if oldest.IsZero() || entry.at.Before(oldest) {
+			oldest, oldestKey = entry.at, key
+		}
+	}
+	if entry, ok := s.replays[*ctx.Exchange]; ok {
+		return entry.registration, nil, true, nil
+	}
+	if s.replays == nil {
+		s.replays = make(map[[32]byte]replayEntry)
+	} else if len(s.replays) >= replayLimit {
+		delete(s.replays, oldestKey)
+	}
+	old := s.addLocked(r)
+	s.replays[*ctx.Exchange] = replayEntry{registration: r, at: now}
+	return r, old, false, nil
 }
 
 func (s *MemoryStore) Update(r *Registration) bool {

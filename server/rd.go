@@ -212,6 +212,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		peer:           peer,
 	}
 	var old *Registration
+	var replayed bool
 	unlock := s.registrationLock(ep)
 	defer unlock()
 	var previous *Registration
@@ -241,6 +242,18 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			}
 			return err
 		}
+		if checked, ok := s.store.(ReplayCheckedAdder); ok {
+			ctx := RegisterContext{Endpoint: ep, Identity: id, Fingerprint: registerFingerprint(ep, id, m)}
+			ctx.Exchange = registerExchange(peer, m, ctx.Fingerprint)
+			var err error
+			reg, old, replayed, err = checked.AddCheckedReplay(ctx, reg)
+			if err == nil && !replayed {
+				if publisher, ok := s.store.(CommittedRegistrationPublisher); ok {
+					publisher.PublishCommitted(reg)
+				}
+			}
+			return err
+		}
 		old = s.store.Add(reg)
 		return nil
 	}); err != nil {
@@ -248,6 +261,9 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			return replyCode(codes.ServiceUnavailable)
 		}
 		return replyCode(codes.Forbidden)
+	}
+	if replayed {
+		return reply{msg: &Message{Code: codes.Created, Location: []string{"rd", reg.ID}}}
 	}
 	if old != nil && previous != nil && old.ID == previous.ID {
 		old = previous
