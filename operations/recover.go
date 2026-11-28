@@ -88,7 +88,7 @@ func (e *Executor) Start(ctx context.Context) error {
 			}
 		}
 		if c.Status != "" {
-			if err := e.update(ctx, o.Tenant, o.ID, o.Status, c); err != nil {
+			if err := e.update(ctx, o, o.Status, c); err != nil {
 				result = errors.Join(result, err)
 				e.retryLocked(k)
 			} else {
@@ -104,10 +104,13 @@ func (e *Executor) Start(ctx context.Context) error {
 	return result
 }
 
-func (e *Executor) update(ctx context.Context, tenant, id string, from Status, c Change) error {
-	err := e.st.Update(ctx, tenant, id, from, c)
+func (e *Executor) update(ctx context.Context, o Operation, from Status, c Change) error {
+	err := e.st.Update(ctx, o.Tenant, o.ID, from, c)
+	if err == nil && e.onTerminal != nil && c.Status != Queued && c.Status != Sent {
+		e.onTerminal(o.Type, c.Status)
+	}
 	if err != nil {
-		e.logger.Error("operation update failed", "tenant", tenant, "operation", id, "status", c.Status, "error", err)
+		e.logger.Error("operation update failed", "tenant", o.Tenant, "operation", o.ID, "status", c.Status, "error", err)
 	}
 	return err
 }
