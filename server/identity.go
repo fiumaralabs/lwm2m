@@ -13,21 +13,25 @@ const (
 	ModePSK
 	ModeRPK
 	ModeX509
+	ModeOSCORE
 )
 
 func (m SecurityMode) String() string {
-	return [...]string{"nosec", "psk", "rpk", "x509"}[m]
+	return [...]string{"nosec", "psk", "rpk", "x509", "oscore"}[m]
 }
 
 // Identity is what the transport authenticated about a peer. It is fixed
 // for a DTLS session and compared against the registration (SEC-06).
 type Identity struct {
-	Mode        SecurityMode
-	PSKIdentity string // ModePSK
-	PublicKey   []byte // ModeRPK: SubjectPublicKeyInfo DER
-	CertCN      string // ModeX509: leaf certificate Common Name
-	Cert        *x509.Certificate
-	Addr        string // ModeNoSec: the only identity is the source address
+	Mode            SecurityMode
+	PSKIdentity     string // ModePSK
+	PublicKey       []byte // ModeRPK: SubjectPublicKeyInfo DER
+	CertCN          string // ModeX509: leaf certificate Common Name
+	Cert            *x509.Certificate
+	Addr            string // ModeNoSec: the only identity is the source address
+	OSCOREIDContext []byte // ModeOSCORE: context identifier
+	OSCORESenderID  []byte // ModeOSCORE: client sender identifier
+	OSCOREEndpoint  string // ModeOSCORE: endpoint bound by the verified context
 }
 
 // Equal reports whether two identities name the same authenticated peer.
@@ -37,6 +41,8 @@ func (a Identity) Equal(b Identity) bool {
 		return false
 	}
 	switch a.Mode {
+	case ModeOSCORE:
+		return bytes.Equal(a.OSCOREIDContext, b.OSCOREIDContext) && bytes.Equal(a.OSCORESenderID, b.OSCORESenderID)
 	case ModePSK:
 		return a.PSKIdentity == b.PSKIdentity
 	case ModeRPK:
@@ -47,5 +53,5 @@ func (a Identity) Equal(b Identity) bool {
 	return a.Addr == b.Addr
 }
 
-// Secure reports whether the identity was authenticated by (D)TLS.
+// Secure reports whether the identity was authenticated by (D)TLS or OSCORE object security.
 func (a Identity) Secure() bool { return a.Mode != ModeNoSec }

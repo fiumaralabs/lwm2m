@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -95,7 +94,7 @@ func TestOSCORERegisterEchoAndDM(t *testing.T) {
 	r, err = c.Raw(h.ctx, codes.POST, "/rd", c.RegisterQuery(), &cf, []byte(c.ObjectLinks()), echoOpt(r.Echo))
 	oscoreCode(t, r, err, "2.01", true)
 	reg, ok := h.srv.Store().ByEndpoint("urn:dev:osc")
-	if !ok || !strings.HasPrefix(reg.Identity.Addr, oscoreAddrPrefix) {
+	if !ok || reg.Identity.Mode.String() != "oscore" {
 		t.Fatalf("registration %+v", reg)
 	}
 	// Later requests need no Echo.

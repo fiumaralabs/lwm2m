@@ -183,7 +183,9 @@ func (p oscorePeer) Identity() server.Identity {
 	if id := p.coapPeer.Identity(); id.Secure() {
 		return id
 	}
-	return coap.OSCOREIdentity(p.e.Params())
+	id := coap.OSCOREIdentity(p.e.Params())
+	id.OSCOREEndpoint = p.e.Name
+	return id
 }
 
 // Exchange protects a downlink request (RFC 8613 §8.1) and verifies the
