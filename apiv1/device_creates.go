@@ -235,6 +235,7 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			Endpoint    string            `json:"endpoint"`
 			Name        string            `json:"name"`
+			Profile     string            `json:"profile"`
 			Labels      map[string]string `json:"labels"`
 			Credentials json.RawMessage   `json:"credentials"`
 		}
@@ -255,6 +256,12 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				deviceJSON(w, http.StatusOK, outcomeJSON(existing))
 				return
 			}
+			if input.Profile != "" {
+				if _, ok := o.DeviceProfiles.Get(tenant, input.Profile); !ok {
+					WriteProblem(w, 400, "invalid_profile", "Unknown device profile")
+					return
+				}
+			}
 			if errors.Is(lookupErr, store.ErrNotFound) {
 				if t, ok := o.limits.tenants.Get(tenant); ok && t.Limits.Devices > 0 {
 					reached, err := o.deviceLimitReached(tenant, t.Limits.Devices)
@@ -269,7 +276,7 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Labels: input.Labels}
+			device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}
 			if credentialBody {
 				validation := &validationOutcomeWriter{ResponseWriter: w}
 				security, ok := o.decodeInlineCredentials(validation, r, tenant, input.Endpoint, input.Credentials)
