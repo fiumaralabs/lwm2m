@@ -69,9 +69,14 @@ func newDaemonWithSessions(cfg server.Config, api *leshanapi.API, keys apiv1.Key
 	return newDaemonWithRunner(cfg, api, keys, enabled, sessions, nil, stores...)
 }
 
-// newDaemonWithAdmission is the seam for future Register integration. The
-// hook is deliberately unused until admission and registration commit together.
-func newDaemonWithAdmission(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, _ *admissionHook, devices store.Devices, info ...daemonInfo) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+func newDaemonWithAdmission(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, enabled bool, sessions apiv1.BootstrapSessionStore, runner *apiv1.JobRunner, hook *admissionHook, devices store.Devices, info ...daemonInfo) (*server.Server, http.Handler, *operations.Executor, *webhooks.Dispatcher) {
+	if hook != nil {
+		durable, ok := devices.(*sqlite.Devices)
+		if !ok {
+			panic("admission requires SQLite devices")
+		}
+		cfg.Store = &admittingRegistrations{Registrations: durable.Registrations(), hook: hook}
+	}
 	var advertised daemonInfo
 	if len(info) != 0 {
 		advertised = info[0]
@@ -277,6 +282,9 @@ func main() {
 		devices = durable
 	} else if *storeFlag != "memory" {
 		log.Fatal("invalid -store: expected memory or sqlite:<path>")
+	}
+	if hook != nil && *registrationStore != "sqlite" {
+		log.Fatal("admission requires -registration-store=sqlite")
 	}
 	var registrations server.Store
 	switch *registrationStore {

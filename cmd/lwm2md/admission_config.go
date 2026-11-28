@@ -15,8 +15,7 @@ type admissionSettings struct {
 	RequestKeyRef, ResponseKeyRef string
 }
 
-// admissionHook holds the optional components for future registration wiring.
-// Register does not consult it yet.
+// admissionHook holds the optional Register admission components.
 type admissionHook struct {
 	client   *admission.Client
 	bindings *admission.SQLiteBindingStore
