@@ -48,8 +48,6 @@ func TestContractPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ kind, body string }{
-		{"write", `{"path":"/1/0/1","values":[{"path":"/1/0/1","type":"integer","value":42}]}`},
-		{"execute", `{"path":"/3/0/4"}`},
 		{"read", `{"paths":["/3/0/0","/1/0/1"]}`},
 	} {
 		o := operations.New("t", "dev", tc.kind, json.RawMessage(tc.body), nil, time.Now())

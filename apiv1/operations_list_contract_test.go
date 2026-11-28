@@ -159,10 +159,16 @@ func TestOperationsPrefixUnsupported(t *testing.T) {
 	ex := operations.NewExecutor(srv, st, operations.ExecutorOptions{})
 	h := New(Options{Keys: keys, Server: srv, Operations: st, Executor: ex})
 	deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"pump"}`)
-	w := deviceRequest(h, "POST", "/v1/devices/pump/operations", `{"type":"write","prefix":"gateway","path":"/3/0/1","values":[{"path":"/3/0/1","type":"string","value":"x"}]}`)
-	var p struct{ Code string }
-	json.Unmarshal(w.Body.Bytes(), &p)
-	if w.Code != 501 || p.Code != "prefix_unsupported" {
-		t.Fatal(w.Code, w.Body.String())
+	for _, body := range []string{
+		`{"type":"create","prefix":"gateway","path":"/3303","values":[{"path":"/3303/0/5700","type":"float","value":1}]}`,
+		`{"type":"read","prefix":"gateway","paths":["/3/0/0","/1/0/1"]}`,
+		`{"type":"write","prefix":"gateway","values":[{"path":"/1/0/1","type":"integer","value":42}]}`,
+	} {
+		w := deviceRequest(h, "POST", "/v1/devices/pump/operations", body)
+		var p struct{ Code string }
+		json.Unmarshal(w.Body.Bytes(), &p)
+		if w.Code != 501 || p.Code != "prefix_unsupported" {
+			t.Errorf("%s: %d %s", body, w.Code, w.Body.String())
+		}
 	}
 }

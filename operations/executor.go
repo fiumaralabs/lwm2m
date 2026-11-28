@@ -212,7 +212,7 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		}
 	}
 	paths := q.Paths
-	if o.Prefix != "" && (o.Type != "read" || len(paths) > 1) {
+	if o.Prefix != "" && !(o.Type == "read" && len(paths) <= 1 || o.Type == "write" && q.Path != "" || o.Type == "discover" || o.Type == "execute" || o.Type == "delete") {
 		return Operation{}, &ErrPrefixUnsupported{Type: o.Type}
 	}
 	if o.Type != "read" {
@@ -486,7 +486,7 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		} else if q.Path == "" {
 			r, err = e.srv.WriteComposite(ctx, o.Device, nodes, format(o.Format))
 		} else {
-			r, err = e.srv.Write(ctx, o.Device, p, nodes, server.WriteOptions{Mode: mode, Format: format(o.Format)})
+			r, err = e.srv.Write(ctx, o.Device, p, nodes, server.WriteOptions{Mode: mode, Format: format(o.Format), Prefix: o.Prefix})
 		}
 		if o.Type == "write" && err == nil && r != nil {
 			r.Nodes = nodes
@@ -501,7 +501,7 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		r, err = e.srv.SetProfileHashAlgorithm(ctx, o.Device, *sw.Suite)
 	} else if o.Type == "discover" {
 		p, _ := lwm2m.ParsePath(q.Path)
-		r, err = e.srv.Discover(ctx, o.Device, p, q.Depth)
+		r, err = e.srv.DiscoverWithPrefix(ctx, o.Device, p, q.Depth, o.Prefix)
 	} else if o.Type == "write-attributes" {
 		p, _ := lwm2m.ParsePath(q.Path)
 		query, qe := attributeQuery(p, q.Attributes)
@@ -517,13 +517,13 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 		if pe != nil {
 			return resultJSON{}, pe
 		}
-		r, err = e.srv.Delete(ctx, o.Device, p)
+		r, err = e.srv.DeleteWithPrefix(ctx, o.Device, p, o.Prefix)
 	} else if o.Type == "execute" {
 		p, pe := lwm2m.ParsePath(q.Path)
 		if pe != nil {
 			return resultJSON{}, pe
 		}
-		r, err = e.srv.Execute(ctx, o.Device, p, q.Arguments)
+		r, err = e.srv.ExecuteWithPrefix(ctx, o.Device, p, q.Arguments, o.Prefix)
 	} else {
 		p, pe := lwm2m.ParsePath(q.Paths[0])
 		if pe != nil {

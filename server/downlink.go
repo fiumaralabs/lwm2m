@@ -203,14 +203,47 @@ func (s *Server) Read(ctx context.Context, ep string, p lwm2m.Path, o ReadOption
 	return s.exchange(ctx, reg, request{method: codes.GET, prefix: o.Prefix, path: p, accept: o.Accept, schemaOf: p})
 }
 
+// checkKnownEndDevice reads the gateway's current prefix table before routing.
+// A failed or undecodable read is not evidence that a prefix is unknown.
+func (s *Server) checkKnownEndDevice(ctx context.Context, reg *Registration, prefix string) error {
+	if err := checkEndDevice(reg, prefix); err != nil || prefix == "" {
+		return err
+	}
+	path := lwm2m.NewPath(objectGateway)
+	res, err := s.exchange(ctx, reg, request{method: codes.GET, path: path, schemaOf: path})
+	if err != nil {
+		return err
+	}
+	if !res.Success() {
+		return fmt.Errorf("server: read gateway prefixes: %s", CodeString(res.Code))
+	}
+	if res.DecodeErr != nil {
+		return fmt.Errorf("server: read gateway prefixes: %w", res.DecodeErr)
+	}
+	for _, n := range res.Nodes {
+		if n.Path.Len() == 3 && n.Path.Object() == objectGateway && n.Path.Resource() == 1 && n.Value.Type == lwm2m.TypeString && n.Value.Str == prefix {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: unknown gateway prefix %q", ErrBadRequest, prefix)
+}
+
 // Discover returns the link-format description of p (DM-04). depth, when
 // non-nil, is the 1.2 depth modifier (C 1.2.2 Tbl 6.3.2-2).
 func (s *Server) Discover(ctx context.Context, ep string, p lwm2m.Path, depth *int) (*Response, error) {
+	return s.DiscoverWithPrefix(ctx, ep, p, depth, "")
+}
+
+// DiscoverWithPrefix targets an end device of a gateway.
+func (s *Server) DiscoverWithPrefix(ctx context.Context, ep string, p lwm2m.Path, depth *int, prefix string) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
 		return nil, err
 	}
-	rq := request{method: codes.GET, path: p, accept: fmtPtr(lwm2m.FormatLinkFormat), schemaOf: p}
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
+		return nil, err
+	}
+	rq := request{method: codes.GET, prefix: prefix, path: p, accept: fmtPtr(lwm2m.FormatLinkFormat), schemaOf: p}
 	if depth != nil {
 		if *depth < 0 || *depth > 3 {
 			return nil, fmt.Errorf("%w: depth must be 0..3", ErrBadRequest)
@@ -230,6 +263,7 @@ const (
 
 // WriteOptions: Format forces the payload Content-Format; zero picks one.
 type WriteOptions struct {
+	Prefix string
 	Mode   WriteMode
 	Format *lwm2m.ContentFormat
 }
@@ -247,6 +281,9 @@ func (s *Server) Write(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm
 	if o.Mode == PartialUpdate && !(p.IsInstance() || p.IsResource()) {
 		return nil, fmt.Errorf("%w: Partial Update targets /o/i or a multi-instance /o/i/r", ErrBadRequest)
 	}
+	if err := s.checkKnownEndDevice(ctx, reg, o.Prefix); err != nil {
+		return nil, err
+	}
 	if err := s.validateWrite(reg, nodes); err != nil {
 		return nil, err
 	}
@@ -254,12 +291,12 @@ func (s *Server) Write(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm
 	if o.Mode == PartialUpdate {
 		method = codes.POST
 	}
-	return s.writeWithFormat(ctx, reg, method, p, nodes, o.Format, o.Mode == PartialUpdate)
+	return s.writeWithFormat(ctx, reg, method, p, nodes, o.Format, o.Mode == PartialUpdate, o.Prefix)
 }
 
 // writeWithFormat encodes nodes and sends them. Without an explicit format
 // it picks one the client can take, retrying on 4.15/4.06 (C §7.5).
-func (s *Server) writeWithFormat(ctx context.Context, reg *Registration, method codes.Code, p lwm2m.Path, nodes []lwm2m.Node, forced *lwm2m.ContentFormat, multiOnly bool) (*Response, error) {
+func (s *Server) writeWithFormat(ctx context.Context, reg *Registration, method codes.Code, p lwm2m.Path, nodes []lwm2m.Node, forced *lwm2m.ContentFormat, multiOnly bool, prefix string) (*Response, error) {
 	cands := s.writeFormats(reg, p, nodes, multiOnly)
 	if forced != nil {
 		cands = []lwm2m.ContentFormat{*forced}
@@ -278,7 +315,7 @@ func (s *Server) writeWithFormat(ctx context.Context, reg *Registration, method 
 			}
 			continue
 		}
-		r, err := s.exchange(ctx, reg, request{method: method, path: p, cf: fmtPtr(cf), body: body, schemaOf: p})
+		r, err := s.exchange(ctx, reg, request{method: method, prefix: prefix, path: p, cf: fmtPtr(cf), body: body, schemaOf: p})
 		if err != nil {
 			return nil, err
 		}
@@ -388,6 +425,11 @@ func checkAttributes(p lwm2m.Path, query []string) error {
 
 // Execute executes resource p with optional plain-text arguments (DM-08).
 func (s *Server) Execute(ctx context.Context, ep string, p lwm2m.Path, args string) (*Response, error) {
+	return s.ExecuteWithPrefix(ctx, ep, p, args, "")
+}
+
+// ExecuteWithPrefix targets an end device of a gateway.
+func (s *Server) ExecuteWithPrefix(ctx context.Context, ep string, p lwm2m.Path, args string, prefix string) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
 		return nil, err
@@ -398,7 +440,10 @@ func (s *Server) Execute(ctx context.Context, ep string, p lwm2m.Path, args stri
 	if _, err := text.ParseExecArgs(args); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err) // DM-08 arglist
 	}
-	rq := request{method: codes.POST, path: p, schemaOf: p}
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
+		return nil, err
+	}
+	rq := request{method: codes.POST, prefix: prefix, path: p, schemaOf: p}
 	if args != "" {
 		rq.cf, rq.body = fmtPtr(lwm2m.FormatText), []byte(args)
 	}
@@ -422,11 +467,16 @@ func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lw
 	if err := s.validateCreate(reg, p, nodes); err != nil {
 		return nil, err
 	}
-	return s.writeWithFormat(ctx, reg, codes.POST, p, nodes, format, true)
+	return s.writeWithFormat(ctx, reg, codes.POST, p, nodes, format, true, "")
 }
 
 // Delete deletes object instance p, or (1.1+) resource instance p (DM-10).
 func (s *Server) Delete(ctx context.Context, ep string, p lwm2m.Path) (*Response, error) {
+	return s.DeleteWithPrefix(ctx, ep, p, "")
+}
+
+// DeleteWithPrefix targets an end device of a gateway.
+func (s *Server) DeleteWithPrefix(ctx context.Context, ep string, p lwm2m.Path, prefix string) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
 		return nil, err
@@ -437,7 +487,10 @@ func (s *Server) Delete(ctx context.Context, ep string, p lwm2m.Path) (*Response
 	if p.Object() == 3 && p.Instance() == 0 {
 		return nil, fmt.Errorf("%w: /3/0 cannot be deleted (DM-10)", ErrBadRequest)
 	}
-	return s.exchange(ctx, reg, request{method: codes.DELETE, path: p, schemaOf: p})
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
+		return nil, err
+	}
+	return s.exchange(ctx, reg, request{method: codes.DELETE, prefix: prefix, path: p, schemaOf: p})
 }
 
 // CompositeOptions picks request and response formats for composite
