@@ -2,6 +2,7 @@ package apiv1_test
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"path/filepath"
@@ -9,10 +10,55 @@ import (
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m/apiv1"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/fiumaralabs/lwm2m/store"
 	"github.com/fiumaralabs/lwm2m/store/memory"
 	"github.com/fiumaralabs/lwm2m/store/sqlite"
 )
+
+func TestDeviceCreatePutBootstrapSeparateLiveCredential(t *testing.T) {
+	for _, backend := range []string{"memory", "sqlite"} {
+		t.Run(backend, func(t *testing.T) {
+			var devices store.Devices = &memory.Devices{}
+			if backend == "sqlite" {
+				db, err := sqlite.Open(filepath.Join(t.TempDir(), "devices.db"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = db.Close() })
+				devices = db
+			}
+			live := server.NewMemorySecurityStore()
+			if err := live.Put(server.SecurityInfo{Endpoint: "orphan", PSKIdentity: "orphan", PSKKey: []byte("0123456789abcdef")}); err != nil {
+				t.Fatal(err)
+			}
+			srv := server.New(server.Config{Security: live})
+			t.Cleanup(func() { _ = srv.Close() })
+			hash := sha256.Sum256([]byte("lwm_test_secret"))
+			keys, err := apiv1.LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:write,bootstrap:write", hash)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := apiv1.New(apiv1.Options{Keys: keys, Devices: devices, Server: srv})
+			r := httptest.NewRequest("PUT", "/v1/device-creates/op", strings.NewReader(`{"endpoint":"orphan","bootstrap":{"servers":[]}}`))
+			r.Header.Set("Authorization", "Bearer lwm_test_secret")
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != 409 || !strings.Contains(w.Body.String(), "credential_exists") {
+				t.Fatalf("got %d %s", w.Code, w.Body)
+			}
+			if _, err := devices.Get("default", "orphan"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("device: %v", err)
+			}
+			if _, err := devices.(store.DeviceCreateStore).GetDeviceCreate(t.Context(), "default", "op"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("outcome: %v", err)
+			}
+			if _, exists, err := devices.(store.DeviceBootstrapCreateStore).GetBootstrapConfig(t.Context(), "default", "orphan"); err != nil || exists {
+				t.Fatalf("bootstrap: exists=%v err=%v", exists, err)
+			}
+		})
+	}
+}
 
 func TestDeviceCreatePutBootstrap(t *testing.T) {
 	for _, backend := range []string{"memory", "sqlite"} {
