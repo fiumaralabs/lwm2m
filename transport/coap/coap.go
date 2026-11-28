@@ -422,6 +422,9 @@ func (b *Binding) Close() error {
 // endpoint), else NoSec: Go's crypto/tls has neither PSK nor raw public
 // keys (RFC 7250).
 func IdentityOf(nc net.Conn, remote net.Addr) server.Identity {
+	if wc, ok := nc.(interface{ wsIdentity() server.Identity }); ok {
+		return wc.wsIdentity()
+	}
 	if tc, ok := nc.(*tls.Conn); ok {
 		if st := tc.ConnectionState(); len(st.VerifiedChains) > 0 {
 			leaf := st.PeerCertificates[0]

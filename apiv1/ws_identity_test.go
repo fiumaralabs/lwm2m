@@ -74,7 +74,7 @@ func TestWSSRegistrationIdentity(t *testing.T) {
 		return c
 	}
 	devices := &memory.Devices{}
-	for _, ep := range []string{"cert-device", "plain-device"} {
+	for _, ep := range []string{"cert-device", "plain-device", "unverified-device"} {
 		if _, err := devices.Create("default", store.Device{Endpoint: ep}); err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestWSSRegistrationIdentity(t *testing.T) {
 	assertIdentity("cert-device", "x509", "cert-device")
 	other := dial("cert-device", []tls.Certificate{clientCert("cert-device", 3)})
 	r, err = other.Raw(ctx, codes.POST, "/rd/"+first.Location(), []string{"lt=600"}, nil, nil)
-	if err != nil || r.Code != codes.Forbidden {
+	if err != nil || r.Code != codes.BadRequest {
 		t.Fatalf("different certificate update: %v %v", r, err)
 	}
 	r, err = first.Update(ctx, []string{"lt=600"})
@@ -115,4 +115,23 @@ func TestWSSRegistrationIdentity(t *testing.T) {
 		t.Fatalf("NoSec register: %v %v", r, err)
 	}
 	assertIdentity("plain-device", "none", "")
+	// A certificate requested but not verified by TLS is not an identity.
+	unverified := httptest.NewUnstartedServer(b.WebSocketHandler())
+	unverified.TLS = &tls.Config{ClientAuth: tls.RequestClientCert}
+	unverified.StartTLS()
+	defer unverified.Close()
+	roots.AddCert(unverified.Certificate())
+	unverifiedURL := "wss" + strings.TrimPrefix(unverified.URL, "https")
+	client := testclient.NewTCP(testclient.Config{Endpoint: "unverified-device", Binding: "T"})
+	client.Set(lwm2m.MustParsePath("/3/0/0"), lwm2m.String("device"))
+	if _, err := client.DialWebSocket(unverifiedURL, &tls.Config{RootCAs: roots, Certificates: []tls.Certificate{clientCert("unverified-device", 4)}}); err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	r, err = client.Register(ctx)
+	if err != nil || r.Code != codes.Created {
+		t.Fatalf("unverified register: %v %v", r, err)
+	}
+	assertIdentity("unverified-device", "none", "")
+
 }

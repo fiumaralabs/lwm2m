@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/fiumaralabs/lwm2m/internal/coapws"
+	"github.com/fiumaralabs/lwm2m/server"
 	"github.com/gorilla/websocket"
 	coapnet "github.com/plgd-dev/go-coap/v3/net"
 )
@@ -35,8 +36,13 @@ func (b *Binding) WebSocketHandler() http.Handler {
 		if err != nil {
 			return // Upgrade wrote the error response
 		}
+		conn := net.Conn(coapws.NewConn(ws))
+		if r.TLS != nil && len(r.TLS.VerifiedChains) > 0 && len(r.TLS.PeerCertificates) > 0 {
+			leaf := r.TLS.PeerCertificates[0]
+			conn = &wsIdentityConn{Conn: conn, identity: server.Identity{Mode: server.ModeX509, CertCN: leaf.Subject.CommonName, Cert: leaf}}
+		}
 		select {
-		case l.conns <- coapws.NewConn(ws):
+		case l.conns <- conn:
 		case <-l.done:
 			_ = ws.Close()
 		case <-r.Context().Done():
@@ -67,3 +73,11 @@ func (l *wsListener) Close() error {
 	l.once.Do(func() { close(l.done) })
 	return nil
 }
+
+// wsIdentityConn carries only the identity verified during the HTTP TLS handshake.
+type wsIdentityConn struct {
+	net.Conn
+	identity server.Identity
+}
+
+func (c *wsIdentityConn) wsIdentity() server.Identity { return c.identity }
