@@ -465,7 +465,16 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			f := lwm2m.FormatSenMLCBOR
 			cf = &f
 		}
-		if cf != nil {
+		autoCreate := false
+		if o.Type == "create" {
+			for _, n := range nodes {
+				if n.Path.IsInstance() && n.Kind != lwm2m.KindEmptyInstance {
+					autoCreate = true
+					break
+				}
+			}
+		}
+		if cf != nil && !autoCreate {
 			c, err := codec.For(*cf)
 			if err != nil {
 				return resultJSON{}, err

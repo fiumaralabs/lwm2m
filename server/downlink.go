@@ -450,9 +450,9 @@ func (s *Server) ExecuteWithPrefix(ctx context.Context, ep string, p lwm2m.Path,
 	return s.exchange(ctx, reg, rq)
 }
 
-// Create creates an instance of object p (DM-09). nodes carry absolute
-// paths; include the instance ID so the result is known without a
-// Location-Path (Zephyr omits it, C9).
+// Create creates an instance of object p (DM-09). Resource nodes may omit
+// the instance ID using /o/r paths. The client then assigns the instance.
+// Explicit-instance nodes use /o/i/r paths.
 func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm2m.Node, format *lwm2m.ContentFormat) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
@@ -463,6 +463,39 @@ func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lw
 	}
 	if !reg.HasObject(p.Object()) {
 		return nil, fmt.Errorf("%w: object %d not registered (DM-09)", ErrBadRequest, p.Object())
+	}
+	auto := false
+	for _, n := range nodes {
+		if n.Path.IsInstance() && n.Kind != lwm2m.KindEmptyInstance {
+			auto = true
+			break
+		}
+	}
+	if auto {
+		if format != nil && *format != lwm2m.FormatTLV {
+			return nil, fmt.Errorf("%w: client-assigned Create requires TLV", ErrBadRequest)
+		}
+		mapped := make([]lwm2m.Node, len(nodes))
+		for i, n := range nodes {
+			if n.Path.Object() != p.Object() || n.Path.Len() != 2 || n.Kind == lwm2m.KindEmptyInstance {
+				return nil, fmt.Errorf("%w: invalid client-assigned Create resource", ErrBadRequest)
+			}
+			path := lwm2m.NewPath(p.Object(), 0, n.Path.ID(1))
+			n.Path = path
+			mapped[i] = n
+		}
+		if err := s.validateCreate(reg, p, mapped); err != nil {
+			return nil, err
+		}
+		c, err := codec.For(lwm2m.FormatTLV)
+		if err != nil {
+			return nil, err
+		}
+		body, err := c.Encode(lwm2m.NewPath(p.Object(), 0), mapped)
+		if err != nil {
+			return nil, err
+		}
+		return s.exchange(ctx, reg, request{method: codes.POST, path: p, cf: fmtPtr(lwm2m.FormatTLV), body: body, schemaOf: p})
 	}
 	if err := s.validateCreate(reg, p, nodes); err != nil {
 		return nil, err
