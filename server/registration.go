@@ -132,11 +132,22 @@ type CommittedRegistrationPublisher interface {
 	PublishCommitted(*Registration)
 }
 
+const replayLifetime = 247 * time.Second
+const replayLimit = 1024
+
+type replayEntry struct {
+	registration *Registration
+	at           time.Time
+}
+
 // MemoryStore is an in-memory Store.
 type MemoryStore struct {
-	mu   sync.RWMutex
-	byID map[string]*Registration
-	byEP map[string]string
+	mu          sync.RWMutex
+	byID        map[string]*Registration
+	byEP        map[string]string
+	replays     map[[32]byte]replayEntry
+	replayTTL   time.Duration
+	replayTimer *time.Timer
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -148,6 +159,10 @@ func NewMemoryStore() *MemoryStore {
 func (s *MemoryStore) Add(r *Registration) *Registration {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.addLocked(r)
+}
+
+func (s *MemoryStore) addLocked(r *Registration) *Registration {
 	var old *Registration
 	if id, ok := s.byEP[r.Endpoint]; ok {
 		old = s.byID[id]
@@ -156,6 +171,91 @@ func (s *MemoryStore) Add(r *Registration) *Registration {
 	s.byID[r.ID] = r
 	s.byEP[r.Endpoint] = r.ID
 	return old
+}
+
+func (s *MemoryStore) forgetReplay(key [32]byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.replays, key)
+}
+
+// lookupReplay discards expired or no-longer-live history before admission.
+func (s *MemoryStore) lookupReplay(key [32]byte) (replayEntry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.replays[key]
+	ttl := s.replayTTL
+	if ttl == 0 {
+		ttl = replayLifetime
+	}
+	if ok {
+		_, live := s.byID[entry.registration.ID]
+		if !time.Now().Before(entry.at.Add(ttl)) || !live {
+			delete(s.replays, key)
+			return replayEntry{}, false
+		}
+	}
+	return entry, ok
+}
+
+// AddCheckedReplay retains at most replayLimit exchanges for replayLifetime.
+// This in-memory history does not survive creation of a new store.
+func (s *MemoryStore) AddCheckedReplay(ctx RegisterContext, r *Registration) (*Registration, *Registration, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ctx.Exchange == nil {
+		return r, s.addLocked(r), false, nil
+	}
+	ttl := s.replayTTL
+	if ttl == 0 {
+		ttl = replayLifetime
+	}
+	now := time.Now()
+	var oldestKey [32]byte
+	var oldest time.Time
+	for key, entry := range s.replays {
+		if !now.Before(entry.at.Add(ttl)) {
+			delete(s.replays, key)
+			continue
+		}
+		if oldest.IsZero() || entry.at.Before(oldest) {
+			oldest, oldestKey = entry.at, key
+		}
+	}
+	if entry, ok := s.replays[*ctx.Exchange]; ok {
+		return entry.registration, nil, true, nil
+	}
+	if s.replays == nil {
+		s.replays = make(map[[32]byte]replayEntry)
+	} else if len(s.replays) >= replayLimit {
+		delete(s.replays, oldestKey)
+	}
+	old := s.addLocked(r)
+	s.replays[*ctx.Exchange] = replayEntry{registration: r, at: now}
+	if s.replayTimer == nil {
+		s.replayTimer = time.AfterFunc(ttl, func() { s.expireReplays(ttl) })
+	}
+	return r, old, false, nil
+}
+
+// expireReplays schedules only one timer per store and stops once idle history is empty.
+func (s *MemoryStore) expireReplays(ttl time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	var next time.Time
+	for key, entry := range s.replays {
+		expires := entry.at.Add(ttl)
+		if !now.Before(expires) {
+			delete(s.replays, key)
+		} else if next.IsZero() || expires.Before(next) {
+			next = expires
+		}
+	}
+	s.replayTimer = nil
+	if !next.IsZero() {
+		s.replayTimer = time.AfterFunc(time.Until(next), func() { s.expireReplays(ttl) })
+	}
 }
 
 func (s *MemoryStore) Update(r *Registration) bool {

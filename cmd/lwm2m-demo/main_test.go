@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"net"
+
+	"github.com/plgd-dev/go-coap/v3/message/codes"
 	"testing"
 	"time"
 
@@ -61,5 +65,36 @@ func TestLimiter(t *testing.T) {
 	l2.authorize("x", nosec("1.1.1.1:1"))
 	if l2.authorize("x", nosec("1.1.1.1:1")) {
 		t.Error("rate limit not applied")
+	}
+}
+
+type demoReplayPeer struct{}
+
+func (demoReplayPeer) Exchange(context.Context, *server.Message) (*server.Message, error) {
+	return nil, nil
+}
+func (demoReplayPeer) Identity() server.Identity {
+	return server.Identity{Mode: server.ModeNoSec, Addr: "192.0.2.1"}
+}
+func (demoReplayPeer) RemoteAddr() net.Addr {
+	return &net.UDPAddr{IP: net.ParseIP("192.0.2.1"), Port: 5683}
+}
+func (demoReplayPeer) Binding() string { return "U" }
+func TestClampStoreRegisterReplay(t *testing.T) {
+	store := &clampStore{Store: server.NewMemoryStore(), max: time.Minute}
+	srv := server.New(server.Config{Store: store})
+	defer srv.Close()
+	mid := uint16(42)
+	msg := &server.Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=600", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid, Token: []byte{1}}
+	first, done := srv.HandleUplink(demoReplayPeer{}, msg)
+	done()
+	retry, done := srv.HandleUplink(demoReplayPeer{}, msg)
+	done()
+	if first.Code != codes.Created || retry.Code != codes.Created || len(first.Location) != 2 || len(retry.Location) != 2 || first.Location[1] != retry.Location[1] {
+		t.Fatalf("first=%+v retry=%+v", first, retry)
+	}
+	reg, ok := store.ByID(first.Location[1])
+	if !ok || reg.Lifetime != time.Minute {
+		t.Fatalf("clamp failed: %+v", reg)
 	}
 }

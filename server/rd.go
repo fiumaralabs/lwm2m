@@ -20,21 +20,91 @@ import (
 
 var versionRE = regexp.MustCompile(`^1\.([012])(\.\d+)?$`)
 
-// registrationLock serializes checked commits and removals for an endpoint.
+// registrationLock serializes registration changes for an endpoint.
 func (s *Server) registrationLock(endpoint string) func() {
-	if _, ok := s.store.(CommittedRegistrationPublisher); !ok {
-		return func() {}
-	}
-	_, contextChecked := s.store.(ContextCheckedAdder)
-	_, checked := s.store.(CheckedAdder)
-	if !contextChecked && !checked {
-		return func() {}
-	}
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(endpoint))
 	mu := &s.registrationLocks[h.Sum32()%uint32(len(s.registrationLocks))]
 	mu.Lock()
 	return mu.Unlock
+}
+
+// replayLookup verifies the cached location still names a live registration.
+func (s *Server) replayLookup(key [32]byte, id Identity) *Registration {
+	s.replayMu.Lock()
+	entry, ok := s.replays[key]
+	if ok && !time.Now().Before(entry.at.Add(replayLifetime)) {
+		delete(s.replays, key)
+		ok = false
+	}
+	s.replayMu.Unlock()
+	if !ok {
+		if store, direct := s.store.(*MemoryStore); direct {
+			entry, ok = store.lookupReplay(key)
+		}
+	}
+	if !ok {
+		return nil
+	}
+	current, live := s.store.ByID(entry.registration.ID)
+	if !live || current.Expired(s.cfg.Now()) || !current.Identity.Equal(id) {
+		s.replayMu.Lock()
+		delete(s.replays, key)
+		s.replayMu.Unlock()
+		if store, direct := s.store.(*MemoryStore); direct {
+			store.forgetReplay(key)
+		}
+		return nil
+	}
+	return current
+}
+
+func (s *Server) replayRemember(key [32]byte, reg *Registration) {
+	s.replayMu.Lock()
+	defer s.replayMu.Unlock()
+	now := time.Now()
+	var oldestKey [32]byte
+	var oldest time.Time
+	for k, entry := range s.replays {
+		if !now.Before(entry.at.Add(replayLifetime)) {
+			delete(s.replays, k)
+			continue
+		}
+		if oldest.IsZero() || entry.at.Before(oldest) {
+			oldest, oldestKey = entry.at, k
+		}
+	}
+	if s.replays == nil {
+		s.replays = make(map[[32]byte]replayEntry)
+	}
+	if len(s.replays) >= replayLimit {
+		delete(s.replays, oldestKey)
+	}
+	s.replays[key] = replayEntry{registration: reg, at: now}
+	if s.replayTimer == nil {
+		s.replayTimer = time.AfterFunc(replayLifetime, s.expireReplayCache)
+	}
+}
+
+func (s *Server) expireReplayCache() {
+	s.replayMu.Lock()
+	defer s.replayMu.Unlock()
+	now := time.Now()
+	var next time.Time
+	for key, entry := range s.replays {
+		expires := entry.at.Add(replayLifetime)
+		if !now.Before(expires) {
+			delete(s.replays, key)
+			continue
+		}
+		if next.IsZero() || expires.Before(next) {
+			next = expires
+		}
+	}
+	s.replayTimer = nil
+	if !next.IsZero() {
+		s.replayTimer = time.AfterFunc(time.Until(next), s.expireReplayCache)
+	}
 }
 
 // normaliseVersion maps the lwm2m= parameter to "1.0", "1.1" or "1.2";
@@ -132,7 +202,8 @@ func registerExchange(peer Peer, m *Message, fingerprint [32]byte) *[32]byte {
 		Peer        string
 		MessageID   uint16
 		Token       []byte
-	}{fingerprint, peer.Binding(), peer.RemoteAddr().String(), *m.MessageID, m.Token})
+		Format      *lwm2m.ContentFormat
+	}{fingerprint, peer.Binding(), peer.RemoteAddr().String(), *m.MessageID, m.Token, m.Format})
 	exchange := sha256.Sum256(canonical)
 	return &exchange
 }
@@ -159,9 +230,28 @@ func (s *Server) register(peer Peer, m *Message) reply {
 	if p.Endpoint != nil {
 		epName = *p.Endpoint
 	}
-	ep, code := s.authorizeEndpoint(epName, id)
+	ep, code := s.authenticateEndpoint(epName, id)
 	if code != 0 {
 		return replyCode(code)
+	}
+	unlock := s.registrationLock(ep)
+	defer unlock()
+	// Recheck credentials after waiting for the endpoint lock.
+	if _, code := s.authenticateEndpoint(ep, id); code != 0 {
+		return replyCode(code)
+	}
+	exchange := registerExchange(peer, m, registerFingerprint(ep, id, m))
+	if exchange != nil {
+		var cached *Registration
+		if err := guardPeer(peer, func() error { cached = s.replayLookup(*exchange, id); return nil }); err != nil {
+			return replyCode(codes.Forbidden)
+		}
+		if cached != nil {
+			return reply{msg: &Message{Code: codes.Created, Location: []string{"rd", cached.ID}}}
+		}
+	}
+	if s.cfg.Authorize != nil && !s.cfg.Authorize(ep, id) {
+		return replyCode(codes.Forbidden)
 	}
 
 	payload, ok := linkPayload(m)
@@ -212,8 +302,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		peer:           peer,
 	}
 	var old *Registration
-	unlock := s.registrationLock(ep)
-	defer unlock()
+	var replayed bool
 	var previous *Registration
 	if _, ok := s.store.(CommittedRegistrationPublisher); ok {
 		previous, _ = s.store.ByEndpoint(ep)
@@ -241,6 +330,18 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			}
 			return err
 		}
+		if checked, ok := s.store.(*MemoryStore); ok && exchange != nil {
+			ctx := RegisterContext{Endpoint: ep, Identity: id, Fingerprint: registerFingerprint(ep, id, m)}
+			ctx.Exchange = registerExchange(peer, m, ctx.Fingerprint)
+			var err error
+			reg, old, replayed, err = checked.AddCheckedReplay(ctx, reg)
+			if err == nil && !replayed {
+				if publisher, ok := s.store.(CommittedRegistrationPublisher); ok {
+					publisher.PublishCommitted(reg)
+				}
+			}
+			return err
+		}
 		old = s.store.Add(reg)
 		return nil
 	}); err != nil {
@@ -248,6 +349,12 @@ func (s *Server) register(peer Peer, m *Message) reply {
 			return replyCode(codes.ServiceUnavailable)
 		}
 		return replyCode(codes.Forbidden)
+	}
+	if replayed {
+		return reply{msg: &Message{Code: codes.Created, Location: []string{"rd", reg.ID}}}
+	}
+	if exchange != nil {
+		s.replayRemember(*exchange, reg)
 	}
 	if old != nil && previous != nil && old.ID == previous.ID {
 		old = previous
@@ -269,10 +376,10 @@ func (s *Server) register(peer Peer, m *Message) reply {
 	}
 }
 
-// authorizeEndpoint resolves the endpoint name and checks it against the
+// authenticateEndpoint resolves the endpoint name and checks it against the
 // authenticated identity (REG-02, SEC-06, SEC-07). It returns a non-zero
 // CoAP code to reject.
-func (s *Server) authorizeEndpoint(ep string, id Identity) (string, codes.Code) {
+func (s *Server) authenticateEndpoint(ep string, id Identity) (string, codes.Code) {
 	if ep == "" {
 		derived, ok := endpointFromIdentity(s.security, id)
 		if !ok {
@@ -287,9 +394,6 @@ func (s *Server) authorizeEndpoint(ep string, id Identity) (string, codes.Code) 
 		}
 	} else if has {
 		return "", codes.BadRequest // SEC-07: credentials exist, NoSec is not this client
-	}
-	if s.cfg.Authorize != nil && !s.cfg.Authorize(ep, id) {
-		return "", codes.Forbidden // REG-06: endpoint not allowed
 	}
 	return ep, 0
 }

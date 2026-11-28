@@ -72,6 +72,9 @@ type Server struct {
 
 	mu                sync.Mutex
 	registrationLocks [64]sync.Mutex
+	replayMu          sync.Mutex
+	replays           map[[32]byte]replayEntry
+	replayTimer       *time.Timer
 	stop              chan struct{}
 	wg                sync.WaitGroup
 	obs               *observations
@@ -146,6 +149,13 @@ func (s *Server) Close() error {
 	close(s.stop)
 	s.mu.Unlock()
 	s.wg.Wait()
+	s.replayMu.Lock()
+	if s.replayTimer != nil {
+		s.replayTimer.Stop()
+		s.replayTimer = nil
+	}
+	s.replays = nil
+	s.replayMu.Unlock()
 	return nil
 }
 
