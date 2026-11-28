@@ -57,12 +57,12 @@ type MemoryBindingStore struct {
 	bindings map[string]Binding
 	pending  map[string]pendingRequest
 	receipts map[string]Receipt
-	admitted map[admittedIdentity]struct{}
+	admitted map[stableIdentity]struct{}
 	existing map[string]admittedIdentity
 }
 
 func NewMemoryBindingStore() *MemoryBindingStore {
-	return &MemoryBindingStore{bindings: make(map[string]Binding), receipts: make(map[string]Receipt), admitted: make(map[admittedIdentity]struct{}), existing: make(map[string]admittedIdentity)}
+	return &MemoryBindingStore{bindings: make(map[string]Binding), receipts: make(map[string]Receipt), admitted: make(map[stableIdentity]struct{}), existing: make(map[string]admittedIdentity)}
 }
 func (s *MemoryBindingStore) BindAndMarkApplied(ctx context.Context, b Binding) (bool, error) {
 	if err := ctx.Err(); err != nil {

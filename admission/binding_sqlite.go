@@ -132,6 +132,13 @@ func NewSQLiteBindingStoreDB(db *sql.DB, retention ...time.Duration) (*SQLiteBin
 	if _, err = db.Exec(`INSERT OR IGNORE INTO admission_identities SELECT b.tenant_id,b.identity_id,b.fingerprint FROM admission_exchange_bindings b JOIN admission_receipts r ON r.exchange_id=b.exchange_id WHERE b.tenant_id<>'' AND b.identity_id<>'' AND b.fingerprint<>'' AND r.kind='admitted'`); err != nil {
 		return nil, err
 	}
+	// Keep legacy rows intact and backfill stable keys, including pruned receipts.
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS admission_stable_identities (tenant_id TEXT NOT NULL, identity_id TEXT NOT NULL, PRIMARY KEY (tenant_id, identity_id))`); err != nil {
+		return nil, err
+	}
+	if _, err = db.Exec(`INSERT OR IGNORE INTO admission_stable_identities SELECT tenant_id,identity_id FROM admission_identities WHERE tenant_id<>'' AND identity_id<>''`); err != nil {
+		return nil, err
+	}
 	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS admission_pending_exchanges (exchange_id TEXT PRIMARY KEY, request_body BLOB NOT NULL, request_digest TEXT NOT NULL)`); err != nil {
 		return nil, err
 	}

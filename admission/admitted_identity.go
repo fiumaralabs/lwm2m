@@ -8,11 +8,13 @@ import (
 )
 
 type admittedIdentity struct{ tenant, identity, fingerprint string }
+type stableIdentity struct{ tenant, identity string }
 
 // ErrNotAdmitted indicates that the exact authenticated identity has not been admitted.
 var ErrNotAdmitted = errors.New("admission: identity not admitted")
 
-// IsAdmitted reports whether this exact identity was committed as admitted.
+// IsAdmitted reports whether this tenant and authenticated identity were admitted.
+// fingerprint is retained for API compatibility; it identifies the Register request, not the identity.
 func (s *MemoryBindingStore) IsAdmitted(ctx context.Context, tenant, identity, fingerprint string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -22,14 +24,15 @@ func (s *MemoryBindingStore) IsAdmitted(ctx context.Context, tenant, identity, f
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	_, ok := s.admitted[admittedIdentity{tenant, identity, fingerprint}]
+	_, ok := s.admitted[stableIdentity{tenant, identity}]
 	return ok, nil
 }
 
-// IsAdmitted reports whether this exact identity was committed as admitted.
+// IsAdmitted reports whether this tenant and authenticated identity were admitted.
+// fingerprint is retained for API compatibility; it identifies the Register request, not the identity.
 func (s *SQLiteBindingStore) IsAdmitted(ctx context.Context, tenant, identity, fingerprint string) (bool, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM admission_identities WHERE tenant_id=? AND identity_id=? AND fingerprint=?`, tenant, identity, fingerprint).Scan(&n)
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM admission_stable_identities WHERE tenant_id=? AND identity_id=?`, tenant, identity).Scan(&n)
 	return n != 0, err
 }
 
@@ -51,7 +54,7 @@ func (s *MemoryBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 		return err
 	}
 	key := admittedIdentity{tenant, identity, fingerprint}
-	if _, ok := s.admitted[key]; !ok {
+	if _, ok := s.admitted[stableIdentity{tenant, identity}]; !ok {
 		return ErrNotAdmitted
 	}
 	if old, ok := s.existing[exchangeID]; ok {
@@ -90,7 +93,7 @@ func (s *SQLiteBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 	}
 	defer tx.Rollback()
 	// Acquire the write lock before checking identity and exchange state.
-	result, err := tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings (exchange_id,tenant_id,identity_id,fingerprint,request_digest,decision_digest,applied) SELECT ?,?,?,?,?,'',1 WHERE EXISTS (SELECT 1 FROM admission_identities WHERE tenant_id=? AND identity_id=? AND fingerprint=?) ON CONFLICT(exchange_id) DO NOTHING`, exchangeID, tenant, identity, fingerprint, requestDigest, tenant, identity, fingerprint)
+	result, err := tx.ExecContext(ctx, `INSERT INTO admission_exchange_bindings (exchange_id,tenant_id,identity_id,fingerprint,request_digest,decision_digest,applied) SELECT ?,?,?,?,?,'',1 WHERE EXISTS (SELECT 1 FROM admission_stable_identities WHERE tenant_id=? AND identity_id=?) ON CONFLICT(exchange_id) DO NOTHING`, exchangeID, tenant, identity, fingerprint, requestDigest, tenant, identity)
 	if err != nil {
 		return err
 	}
@@ -100,7 +103,7 @@ func (s *SQLiteBindingStore) CommitExisting(ctx context.Context, exchangeID, ten
 	}
 	if n == 0 {
 		var admitted int
-		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM admission_identities WHERE tenant_id=? AND identity_id=? AND fingerprint=?`, tenant, identity, fingerprint).Scan(&admitted); err != nil {
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM admission_stable_identities WHERE tenant_id=? AND identity_id=?`, tenant, identity).Scan(&admitted); err != nil {
 			return err
 		}
 		if admitted == 0 {
