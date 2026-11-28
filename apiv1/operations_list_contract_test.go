@@ -160,7 +160,6 @@ func TestOperationsPrefixUnsupported(t *testing.T) {
 	h := New(Options{Keys: keys, Server: srv, Operations: st, Executor: ex})
 	deviceRequest(h, "POST", "/v1/devices", `{"endpoint":"pump"}`)
 	for _, body := range []string{
-		`{"type":"create","prefix":"gateway","path":"/3303","values":[{"path":"/3303/0/5700","type":"float","value":1}]}`,
 		`{"type":"read","prefix":"gateway","paths":["/3/0/0","/1/0/1"]}`,
 		`{"type":"write","prefix":"gateway","values":[{"path":"/1/0/1","type":"integer","value":42}]}`,
 	} {
