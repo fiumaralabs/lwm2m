@@ -58,4 +58,12 @@ func TestAdmittedReregisterWhenPendingCapacityFull(t *testing.T) {
 	if !ok || got.ID != reg.ID || got.Lifetime != reg.Lifetime {
 		t.Fatalf("registration not committed: %+v, found %v", got, ok)
 	}
+	if len(store.pending) != 100000 {
+		t.Fatalf("existing admission changed new-device capacity: %d", len(store.pending))
+	}
+	newIdentity := server.Identity{Mode: server.ModePSK, PSKIdentity: "new-device"}
+	_, err = store.AddCheckedContext(server.RegisterContext{Endpoint: "new-device", Identity: newIdentity, Exchange: &exchange}, &server.Registration{ID: "new", Endpoint: "new-device", Identity: newIdentity})
+	if err != server.ErrRegistrationUnavailable {
+		t.Fatalf("new admission at capacity: got %v, want unavailable", err)
+	}
 }

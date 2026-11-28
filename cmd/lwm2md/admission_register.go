@@ -65,7 +65,9 @@ func (s *admittingRegistrations) AddCheckedContext(c server.RegisterContext, reg
 		return nil, server.ErrRegistrationUnavailable
 	}
 	var exchangeID string
-	if c.Exchange != nil {
+	// Existing admissions do not need policy retry state and must not compete
+	// with pending new-device exchanges for capacity.
+	if c.Exchange != nil && !admitted {
 		s.mu.Lock()
 		if s.pending == nil {
 			s.pending = make(map[[32]byte]pendingRegister)
@@ -116,7 +118,7 @@ func (s *admittingRegistrations) AddCheckedContext(c server.RegisterContext, reg
 	if err != nil {
 		return nil, server.ErrRegistrationUnavailable
 	}
-	if c.Exchange != nil {
+	if c.Exchange != nil && !admitted {
 		s.mu.Lock()
 		delete(s.pending, *c.Exchange)
 		s.mu.Unlock()
