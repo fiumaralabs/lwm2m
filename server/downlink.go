@@ -281,6 +281,9 @@ func (s *Server) Write(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm
 	if o.Mode == PartialUpdate && !(p.IsInstance() || p.IsResource()) {
 		return nil, fmt.Errorf("%w: Partial Update targets /o/i or a multi-instance /o/i/r", ErrBadRequest)
 	}
+	if err := checkForcedWriteFormat(reg, p, nodes, o.Format, o.Mode == PartialUpdate, false); err != nil {
+		return nil, err
+	}
 	if err := s.checkKnownEndDevice(ctx, reg, o.Prefix); err != nil {
 		return nil, err
 	}
@@ -292,6 +295,25 @@ func (s *Server) Write(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm
 		method = codes.POST
 	}
 	return s.writeWithFormat(ctx, reg, method, p, nodes, o.Format, o.Mode == PartialUpdate, o.Prefix)
+}
+
+// checkForcedWriteFormat checks protocol legality, not advertised preferences.
+func checkForcedWriteFormat(reg *Registration, p lwm2m.Path, nodes []lwm2m.Node, format *lwm2m.ContentFormat, multiOnly, composite bool) error {
+	if format == nil {
+		return nil
+	}
+	f := *format
+	valid := f == lwm2m.FormatSenMLJSON || f == lwm2m.FormatSenMLCBOR
+	if composite {
+		valid = reg.Version != "1.0" && (valid || reg.Version == "1.2" && (f == lwm2m.FormatLwM2MCBOR || f == lwm2m.FormatSenMLETCHJSON || f == lwm2m.FormatSenMLETCHCBOR))
+	} else {
+		valid = valid || f == lwm2m.FormatTLV || f == lwm2m.FormatOMAJSON || reg.Version == "1.2" && f == lwm2m.FormatLwM2MCBOR
+		valid = valid || !multiOnly && singleValue(p, nodes) && (f == lwm2m.FormatText || f == lwm2m.FormatOpaque || f == lwm2m.FormatCBOR)
+	}
+	if !valid {
+		return fmt.Errorf("%w: content format %v is not valid for this write", ErrBadRequest, f)
+	}
+	return nil
 }
 
 // writeWithFormat encodes nodes and sends them. Without an explicit format
@@ -469,6 +491,9 @@ func (s *Server) CreateWithPrefix(ctx context.Context, ep string, p lwm2m.Path, 
 	if prefix == "" && !reg.HasObject(p.Object()) {
 		return nil, fmt.Errorf("%w: object %d not registered (DM-09)", ErrBadRequest, p.Object())
 	}
+	if err := checkForcedWriteFormat(reg, p, nodes, format, true, false); err != nil {
+		return nil, err
+	}
 	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
 		return nil, err
 	}
@@ -606,6 +631,9 @@ func (s *Server) ReadComposite(ctx context.Context, ep string, paths []lwm2m.Pat
 func (s *Server) WriteComposite(ctx context.Context, ep string, nodes []lwm2m.Node, format *lwm2m.ContentFormat) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkForcedWriteFormat(reg, lwm2m.Root, nodes, format, true, true); err != nil {
 		return nil, err
 	}
 	for _, n := range nodes {

@@ -55,7 +55,7 @@ Pion's contribution policy applies: the submitter reviews and explains the code 
 - Gateway end devices: Discover, Write, Execute, Create, Delete and composite operations go only through `gateway.Client`. Read and Observe already take `Prefix` on the server API; add it to the rest.
 - Create without an instance ID (the client assigns it, DM-09): add it to the server API. `leshanapi` currently picks the lowest free ID, which races a concurrent create (`leshanapi/leshanapi.go:513`).
 - A raw `Write` to `/1/x/1` does not update the stored lifetime (only `SetLifetime` does). Decide whether Write should mirror it.
-- A forced `Format` on Write, Create and WriteComposite skips the DM-05 and ETCH-03 format checks. Validate forced formats too.
+- Forced `Format` validation still permits legacy OMA JSON for Leshan compatibility. Resolve the DM-05 compatibility boundary, and validate forced formats before `/v1` queues operations so invalid submissions receive a 400.
 - Block size: one server-wide `BlockSZX` (512 bytes). Make it configurable per endpoint, and honour a client's 4.13 asking for smaller blocks (go-coap ignores it today).
 - Block1 reassembly and WebSocket messages are capped at 1 MiB (`transport/coap/block1.go:22`, `internal/coapws/coapws.go:24`). Make the caps configurable.
 - `model`: only `a..b` ranges and quoted enumerations are enforced. The registry's free-text ranges ("0-999", "8 bit", prose) are not (`model/schema.go:80`).
