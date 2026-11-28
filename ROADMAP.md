@@ -43,7 +43,7 @@ Pion's contribution policy applies: the submitter reviews and explains the code 
 ## 3. Feature gaps and known limits (P1)
 
 **Security and transports**
-- `wss://`: use the TLS client certificate from the HTTP request as the X.509 identity (it is NoSec plus address today).
+- `wss://`: verified TLS client certificates supply the X.509 identity; connections without a verified client certificate use NoSec plus address.
 - TLS over TCP supports certificates only, because Go's crypto/tls has no TLS-PSK or raw public keys. Options: wait for Go, or add a pluggable TLS stack.
 - `server.Identity` has no OSCORE mode or broker-authenticated (MQTT) mode. OSCORE peers are carried as NoSec plus a synthetic address (`transport/coap/oscore.go:56`), and MQTT endpoints that have credentials are refused by SEC-07. Add identity modes for OSCORE and for lower-layer or broker authentication, and add OSCORE fields to `SecurityInfo` (`leshanapi/json.go:538`).
 - The BS-10 "low-entropy PSK" check only checks a minimum length of 16 bytes. Add an entropy estimate, or refuse known weak or password-like keys.
