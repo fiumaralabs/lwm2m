@@ -2,7 +2,10 @@ package server
 
 import (
 	"encoding/binary"
+	"sync"
 	"testing"
+
+	"github.com/fiumaralabs/lwm2m"
 	"time"
 
 	"github.com/plgd-dev/go-coap/v3/message/codes"
@@ -52,11 +55,11 @@ func TestRegisterReplayDifferentMIDAndServerRestart(t *testing.T) {
 	mid--
 	again, after := secondServer.HandleUplink(peer, msg)
 	after()
-	if again.Location[1] != first.Location[1] {
-		t.Fatal("original exchange lost after later register")
+	if again.Code != codes.Created || again.Location[1] == first.Location[1] {
+		t.Fatal("replayed a replaced registration")
 	}
-	if len(store.All()) != 1 || store.All()[0].ID != distinct.Location[1] {
-		t.Fatal("replay mutated current registration")
+	if len(store.All()) != 1 || store.All()[0].ID != again.Location[1] {
+		t.Fatal("new registration was not committed")
 	}
 }
 
@@ -118,5 +121,170 @@ func TestRegisterWithoutMessageIDStillReplaces(t *testing.T) {
 	after()
 	if first.Location[1] == second.Location[1] {
 		t.Fatal("message without MID was replayed")
+	}
+}
+
+// wrappedClampStore mirrors the demo's interface-embedding lifetime clamp.
+type wrappedClampStore struct {
+	Store
+	adds int
+}
+
+func (s *wrappedClampStore) Add(r *Registration) *Registration {
+	s.adds++
+	if r.Lifetime > time.Minute {
+		r.Lifetime = time.Minute
+	}
+	return s.Store.Add(r)
+}
+
+func TestRegisterReplayThroughWrappedStore(t *testing.T) {
+	store := &wrappedClampStore{Store: NewMemoryStore()}
+	srv := New(Config{Store: store})
+	defer srv.Close()
+	mid := uint16(42)
+	msg := &Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=600", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid, Token: []byte{1}}
+	peer := exchangePeer{addr: "192.0.2.1"}
+	first, done := srv.HandleUplink(peer, msg)
+	done()
+	second, done := srv.HandleUplink(peer, msg)
+	done()
+	if first.Code != codes.Created || second.Code != codes.Created || first.Location[1] != second.Location[1] {
+		t.Fatalf("replay changed response: %+v %+v", first, second)
+	}
+	reg, ok := store.ByID(first.Location[1])
+	if !ok || reg.Lifetime != time.Minute || store.adds != 1 {
+		t.Fatalf("clamp not honored: %+v adds=%d", reg, store.adds)
+	}
+}
+
+func TestRegisterReplayDoesNotConsumeAuthorization(t *testing.T) {
+	calls := 0
+	srv := New(Config{Authorize: func(string, Identity) bool { calls++; return calls == 1 }})
+	defer srv.Close()
+	mid := uint16(43)
+	msg := &Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=600", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid, Token: []byte{1}}
+	peer := exchangePeer{addr: "192.0.2.1"}
+	first, done := srv.HandleUplink(peer, msg)
+	done()
+	second, done := srv.HandleUplink(peer, msg)
+	done()
+	if first.Code != codes.Created || second.Code != codes.Created || first.Location[1] != second.Location[1] || calls != 1 {
+		t.Fatalf("replay: first=%+v second=%+v calls=%d", first, second, calls)
+	}
+	if !srv.RemoveRegistration("node") {
+		t.Fatal("remove failed")
+	}
+	third, done := srv.HandleUplink(peer, msg)
+	done()
+	if third.Code != codes.Forbidden || calls != 2 {
+		t.Fatalf("removed registration replayed: %+v calls=%d", third, calls)
+	}
+}
+
+type secureReplayPeer struct{ exchangePeer }
+
+func (p secureReplayPeer) Identity() Identity {
+	return Identity{Mode: ModePSK, PSKIdentity: "identity"}
+}
+func TestRegisterReplayRejectsRevokedSecurity(t *testing.T) {
+	calls := 0
+	s := New(Config{Authorize: func(string, Identity) bool { calls++; return true }})
+	defer s.Close()
+	if err := s.Security().Put(SecurityInfo{Endpoint: "node", PSKIdentity: "identity", PSKKey: []byte("0123456789abcdef")}); err != nil {
+		t.Fatal(err)
+	}
+	mid := uint16(15)
+	msg := &Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=600", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid}
+	peer := secureReplayPeer{exchangePeer{addr: "192.0.2.1"}}
+	first, done := s.HandleUplink(peer, msg)
+	done()
+	if first.Code != codes.Created {
+		t.Fatalf("first: %+v", first)
+	}
+	if _, ok, err := s.RevokeSecurity("node"); err != nil || !ok {
+		t.Fatalf("revoke: %v %v", ok, err)
+	}
+	retry, done := s.HandleUplink(peer, msg)
+	done()
+	if retry.Code == codes.Created {
+		t.Fatalf("revoked retry accepted: %+v", retry)
+	}
+}
+func TestRegisterReplayExpiredRegistrationReauthorizes(t *testing.T) {
+	now := time.Now()
+	calls := 0
+	s := New(Config{Now: func() time.Time { return now }, Authorize: func(string, Identity) bool { calls++; return calls == 1 }})
+	defer s.Close()
+	mid := uint16(12)
+	msg := &Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=1", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid}
+	peer := exchangePeer{addr: "192.0.2.1"}
+	first, done := s.HandleUplink(peer, msg)
+	done()
+	if first.Code != codes.Created {
+		t.Fatalf("first: %+v", first)
+	}
+	now = now.Add(2 * time.Second)
+	retry, done := s.HandleUplink(peer, msg)
+	done()
+	if retry.Code != codes.Forbidden || calls != 2 {
+		t.Fatalf("expired retry: %+v calls=%d", retry, calls)
+	}
+}
+
+func TestConcurrentRegisterReplayConsumesOneAuthorization(t *testing.T) {
+	calls := 0
+	s := New(Config{Store: &wrappedClampStore{Store: NewMemoryStore()}, Authorize: func(string, Identity) bool { calls++; return calls == 1 }})
+	defer s.Close()
+	mid := uint16(55)
+	msg := &Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=600", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid}
+	peer := exchangePeer{addr: "192.0.2.1"}
+	start := make(chan struct{})
+	results := make(chan *Message, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			response, done := s.HandleUplink(peer, msg)
+			done()
+			results <- response
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	var id string
+	for response := range results {
+		if response.Code != codes.Created || len(response.Location) != 2 {
+			t.Fatalf("response: %+v", response)
+		}
+		if id != "" && id != response.Location[1] {
+			t.Fatal("different locations")
+		}
+		id = response.Location[1]
+	}
+	if calls != 1 {
+		t.Fatalf("authorization called %d times", calls)
+	}
+}
+func TestRegisterReplayDoesNotHideChangedContentFormat(t *testing.T) {
+	s := New(Config{})
+	defer s.Close()
+	mid := uint16(56)
+	msg := &Message{Code: codes.POST, Path: "/rd", Query: []string{"ep=node", "lt=600", "lwm2m=1.1"}, Payload: []byte("</3/0>"), MessageID: &mid}
+	peer := exchangePeer{addr: "192.0.2.1"}
+	first, done := s.HandleUplink(peer, msg)
+	done()
+	if first.Code != codes.Created {
+		t.Fatalf("first: %+v", first)
+	}
+	invalid := lwm2m.ContentFormat(0)
+	msg.Format = &invalid
+	retry, done := s.HandleUplink(peer, msg)
+	done()
+	if retry.Code != codes.BadRequest {
+		t.Fatalf("invalid format replayed: %+v", retry)
 	}
 }

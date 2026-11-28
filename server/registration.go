@@ -132,16 +132,6 @@ type CommittedRegistrationPublisher interface {
 	PublishCommitted(*Registration)
 }
 
-// ReplayCheckedAdder atomically commits a registration or returns the original
-// committed location for a retained exchange. A replay must not mutate state.
-// ContextCheckedAdder and CheckedAdder take precedence, preserving existing
-// admission behavior for stores that embed MemoryStore. A replay-aware store
-// must not also expose those legacy interfaces. On error the store is unchanged.
-// Implementations must be concurrency-safe.
-type ReplayCheckedAdder interface {
-	AddCheckedReplay(RegisterContext, *Registration) (committed, replaced *Registration, replayed bool, err error)
-}
-
 const replayLifetime = 247 * time.Second
 const replayLimit = 1024
 
@@ -181,6 +171,31 @@ func (s *MemoryStore) addLocked(r *Registration) *Registration {
 	s.byID[r.ID] = r
 	s.byEP[r.Endpoint] = r.ID
 	return old
+}
+
+func (s *MemoryStore) forgetReplay(key [32]byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.replays, key)
+}
+
+// lookupReplay discards expired or no-longer-live history before admission.
+func (s *MemoryStore) lookupReplay(key [32]byte) (replayEntry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.replays[key]
+	ttl := s.replayTTL
+	if ttl == 0 {
+		ttl = replayLifetime
+	}
+	if ok {
+		_, live := s.byID[entry.registration.ID]
+		if !time.Now().Before(entry.at.Add(ttl)) || !live {
+			delete(s.replays, key)
+			return replayEntry{}, false
+		}
+	}
+	return entry, ok
 }
 
 // AddCheckedReplay retains at most replayLimit exchanges for replayLifetime.
