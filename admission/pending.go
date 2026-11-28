@@ -139,7 +139,7 @@ func (s *MemoryBindingStore) LookupExchange(ctx context.Context, id string) (Exc
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if r, ok := s.receipts[id]; ok {
-		if checkReceiptExpiry(ctx, r) != nil {
+		if !(r.Kind == "existing_admission" && r.IssuedAt.IsZero() && r.ExpiresAt.IsZero()) && checkReceiptExpiry(ctx, r) != nil {
 			return "", Receipt{}, ErrExchangeUnknown
 		}
 		return ExchangeAccepted, r, nil
@@ -168,6 +168,9 @@ func (s *SQLiteBindingStore) LookupExchange(ctx context.Context, id string) (Exc
 		return "", Receipt{}, err
 	}
 	if accepted {
+		if r.Kind == "existing_admission" && issued == "" && expires == "" {
+			return ExchangeAccepted, r, nil
+		}
 		r.IssuedAt, err = time.Parse(time.RFC3339Nano, issued)
 		if err != nil {
 			return "", Receipt{}, err

@@ -43,6 +43,19 @@ func TestExistingAdmissionReceiptLookup(t *testing.T) {
 				if err != nil || status != ExchangeAccepted || got != (Receipt{Kind: "existing_admission"}) {
 					t.Errorf("lookup: status=%q receipt=%+v error=%v", status, got, err)
 				}
+				var tenant, identity, fingerprint string
+				switch s := store.(type) {
+				case *MemoryBindingStore:
+					b := s.bindings["second"]
+					tenant, identity, fingerprint = b.TenantID, b.IdentityID, b.Fingerprint
+				case *SQLiteBindingStore:
+					if err := s.db.QueryRow(`SELECT tenant_id, identity_id, fingerprint FROM admission_exchange_bindings WHERE exchange_id='second'`).Scan(&tenant, &identity, &fingerprint); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if tenant != "tenant" || identity != "device" || fingerprint != "fp" {
+					t.Errorf("binding: %q %q %q", tenant, identity, fingerprint)
+				}
 				if err := store.CommitExisting(ctx, "second", "tenant", "device", "fp", "request", effect); err != nil {
 					t.Errorf("same binding replay: %v", err)
 				}
@@ -89,5 +102,28 @@ func TestLookupLegacyExistingAdmissionReceipt(t *testing.T) {
 	status, receipt, err := s.LookupExchange(context.Background(), "legacy")
 	if err != nil || status != ExchangeAccepted || receipt != (Receipt{Kind: "existing_admission"}) {
 		t.Fatalf("legacy lookup: status=%q receipt=%+v error=%v", status, receipt, err)
+	}
+}
+
+func TestLookupRejectsMalformedReceiptTimestamps(t *testing.T) {
+	s, err := OpenSQLiteBindingStore(filepath.Join(t.TempDir(), "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, row := range []struct{ id, kind, issued, expires string }{
+		{"ordinary", "decision", "", ""},
+		{"partial", "existing_admission", "", "2026-01-01T00:00:00Z"},
+		{"invalid", "existing_admission", "invalid", "invalid"},
+	} {
+		t.Run(row.id, func(t *testing.T) {
+			_, err := s.db.Exec(`INSERT INTO admission_receipts (exchange_id,decision_id,decision_digest,issued_at,expires_at,committed_at,kind,reservation_id) VALUES (?, '', '', ?, ?, 0, ?, '')`, row.id, row.issued, row.expires, row.kind)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := s.LookupExchange(context.Background(), row.id); err == nil {
+				t.Fatal("malformed timestamp accepted")
+			}
+		})
 	}
 }
