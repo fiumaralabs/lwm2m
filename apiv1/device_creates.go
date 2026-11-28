@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -167,6 +168,11 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 	unlock := o.limits.lock(tenant)
 	defer unlock()
 	var result store.DeviceCreateOutcome
+	var generated []struct {
+		ServerIndex int    `json:"serverIndex"`
+		Identity    string `json:"identity"`
+		Key         string `json:"key"`
+	}
 	status := 200
 	switch r.Method {
 	case http.MethodGet:
@@ -212,6 +218,18 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		}
 		if (bootstrapBody || strings.HasPrefix(existing.Fingerprint, "salted-bootstrap:") || strings.HasPrefix(existing.Fingerprint, "salted-both:")) && !authorizeDeviceReplayBootstrap(w, r) {
 			return
+		}
+		if bootstrapBody && !credentialBody {
+			var candidate struct {
+				Bootstrap bootstrapInput `json:"bootstrap"`
+			}
+			if json.Unmarshal(raw, &candidate) == nil {
+				for _, entry := range candidate.Bootstrap.Servers {
+					if entry.Server == "self" && entry.Security.PSK != nil && entry.Security.PSK.Generate && !authorizeDeviceReplayCredentials(w, r) {
+						return
+					}
+				}
+			}
 		}
 		canonical, e := json.Marshal(body)
 		if e != nil {
@@ -296,12 +314,6 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
 					goto bootstrapValidated
 				}
-				for _, entry := range config.Servers {
-					if entry.Security.PSK != nil && entry.Security.PSK.Generate {
-						result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
-						goto bootstrapValidated
-					}
-				}
 				code, fields := validateBootstrap(config)
 				if code != "" {
 					WriteProblem(w, 501, code, "Bootstrap security mode is not supported")
@@ -338,6 +350,48 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				}
+				// Materialize only self credentials, keeping the fingerprint based on
+				// the request. Generated values are returned only after a commit.
+				var doc map[string]any
+				dec := json.NewDecoder(bytes.NewReader(b))
+				dec.UseNumber()
+				if dec.Decode(&doc) != nil {
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+					goto bootstrapValidated
+				}
+				for i, entry := range config.Servers {
+					if entry.Security.PSK == nil || !entry.Security.PSK.Generate {
+						continue
+					}
+					if entry.Server != "self" || credentialBody || len(generated) != 0 {
+						result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+						goto bootstrapValidated
+					}
+					if o.Server == nil || tenant != o.ServerTenant {
+						WriteProblem(w, 404, "not_found", "Credential service not available")
+						return
+					}
+					if !authorizeDeviceReplayCredentials(w, r) {
+						return
+					}
+					var random [48]byte
+					if _, err := rand.Read(random[:]); err != nil {
+						WriteProblem(w, 500, "internal_error", "Cannot generate credentials")
+						return
+					}
+					identity := hex.EncodeToString(random[:16])
+					key := "base64:" + base64.StdEncoding.EncodeToString(random[16:])
+					sec = server.SecurityInfo{Endpoint: input.Endpoint, PSKIdentity: identity, PSKKey: random[16:]}
+					doc["servers"].([]any)[i].(map[string]any)["security"].(map[string]any)["psk"] = map[string]any{"identity": identity, "key": key}
+					generated = append(generated, struct {
+						ServerIndex int    `json:"serverIndex"`
+						Identity    string `json:"identity"`
+						Key         string `json:"key"`
+					}{i, identity, key})
+				}
+				if len(generated) != 0 {
+					input.Bootstrap, _ = json.Marshal(doc)
+				}
 				creator, ok := o.Devices.(store.DeviceBootstrapCreateStore)
 				shared, sharedOK := o.BootstrapConfigs.(sharedBootstrapConfigs)
 				outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
@@ -350,6 +404,19 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				if o.Server != nil && o.Server.Security() != nil {
 					if _, exists := o.Server.Security().ByEndpoint(input.Endpoint); exists {
 						WriteProblem(w, 409, "credential_exists", "Credential already exists")
+						return
+					}
+				}
+				if len(generated) != 0 {
+					owner, ok := o.Devices.(interface {
+						OwnsSecurity(server.SecurityStore) bool
+					})
+					live := o.Server.Security()
+					if wrapped, ok := live.(*coap.RevokingSecurityStore); ok && wrapped != nil {
+						live = wrapped.SecurityStore
+					}
+					if !ok || live == nil || !owner.OwnsSecurity(live) {
+						WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
 						return
 					}
 				}
@@ -444,6 +511,13 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		WriteProblem(w, 500, "internal_error", "Cannot process device create outcome")
+		return
+	}
+	if status == http.StatusCreated && len(generated) > 0 {
+		deviceJSON(w, status, struct {
+			createOutcomeJSON
+			GeneratedCredentials any `json:"generatedCredentials"`
+		}{outcomeJSON(result), generated})
 		return
 	}
 	deviceJSON(w, status, outcomeJSON(result))

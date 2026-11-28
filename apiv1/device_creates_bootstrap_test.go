@@ -35,7 +35,7 @@ func TestDeviceCreatePutBootstrapSeparateLiveCredential(t *testing.T) {
 			srv := server.New(server.Config{Security: live})
 			t.Cleanup(func() { _ = srv.Close() })
 			hash := sha256.Sum256([]byte("lwm_test_secret"))
-			keys, err := apiv1.LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:write,bootstrap:write", hash)))
+			keys, err := apiv1.LoadKeys(strings.NewReader(fmt.Sprintf("key_test sha256:%x devices:write,credentials:write,bootstrap:write", hash)))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,6 +46,13 @@ func TestDeviceCreatePutBootstrapSeparateLiveCredential(t *testing.T) {
 			h.ServeHTTP(w, r)
 			if w.Code != 409 || !strings.Contains(w.Body.String(), "credential_exists") {
 				t.Fatalf("got %d %s", w.Code, w.Body)
+			}
+			r = httptest.NewRequest("PUT", "/v1/device-creates/generated", strings.NewReader(`{"endpoint":"orphan","bootstrap":{"servers":[{"server":"self","shortServerId":1,"security":{"psk":{"generate":true}}}]}}`))
+			r.Header.Set("Authorization", "Bearer lwm_test_secret")
+			w = httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			if w.Code != 409 || !strings.Contains(w.Body.String(), "credential_exists") {
+				t.Fatalf("generated orphan status %d", w.Code)
 			}
 			if _, err := devices.Get("default", "orphan"); err == nil {
 				t.Fatalf("device: %v", err)
