@@ -15,7 +15,7 @@ import (
 	"github.com/plgd-dev/go-coap/v3/message/codes"
 )
 
-func TestAdmissionHookSeamDoesNotGateRegistration(t *testing.T) {
+func TestAdmissionHookUnavailableRejectsNewRegistration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "daemon.db")
 	hook, err := buildAdmissionHook(admissionSettings{URL: "https://example.com/v1/admission-decisions", Timeout: time.Second, RequestKeyRef: "UNSET_REQUEST_KEY", ResponseKeyRef: "UNSET_RESPONSE_KEY"}, "sqlite:"+path)
 	if err != nil {
@@ -39,24 +39,28 @@ func TestAdmissionHookSeamDoesNotGateRegistration(t *testing.T) {
 	defer dispatcher.Close()
 	cb := coap.New(srv)
 	defer cb.Close()
-	addr, err := cb.ListenUDP("127.0.0.1:0")
+	key := []byte("0123456789abcdef")
+	if err := srv.Security().Put(server.SecurityInfo{Endpoint: "admission-seam-test", PSKIdentity: "seam-identity", PSKKey: key}); err != nil {
+		t.Fatal(err)
+	}
+	addr, err := cb.ListenDTLS("127.0.0.1:0", coap.DTLSConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c := testclient.New(testclient.Config{Endpoint: "admission-seam-test"})
 	defer c.Close()
-	if err := c.Dial(addr.String()); err != nil {
+	if err := c.DialDTLS(addr.String(), testclient.PSKConfig("seam-identity", key)...); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	res, err := c.Register(ctx)
-	if err != nil || res.Code != codes.Created {
-		t.Fatalf("register = %+v, %v", res, err)
+	if err != nil || res.Code != codes.ServiceUnavailable {
+		t.Fatalf("register = %+v, %v; want service unavailable", res, err)
 	}
 	select {
 	case <-registered:
-	case <-ctx.Done():
-		t.Fatal("registration event did not complete")
+		t.Fatal("rejected registration emitted an event")
+	default:
 	}
 }
