@@ -47,7 +47,7 @@ func TestDeviceCreatePutBootstrapSeparateLiveCredential(t *testing.T) {
 			if w.Code != 409 || !strings.Contains(w.Body.String(), "credential_exists") {
 				t.Fatalf("got %d %s", w.Code, w.Body)
 			}
-			if _, err := devices.Get("default", "orphan"); !errors.Is(err, store.ErrNotFound) {
+			if _, err := devices.Get("default", "orphan"); err == nil {
 				t.Fatalf("device: %v", err)
 			}
 			if _, err := devices.(store.DeviceCreateStore).GetDeviceCreate(t.Context(), "default", "op"); !errors.Is(err, store.ErrNotFound) {

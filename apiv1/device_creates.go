@@ -342,6 +342,12 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				}
 				unlockLifecycle := bootstrapLifecycle.lock(tenant)
 				defer unlockLifecycle()
+				if o.Server != nil && o.Server.Security() != nil {
+					if _, exists := o.Server.Security().ByEndpoint(input.Endpoint); exists {
+						WriteProblem(w, 409, "credential_exists", "Credential already exists")
+						return
+					}
+				}
 				result, inserted, err = creator.CreateDeviceWithSecurityAndBootstrap(r.Context(), tenant, id, fingerprint, device, sec, input.Bootstrap)
 				if errors.Is(err, store.ErrBootstrapConfigExists) {
 					WriteProblem(w, 409, "bootstrap_exists", "Bootstrap config already exists")
