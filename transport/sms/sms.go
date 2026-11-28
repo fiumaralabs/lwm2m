@@ -106,6 +106,24 @@ type Config struct {
 	// ResponseTimeout bounds the wait for a response. CoAP retransmission
 	// is off on SMS (T §6.8.3); 0 waits for the request context.
 	ResponseTimeout time.Duration
+	// ConcatTimeout limits the age of incomplete SMS sets from their first
+	// part. Non-positive values use the default of 10 minutes. Expiry is lazy,
+	// on receipt of the next valid concatenated part.
+	ConcatTimeout time.Duration
+	// MaxPendingConcatSets caps incomplete sets per binding. Non-positive
+	// values use the default of 1024. The oldest set is evicted first.
+	MaxPendingConcatSets int
+}
+
+const (
+	defaultConcatTimeout        = 10 * time.Minute
+	defaultMaxPendingConcatSets = 1024
+)
+
+type concatSet struct {
+	parts     []*SMS
+	firstSeen time.Time
+	order     uint64
 }
 
 // Binding is the SMS binding of one server.
@@ -114,11 +132,19 @@ type Binding struct {
 	mu    sync.Mutex
 	conns map[string]*coapwire.Conn
 	ref   uint8
-	parts map[string][]*SMS // MSISDN/ref -> concatenated parts
+	parts map[string]*concatSet // MSISDN/ref -> concatenated parts
+	now   func() time.Time
+	order uint64
 }
 
 func New(cfg Config) *Binding {
-	return &Binding{cfg: cfg, conns: map[string]*coapwire.Conn{}, parts: map[string][]*SMS{}}
+	if cfg.ConcatTimeout <= 0 {
+		cfg.ConcatTimeout = defaultConcatTimeout
+	}
+	if cfg.MaxPendingConcatSets <= 0 {
+		cfg.MaxPendingConcatSets = defaultMaxPendingConcatSets
+	}
+	return &Binding{cfg: cfg, conns: map[string]*coapwire.Conn{}, parts: map[string]*concatSet{}, now: time.Now}
 }
 
 var ErrMSISDN = errors.New("sms: invalid MSISDN")
@@ -245,8 +271,7 @@ func (b *Binding) Deliver(ctx context.Context, m SMS) error {
 }
 
 // reassemble joins concatenated SMS parts; the result keeps the first
-// part's UDH.
-// ponytail: incomplete sets stay buffered forever; add expiry if senders lose parts.
+// part's UDH. Incomplete sets expire lazily on the next valid part.
 func (b *Binding) reassemble(msisdn string, m SMS) (SMS, bool) {
 	for ie := m.UDH; len(ie) >= 2 && len(ie) >= 2+int(ie[1]); ie = ie[2+int(ie[1]):] {
 		if ie[0] != 0x00 || ie[1] != 3 {
@@ -259,11 +284,29 @@ func (b *Binding) reassemble(msisdn string, m SMS) (SMS, bool) {
 		key := fmt.Sprintf("%s/%d", msisdn, ref)
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		ps := b.parts[key]
-		if ps == nil {
-			ps = make([]*SMS, total)
-			b.parts[key] = ps
+		now := b.now()
+		for k, set := range b.parts {
+			if now.Sub(set.firstSeen) >= b.cfg.ConcatTimeout {
+				delete(b.parts, k)
+			}
 		}
+		set := b.parts[key]
+		if set == nil {
+			if len(b.parts) >= b.cfg.MaxPendingConcatSets {
+				var oldest string
+				var oldestOrder uint64
+				for k, pending := range b.parts {
+					if oldest == "" || pending.order < oldestOrder {
+						oldest, oldestOrder = k, pending.order
+					}
+				}
+				delete(b.parts, oldest)
+			}
+			b.order++
+			set = &concatSet{parts: make([]*SMS, total), firstSeen: now, order: b.order}
+			b.parts[key] = set
+		}
+		ps := set.parts
 		if len(ps) != total {
 			return SMS{}, false
 		}
