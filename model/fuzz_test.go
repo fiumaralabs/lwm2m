@@ -11,6 +11,23 @@ import (
 	"github.com/fiumaralabs/lwm2m/model"
 )
 
+func FuzzParseVersion(f *testing.F) {
+	for _, s := range []string{"", "0.0", "1.2", "65535.65535", "65536.0", "00001.02", ".", "1.2.3", " 1.2", "+1.2", "-1.2", "1:2"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		version, err := model.ParseVersion(s)
+		if err != nil {
+			return
+		}
+		formatted := version.String()
+		again, err := model.ParseVersion(formatted)
+		if err != nil || again != version || again.String() != formatted {
+			t.Fatalf("round-trip %q -> %q: got %v, error %v", s, formatted, again, err)
+		}
+	})
+}
+
 func FuzzParseXML(f *testing.F) {
 	for _, name := range []string{"registry/26-1_0.xml", "registry/0-1_2.xml"} {
 		data, err := fs.ReadFile(model.CoreFS(), name)
