@@ -843,7 +843,7 @@ A LwM2M Gateway (/25, /26) carries end devices that are addressed by a prefix (G
             "objects": [{"id": 3303, "version": "1.1", "instances": [0]}]}]}
 ```
 
-Operations, observations and state take `prefix` to address an end device instead of the gateway. Events about an end device carry `prefix`.
+Operations, observations and state take `prefix` to address an end device instead of the gateway. Events about an end device carry `prefix`. Before a prefixed Discover, Write, Execute or Delete, the server reads the gateway's `/25` to verify the prefix; an unknown prefix or an unsuccessful registry read fails the operation without sending the prefixed request. This extra read requires access to `/25`.
 
 ## 15. Object models
 

@@ -70,6 +70,17 @@ func TestOperationGatewayPrefixContract(t *testing.T) {
 			if req, _ := c.LastRequest(); req.Path != tc.path {
 				t.Fatalf("path = %q, want %q", req.Path, tc.path)
 			}
+			w = deviceRequest(h, "POST", "/v1/devices/pump/operations", strings.Replace(tc.body, `"d01"`, `"unknown"`, 1))
+			if w.Code != 202 {
+				t.Fatalf("unknown POST: %d %s", w.Code, w.Body.String())
+			}
+			w = deviceRequest(h, "GET", w.Header().Get("Location")+"?wait=2", "")
+			if w.Code != 200 || !containsStatus(w.Body.Bytes(), operations.Failed) {
+				t.Fatalf("unknown result: %d %s", w.Code, w.Body.String())
+			}
+			if req, _ := c.LastRequest(); req.Path != "/25" {
+				t.Fatalf("unknown prefix sent to %q", req.Path)
+			}
 		})
 	}
 }

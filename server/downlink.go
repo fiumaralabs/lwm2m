@@ -203,6 +203,31 @@ func (s *Server) Read(ctx context.Context, ep string, p lwm2m.Path, o ReadOption
 	return s.exchange(ctx, reg, request{method: codes.GET, prefix: o.Prefix, path: p, accept: o.Accept, schemaOf: p})
 }
 
+// checkKnownEndDevice reads the gateway's current prefix table before routing.
+// A failed or undecodable read is not evidence that a prefix is unknown.
+func (s *Server) checkKnownEndDevice(ctx context.Context, reg *Registration, prefix string) error {
+	if err := checkEndDevice(reg, prefix); err != nil || prefix == "" {
+		return err
+	}
+	path := lwm2m.NewPath(objectGateway)
+	res, err := s.exchange(ctx, reg, request{method: codes.GET, path: path, schemaOf: path})
+	if err != nil {
+		return err
+	}
+	if !res.Success() {
+		return fmt.Errorf("server: read gateway prefixes: %s", CodeString(res.Code))
+	}
+	if res.DecodeErr != nil {
+		return fmt.Errorf("server: read gateway prefixes: %w", res.DecodeErr)
+	}
+	for _, n := range res.Nodes {
+		if n.Path.Len() == 3 && n.Path.Object() == objectGateway && n.Path.Resource() == 1 && n.Value.Type == lwm2m.TypeString && n.Value.Str == prefix {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: unknown gateway prefix %q", ErrBadRequest, prefix)
+}
+
 // Discover returns the link-format description of p (DM-04). depth, when
 // non-nil, is the 1.2 depth modifier (C 1.2.2 Tbl 6.3.2-2).
 func (s *Server) Discover(ctx context.Context, ep string, p lwm2m.Path, depth *int) (*Response, error) {
@@ -215,7 +240,7 @@ func (s *Server) DiscoverWithPrefix(ctx context.Context, ep string, p lwm2m.Path
 	if err != nil {
 		return nil, err
 	}
-	if err := checkEndDevice(reg, prefix); err != nil {
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
 		return nil, err
 	}
 	rq := request{method: codes.GET, prefix: prefix, path: p, accept: fmtPtr(lwm2m.FormatLinkFormat), schemaOf: p}
@@ -256,7 +281,7 @@ func (s *Server) Write(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm
 	if o.Mode == PartialUpdate && !(p.IsInstance() || p.IsResource()) {
 		return nil, fmt.Errorf("%w: Partial Update targets /o/i or a multi-instance /o/i/r", ErrBadRequest)
 	}
-	if err := checkEndDevice(reg, o.Prefix); err != nil {
+	if err := s.checkKnownEndDevice(ctx, reg, o.Prefix); err != nil {
 		return nil, err
 	}
 	if err := s.validateWrite(reg, nodes); err != nil {
@@ -415,7 +440,7 @@ func (s *Server) ExecuteWithPrefix(ctx context.Context, ep string, p lwm2m.Path,
 	if _, err := text.ParseExecArgs(args); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrBadRequest, err) // DM-08 arglist
 	}
-	if err := checkEndDevice(reg, prefix); err != nil {
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
 		return nil, err
 	}
 	rq := request{method: codes.POST, prefix: prefix, path: p, schemaOf: p}
@@ -462,7 +487,7 @@ func (s *Server) DeleteWithPrefix(ctx context.Context, ep string, p lwm2m.Path, 
 	if p.Object() == 3 && p.Instance() == 0 {
 		return nil, fmt.Errorf("%w: /3/0 cannot be deleted (DM-10)", ErrBadRequest)
 	}
-	if err := checkEndDevice(reg, prefix); err != nil {
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
 		return nil, err
 	}
 	return s.exchange(ctx, reg, request{method: codes.DELETE, prefix: prefix, path: p, schemaOf: p})

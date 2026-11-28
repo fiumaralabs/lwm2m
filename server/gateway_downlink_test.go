@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -15,6 +16,9 @@ func TestGatewayPrefixDownlinks(t *testing.T) {
 	gw := gatewayClient(h, "gw")
 	h.registered("plain")
 	gw.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+		if r.Path == "/25" {
+			return 0, nil, nil, false
+		}
 		return codes.Changed, nil, nil, true
 	})
 	for _, tc := range []struct {
@@ -40,11 +44,31 @@ func TestGatewayPrefixDownlinks(t *testing.T) {
 			if req, _ := gw.LastRequest(); req.Path != tc.path {
 				t.Fatalf("path = %q, want %q", req.Path, tc.path)
 			}
-			for _, bad := range []struct{ ep, prefix string }{{"plain", "d01"}, {"gw", "42"}} {
+			for _, bad := range []struct{ ep, prefix string }{{"plain", "d01"}, {"gw", "42"}, {"gw", "unknown"}} {
 				if _, err := tc.call(bad.ep, bad.prefix); !errors.Is(err, server.ErrBadRequest) {
 					t.Errorf("%s/%s: %v", bad.ep, bad.prefix, err)
 				}
 			}
+			for _, req := range gw.Requests() {
+				if strings.HasPrefix(req.Path, "/unknown/") {
+					t.Errorf("sent request to unknown prefix: %s", req.Path)
+				}
+			}
+			gw.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+				return codes.Forbidden, nil, nil, true
+			})
+			if _, err := tc.call("gw", "d01"); err == nil || errors.Is(err, server.ErrBadRequest) {
+				t.Errorf("unreadable gateway table: %v", err)
+			}
+			if req, _ := gw.LastRequest(); req.Path != "/25" {
+				t.Errorf("operation sent after registry failure: %s", req.Path)
+			}
+			gw.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
+				if r.Path == "/25" {
+					return 0, nil, nil, false
+				}
+				return codes.Changed, nil, nil, true
+			})
 		})
 	}
 }
