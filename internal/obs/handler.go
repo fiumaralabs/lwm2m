@@ -13,15 +13,20 @@ type Checker interface{ Check(context.Context) error }
 
 // Handler serves the daemon's observability endpoints.
 type Handler struct {
-	checker Checker
-	count   func() int
-	metrics bool
-	ready   atomic.Bool
+	checker  Checker
+	count    func() int
+	metrics  bool
+	ready    atomic.Bool
+	counters *Counters
 }
 
 // New starts unready. A nil checker means no dependency check.
-func New(checker Checker, count func() int, metrics bool) *Handler {
-	return &Handler{checker: checker, count: count, metrics: metrics}
+func New(checker Checker, count func() int, metrics bool, counters ...*Counters) *Handler {
+	h := &Handler{checker: checker, count: count, metrics: metrics}
+	if len(counters) > 0 {
+		h.counters = counters[0]
+	}
+	return h
 }
 
 // SetReady marks startup complete or shutdown in progress.
@@ -51,6 +56,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/metrics" {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		if h.counters != nil {
+			h.counters.write(w)
+		}
 		if h.count != nil {
 			fmt.Fprintf(w, "# HELP lwm2m_registrations Current registrations in the store.\n# TYPE lwm2m_registrations gauge\nlwm2m_registrations %d\n", h.count())
 		}

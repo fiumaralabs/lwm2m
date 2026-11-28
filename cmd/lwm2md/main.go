@@ -131,7 +131,8 @@ func newDaemonWithInfo(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, e
 		trustAnchors = anchors
 		estRotator = anchors
 	}
-	hooks, deliveries := memory.NewWebhookDeliveryStores(hooks)
+	hooks, deliveryStore := memory.NewWebhookDeliveryStores(hooks)
+	deliveries := obs.Process.WebhookDeliveries(deliveryStore)
 	var executor *operations.Executor
 	var observations *apiv1.ObservationDelivery
 	state := &memory.State{}
@@ -156,7 +157,7 @@ func newDaemonWithInfo(cfg server.Config, api *leshanapi.API, keys apiv1.Keys, e
 	}
 	srv := server.New(cfg)
 	observations = apiv1.NewObservationDelivery(srv, observationStore, state, events, "default")
-	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{State: state})
+	executor = operations.NewExecutor(srv, operationStore, operations.ExecutorOptions{State: state, OnTerminal: func(kind string, status operations.Status) { obs.Process.Operation(kind, string(status)) }})
 	api.Attach(srv)
 	var series apiv1.TimeSeriesStore
 	if enabled {
@@ -422,7 +423,7 @@ func main() {
 		return bs.ListenDTLS(a, bootstrap.DTLSConfig{CIDLength: *cidLen, DisableCID: *cidLen == 0})
 	})
 
-	probes := obs.New(nil, func() int { return len(srv.Store().All()) }, *metrics)
+	probes := obs.New(nil, func() int { return len(srv.Store().All()) }, *metrics, &obs.Process)
 	var servers []*http.Server
 	serve := func(name, addr string, h http.Handler) {
 		if addr == "" {

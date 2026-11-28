@@ -33,6 +33,8 @@ type Operations interface {
 // ExecutorOptions injects the lifecycle clock; nil uses time.Now. Scheduling
 // uses real timers, while events and Wait also check the injected clock.
 type ExecutorOptions struct {
+	// OnTerminal observes a committed terminal transition.
+	OnTerminal func(string, Status)
 	// State records successful results before they become visible to Wait callers.
 	State  interface{ Record(Operation) error }
 	Now    func() time.Time
@@ -43,6 +45,7 @@ type deviceKey struct{ tenant, device string }
 // Executor claims queued operations before asynchronously delivering them.
 // Wire HandleEvent to Config.OnEvent and HandleQueued to Config.OnQueued.
 type Executor struct {
+	onTerminal func(string, Status)
 	state      interface{ Record(Operation) error }
 	expiryOnly map[[2]string]bool // zero-TTL operations whose immediate delivery chance has ended
 	logger     *slog.Logger
@@ -110,7 +113,7 @@ func NewExecutor(srv *server.Server, st Operations, opts ExecutorOptions) *Execu
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
-	return &Executor{state: opts.State, expiryOnly: make(map[[2]string]bool), logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
+	return &Executor{onTerminal: opts.OnTerminal, state: opts.State, expiryOnly: make(map[[2]string]bool), logger: opts.Logger, retries: make(map[deviceKey]*time.Timer), ctx: ctx, cancel: cancel, srv: srv, st: st, now: opts.Now, devices: make(map[deviceKey]bool), timers: make(map[[2]string]*time.Timer), sessions: make(map[[2]string]string)}
 }
 
 var ErrNotRegistered = server.ErrNotRegistered
@@ -135,7 +138,7 @@ func (e *Executor) Cancel(ctx context.Context, tenant, id string) (Operation, er
 	if o.Status != Queued {
 		return o, ErrConflict
 	}
-	err = e.update(ctx, tenant, id, Queued, Change{Status: Cancelled, At: e.now()})
+	err = e.update(ctx, o, Queued, Change{Status: Cancelled, At: e.now()})
 	if errors.Is(err, ErrTransition) {
 		err = ErrConflict
 	}
@@ -263,7 +266,7 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		// The immediate-send chance has ended. Guard before any fallible store
 		// call, and use the conditional update rather than a separate lookup.
 		e.expiryOnly[[2]string{tenant, o.ID}] = true
-		updateErr := e.st.Update(ctx, tenant, o.ID, Queued, Change{Status: Expired, At: e.now()})
+		updateErr := e.update(ctx, o, Queued, Change{Status: Expired, At: e.now()})
 		if updateErr == nil || errors.Is(updateErr, ErrTransition) {
 			// A transition conflict means the operation was already claimed or
 			// terminal. Neither case needs queued-only bookkeeping or expiry.
@@ -314,7 +317,7 @@ func (e *Executor) kickLocked(k deviceKey) (result error) {
 		if o.WhenOffline == "reject" {
 			r, ok := e.srv.Store().ByEndpoint(o.Device)
 			if !ok || r.ID != e.sessions[[2]string{k.tenant, o.ID}] {
-				if err := e.update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}); err == nil {
+				if err := e.update(context.Background(), o, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}); err == nil {
 					e.stopTimer(k.tenant, o.ID)
 				} else {
 					result = errors.Join(result, err)
@@ -330,7 +333,7 @@ func (e *Executor) kickLocked(k deviceKey) (result error) {
 	}
 	for _, o := range live {
 		session := e.sessions[[2]string{k.tenant, o.ID}]
-		if err := e.update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Sent, At: e.now()}); err != nil {
+		if err := e.update(context.Background(), o, Queued, Change{Status: Sent, At: e.now()}); err != nil {
 			result = errors.Join(result, err)
 			e.retryLocked(k)
 			continue
@@ -379,7 +382,7 @@ func (e *Executor) kickLocked(k deviceKey) (result error) {
 						e.logger.Error("record device state", "error", err)
 					}
 				}
-				e.update(context.Background(), k.tenant, o.ID, Sent, c)
+				e.update(context.Background(), o, Sent, c)
 			}
 			e.devices[k] = false
 			e.mu.Unlock()
@@ -668,7 +671,7 @@ func (e *Executor) dropRegistration(r *server.Registration) {
 		for _, o := range pending {
 			key := [2]string{k.tenant, o.ID}
 			if o.WhenOffline == "reject" && e.sessions[key] == r.ID {
-				if e.update(context.Background(), k.tenant, o.ID, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
+				if e.update(context.Background(), o, Queued, Change{Status: Dropped, At: e.now(), Error: &Error{Code: "queue_dropped", Message: server.ErrQueueDropped.Error()}}) == nil {
 					e.stopTimer(k.tenant, o.ID)
 				}
 			}
@@ -821,7 +824,7 @@ func (e *Executor) expireLocked(tenant, id string) (bool, error) {
 	if o.Status != Queued || o.TTLSeconds == 0 && !e.expiryOnly[[2]string{tenant, id}] || e.now().Before(o.ExpiresAt) {
 		return false, nil
 	}
-	if err := e.update(context.Background(), tenant, id, Queued, Change{Status: Expired, At: e.now()}); err != nil {
+	if err := e.update(context.Background(), o, Queued, Change{Status: Expired, At: e.now()}); err != nil {
 		return false, err
 	}
 	e.stopTimer(tenant, id)

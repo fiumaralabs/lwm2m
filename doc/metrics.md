@@ -34,7 +34,16 @@ historical registration events or independently verified reachable devices.
 Re-registration replaces the registration rather than incrementing the count;
 deregistration removes it. Store expiry semantics determine expiry visibility.
 
-No request, latency, error, observation, queue, or transport metrics are emitted:
-those instrumentation hooks are not implemented. No synthetic zero-valued
-series stand in for unimplemented instrumentation. A handler without a count
-callback emits no registration series.
+`lwm2m_operations_total{type,status}` counts committed terminal operation
+transitions. The labels use the operation types and terminal statuses in
+[API.md](API.md) §6.3 and §6.1. Failed conditional transitions do not count.
+`lwm2m_webhook_deliveries_total{result}` counts each delivery attempt, including
+retries and test deliveries. `result` is `success` for a 2xx response and
+`failure` otherwise. Neither metric contains device or tenant labels.
+
+These counters are process-local and reset when the daemon restarts. Only
+observed label combinations are emitted; metadata remains visible before the
+first event. Scrapes may observe a committed operation immediately before its
+counter increment. No other request, latency, observation, queue, or transport
+metrics are emitted. A handler without a count callback emits no registration
+series.
