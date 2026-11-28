@@ -212,7 +212,7 @@ func (e *Executor) Submit(ctx context.Context, tenant string, o Operation) (Oper
 		}
 	}
 	paths := q.Paths
-	if o.Prefix != "" && !(o.Type == "read" && len(paths) <= 1 || o.Type == "write" && q.Path != "" || o.Type == "discover" || o.Type == "execute" || o.Type == "delete") {
+	if o.Prefix != "" && !(o.Type == "read" && len(paths) <= 1 || o.Type == "write" && q.Path != "" || o.Type == "discover" || o.Type == "execute" || o.Type == "delete" || o.Type == "create") {
 		return Operation{}, &ErrPrefixUnsupported{Type: o.Type}
 	}
 	if o.Type != "read" {
@@ -491,7 +491,7 @@ func (e *Executor) deliver(o Operation, session string) (outResult resultJSON, d
 			mode = server.Replace
 		}
 		if o.Type == "create" {
-			r, err = e.srv.Create(ctx, o.Device, p, nodes, format(o.Format))
+			r, err = e.srv.CreateWithPrefix(ctx, o.Device, p, nodes, format(o.Format), o.Prefix)
 		} else if q.Path == "" {
 			r, err = e.srv.WriteComposite(ctx, o.Device, nodes, format(o.Format))
 		} else {

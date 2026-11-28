@@ -57,6 +57,8 @@ func TestOperationGatewayPrefixContract(t *testing.T) {
 		{"write", `{"type":"write","prefix":"d01","path":"/3/0/9","values":[{"path":"/3/0/9","type":"integer","value":5}]}`, "/d01/3/0/9"},
 		{"execute", `{"type":"execute","prefix":"d01","path":"/3/0/4"}`, "/d01/3/0/4"},
 		{"delete", `{"type":"delete","prefix":"d01","path":"/3303/0"}`, "/d01/3303/0"},
+		{"create-explicit", `{"type":"create","prefix":"d01","path":"/3303","values":[{"path":"/3303/0/5700","type":"float","value":1}]}`, "/d01/3303"},
+		{"create-auto", `{"type":"create","prefix":"d01","path":"/3303","values":[{"path":"/3303/5700","type":"float","value":1}]}`, "/d01/3303"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := deviceRequest(h, "POST", "/v1/devices/pump/operations", tc.body)

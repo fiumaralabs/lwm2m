@@ -59,7 +59,7 @@ A device answering a request with an error code is **not** an HTTP error. The op
 | 412 | `If-Match` mismatch |
 | 422 | Valid JSON that the server refuses: invalid bootstrap config, weak PSK (BS-10) |
 | 429 | Rate limited, with `Retry-After` |
-| 501 | An unsupported feature, e.g. RPK credentials (`code: "rpk_unsupported"`) or unsupported operation prefixes such as Create and composite operations (`code: "prefix_unsupported"`) |
+| 501 | An unsupported feature, e.g. RPK credentials (`code: "rpk_unsupported"`) or unsupported operation prefixes such as composite operations (`code: "prefix_unsupported"`) |
 
 ## 3. Authentication, authorisation and tenancy
 
@@ -1105,7 +1105,7 @@ The API presupposes parts of ROADMAP.md §4 that do not exist yet. In build orde
 4. **Operation queue.** Durable and per device, surviving re-registrations and restarts. Today a request queued for a sleeping client is dropped when its registration ends (`ErrQueueDropped`).
 5. **Event log.** Sequenced and retained, feeding SSE and the webhook dispatcher.
 6. **Persistent observations.** Re-established on every registration.
-7. **Server API gaps from ROADMAP.md §3.** `Prefix` on remaining gateway operations (including Create and composite operations), and Create without an instance ID (DM-09).
+7. **Server API gaps from ROADMAP.md §3.** `Prefix` on remaining gateway operations, including composite operations.
 8. **Identity modes** `oscore` and `broker` in `server.Identity` (ROADMAP.md §3).
 9. **State and time series stores**, device profiles, jobs, audit log.
 

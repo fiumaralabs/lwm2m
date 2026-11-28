@@ -454,6 +454,11 @@ func (s *Server) ExecuteWithPrefix(ctx context.Context, ep string, p lwm2m.Path,
 // the instance ID using /o/r paths. The client then assigns the instance.
 // Explicit-instance nodes use /o/i/r paths.
 func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm2m.Node, format *lwm2m.ContentFormat) (*Response, error) {
+	return s.CreateWithPrefix(ctx, ep, p, nodes, format, "")
+}
+
+// CreateWithPrefix targets an end device of a gateway.
+func (s *Server) CreateWithPrefix(ctx context.Context, ep string, p lwm2m.Path, nodes []lwm2m.Node, format *lwm2m.ContentFormat, prefix string) (*Response, error) {
 	reg, err := s.lookup(ep)
 	if err != nil {
 		return nil, err
@@ -461,8 +466,11 @@ func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lw
 	if !p.IsObject() {
 		return nil, fmt.Errorf("%w: Create targets /o", ErrBadRequest)
 	}
-	if !reg.HasObject(p.Object()) {
+	if prefix == "" && !reg.HasObject(p.Object()) {
 		return nil, fmt.Errorf("%w: object %d not registered (DM-09)", ErrBadRequest, p.Object())
+	}
+	if err := s.checkKnownEndDevice(ctx, reg, prefix); err != nil {
+		return nil, err
 	}
 	auto := false
 	for _, n := range nodes {
@@ -495,12 +503,12 @@ func (s *Server) Create(ctx context.Context, ep string, p lwm2m.Path, nodes []lw
 		if err != nil {
 			return nil, err
 		}
-		return s.exchange(ctx, reg, request{method: codes.POST, path: p, cf: fmtPtr(lwm2m.FormatTLV), body: body, schemaOf: p})
+		return s.exchange(ctx, reg, request{method: codes.POST, prefix: prefix, path: p, cf: fmtPtr(lwm2m.FormatTLV), body: body, schemaOf: p})
 	}
 	if err := s.validateCreate(reg, p, nodes); err != nil {
 		return nil, err
 	}
-	return s.writeWithFormat(ctx, reg, codes.POST, p, nodes, format, true, "")
+	return s.writeWithFormat(ctx, reg, codes.POST, p, nodes, format, true, prefix)
 }
 
 // Delete deletes object instance p, or (1.1+) resource instance p (DM-10).
