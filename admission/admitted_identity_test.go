@@ -142,7 +142,7 @@ func TestMemoryAdmissionAndExisting(t *testing.T) {
 	if s.receipts["next"].Kind != "existing_admission" || s.receipts["next"].DecisionID != "" || s.receipts["next"].ReservationID != "" {
 		t.Fatal("incorrect receipt")
 	}
-	if err := s.CommitExisting(ctx, "unknown", "t", "i", "other", "request-digest", effect); !errors.Is(err, ErrNotAdmitted) || calls != 1 {
+	if err := s.CommitExisting(ctx, "unknown", "t", "other", "f", "request-digest", effect); !errors.Is(err, ErrNotAdmitted) || calls != 1 {
 		t.Fatalf("unknown: %v", err)
 	}
 }

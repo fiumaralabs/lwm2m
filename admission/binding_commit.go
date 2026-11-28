@@ -78,7 +78,7 @@ func (s *MemoryBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 	s.bindings[b.ExchangeID] = b
 	s.receipts[b.ExchangeID] = r
 	delete(s.pending, b.ExchangeID)
-	s.admitted[admittedIdentity{b.TenantID, b.IdentityID, b.Fingerprint}] = struct{}{}
+	s.admitted[stableIdentity{b.TenantID, b.IdentityID}] = struct{}{}
 	return nil
 }
 
@@ -164,6 +164,9 @@ func (s *SQLiteBindingStore) CommitAdmitted(ctx context.Context, b Binding, r Re
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO admission_identities (tenant_id,identity_id,fingerprint) VALUES (?,?,?)`, b.TenantID, b.IdentityID, b.Fingerprint); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO admission_stable_identities (tenant_id,identity_id) VALUES (?,?)`, b.TenantID, b.IdentityID); err != nil {
 		return err
 	}
 	if err = effect(tx); err != nil {
