@@ -1,6 +1,7 @@
 package apiv1
 
 import (
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/url"
@@ -106,6 +107,9 @@ func registrationView(r *server.Registration, awake bool) map[string]any {
 	}
 	identity := map[string]any{}
 	switch r.Identity.Mode {
+	case server.ModeOSCORE:
+		identity["mode"] = "oscore"
+		identity["oscoreSenderId"] = base64.StdEncoding.EncodeToString(r.Identity.OSCORESenderID)
 	case server.ModeNoSec:
 		identity["mode"] = "none"
 	case server.ModePSK:

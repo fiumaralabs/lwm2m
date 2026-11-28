@@ -270,7 +270,9 @@ func (p *oscorePeer) Identity() server.Identity {
 	if p.id.Secure() {
 		return p.id
 	}
-	return coap.OSCOREIdentity(p.e.Params())
+	id := coap.OSCOREIdentity(p.e.Params())
+	id.OSCOREEndpoint = p.e.Name
+	return id
 }
 
 func (p *oscorePeer) Exchange(ctx context.Context, req *server.Message) (*server.Message, error) {

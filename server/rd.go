@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"regexp"
 	"slices"
@@ -161,6 +162,8 @@ func replyCode(c codes.Code) reply { return reply{msg: status(c)} }
 func registerFingerprint(ep string, id Identity, m *Message) [32]byte {
 	var identity []byte
 	switch id.Mode {
+	case ModeOSCORE:
+		identity = []byte(fmt.Sprintf("%x/%x", id.OSCOREIDContext, id.OSCORESenderID))
 	case ModePSK:
 		identity = []byte(id.PSKIdentity)
 	case ModeRPK:
@@ -388,7 +391,12 @@ func (s *Server) authenticateEndpoint(ep string, id Identity) (string, codes.Cod
 		ep = derived
 	}
 	si, has := s.security.ByEndpoint(ep)
-	if id.Secure() {
+	if id.Mode == ModeOSCORE {
+		// The OSCORE layer verified the context and bound its endpoint.
+		if has || id.OSCOREEndpoint == "" || id.OSCOREEndpoint != ep {
+			return "", codes.BadRequest
+		}
+	} else if id.Secure() {
 		if !has || !si.Matches(id) {
 			return "", codes.BadRequest // SEC-06: ep does not match the authenticated identity
 		}

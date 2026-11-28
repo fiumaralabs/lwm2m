@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -174,7 +173,7 @@ func (s *smsOSCORE) registerFresh(t *testing.T) {
 		t.Fatalf("Register with Echo: %v", r.Code)
 	}
 	reg, ok := s.srv.Store().ByEndpoint("osc")
-	if !ok || reg.Binding != "S" || !strings.HasPrefix(reg.Identity.Addr, "oscore:") {
+	if !ok || reg.Binding != "S" || reg.Identity.Mode != server.ModeOSCORE {
 		t.Fatalf("registration %+v", reg)
 	}
 }

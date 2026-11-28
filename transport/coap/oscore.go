@@ -3,7 +3,6 @@ package coap
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -46,16 +45,10 @@ type oscoreObs struct {
 	x *oscore.Exchange
 }
 
-// oscoreAddrPrefix marks the Identity of an OSCORE-only peer (see
-// OSCOREIdentity).
-const oscoreAddrPrefix = "oscore:"
-
-// OSCOREIdentity is the Identity of a peer authenticated only by OSCORE:
-// a NoSec identity that is stable across addresses and unique per context
-// (ID Context and Recipient ID of the provisioned parameters p).
-// ponytail: carried as NoSec + Addr until Identity has an OSCORE mode.
+// OSCOREIdentity identifies a peer by the server context's ID Context and
+// Recipient ID (the client's Sender ID). The caller sets the bound endpoint.
 func OSCOREIdentity(p oscore.Params) server.Identity {
-	return server.Identity{Mode: server.ModeNoSec, Addr: oscoreAddrPrefix + hex.EncodeToString(p.IDContext) + "/" + hex.EncodeToString(p.RecipientID)}
+	return server.Identity{Mode: server.ModeOSCORE, OSCOREIDContext: bytes.Clone(p.IDContext), OSCORESenderID: bytes.Clone(p.RecipientID)}
 }
 
 // EnableOSCORE turns the OSCORE layer on and returns it. Calling it again
@@ -383,7 +376,9 @@ func (p *oscorePeer) Identity() server.Identity {
 	if id := p.base.Identity(); id.Secure() {
 		return id
 	}
-	return OSCOREIdentity(p.e.Params())
+	id := OSCOREIdentity(p.e.Params())
+	id.OSCOREEndpoint = p.e.Name
+	return id
 }
 
 func (p *oscorePeer) RemoteAddr() net.Addr { return p.base.RemoteAddr() }

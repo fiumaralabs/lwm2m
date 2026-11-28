@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -38,6 +39,8 @@ func (s *admittingRegistrations) AddCheckedContext(c server.RegisterContext, reg
 	identity.CertCN = ""
 	var credential []byte
 	switch identity.Mode {
+	case server.ModeOSCORE:
+		credential = []byte(fmt.Sprintf("%x/%x", identity.OSCOREIDContext, identity.OSCORESenderID))
 	case server.ModePSK:
 		credential = []byte(identity.PSKIdentity)
 	case server.ModeRPK:

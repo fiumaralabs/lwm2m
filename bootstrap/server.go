@@ -338,7 +338,11 @@ func (s *Server) endpoint(id server.Identity, ep string) (string, *BootstrapConf
 		}
 	}
 	si, has := s.cfg.Security.ByEndpoint(ep)
-	if id.Secure() != has || has && !si.Matches(id) {
+	if id.Mode == server.ModeOSCORE {
+		if has || id.OSCOREEndpoint == "" || id.OSCOREEndpoint != ep {
+			return "", nil, false
+		}
+	} else if id.Secure() != has || has && !si.Matches(id) {
 		return "", nil, false
 	}
 	c, ok := s.cfg.Configs.Get(ep)
