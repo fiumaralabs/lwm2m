@@ -70,11 +70,24 @@ type PacketKeys struct {
 	CCLen        int    // AES-CMAC: 8 (default) or 4 octets; triple DES: 8
 }
 
+// CounterStore atomically reserves transmit counters and accepts receive counters
+// per normalized MSISDN. NextSMSCounter must return a value greater than the
+// previous value and within [minimum, maximum], or an error if blocked.
+// AcceptSMSCounter returns false for zero or a counter no greater than the last
+// accepted value. LastSMSCounter returns zero if no value has been reserved.
+// Implementations must persist successful updates before returning.
+type CounterStore interface {
+	NextSMSCounter(msisdn string, minimum, maximum uint64) (uint64, error)
+	AcceptSMSCounter(msisdn string, counter uint64) (bool, error)
+	LastSMSCounter(msisdn string) (uint64, error)
+}
+
 // SecuredPacket is a Security for ModeSecure. The same type serves either
 // side, so a test can play the smartcard.
 type SecuredPacket struct {
-	Keys func(msisdn string) (PacketKeys, error)
-	Tag  byte // Secured Data tag; 0 is DefaultTag
+	Keys     func(msisdn string) (PacketKeys, error)
+	Tag      byte         // Secured Data tag; 0 is DefaultTag
+	Counters CounterStore // nil keeps counters in memory; replay protection then resets on restart
 	// OnPoR receives each authenticated Response Packet (Proof of
 	// Receipt) when SPI2 asks for one.
 	OnPoR func(msisdn string, cntr uint64, status byte, data []byte)
@@ -172,10 +185,19 @@ func (s *SecuredPacket) command(msisdn string, coap []byte, tar [3]byte) (SMS, e
 	if s.tx == nil {
 		s.tx, s.rx, s.oa = map[string]uint64{}, map[string]uint64{}, map[string]string{}
 	}
-	// ponytail: counters live in memory; seeding from the clock keeps them
-	// rising across restarts while under 256 packets/s per client. Persist
-	// tx/rx if that ceiling or a restart replay window matters.
 	cntr := max(s.tx[msisdn]+1, uint64(time.Now().Unix())<<8)
+	if s.Counters != nil {
+		n, err := NormalizeMSISDN(msisdn)
+		if err != nil {
+			s.mu.Unlock()
+			return SMS{}, err
+		}
+		cntr, err = s.Counters.NextSMSCounter(n, uint64(time.Now().Unix())<<8, maxCounter)
+		if err != nil {
+			s.mu.Unlock()
+			return SMS{}, err
+		}
+	}
 	if cntr > maxCounter {
 		s.mu.Unlock()
 		return SMS{}, errors.New("sms: counter blocked")
@@ -244,7 +266,15 @@ func (s *SecuredPacket) Open(m SMS) ([]byte, error) {
 	if s.rx == nil {
 		s.tx, s.rx, s.oa = map[string]uint64{}, map[string]uint64{}, map[string]string{}
 	}
-	if cntr <= s.rx[n] {
+	if s.Counters != nil {
+		accepted, err := s.Counters.AcceptSMSCounter(n, cntr)
+		if err != nil {
+			return nil, err
+		}
+		if !accepted {
+			return nil, ErrReplay
+		}
+	} else if cntr <= s.rx[n] {
 		return nil, ErrReplay
 	}
 	s.rx[n], s.oa[n] = cntr, m.MSISDN
@@ -323,6 +353,14 @@ func (s *SecuredPacket) openResponse(n string, k PacketKeys, st suite, d []byte)
 	cntr := uint64(tail[0])<<32 | uint64(binary.BigEndian.Uint32(tail[1:5]))
 	s.mu.Lock()
 	sent := s.tx[n]
+	if s.Counters != nil {
+		var err error
+		sent, err = s.Counters.LastSMSCounter(n)
+		if err != nil {
+			s.mu.Unlock()
+			return err
+		}
+	}
 	s.mu.Unlock()
 	if cntr == 0 || cntr > sent {
 		return errNotSecure

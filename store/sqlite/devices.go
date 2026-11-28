@@ -306,6 +306,9 @@ func (s *Devices) migrate() error {
 	if _, err = tx.Exec(registrationsMigration); err != nil {
 		return err
 	}
+	if _, err = tx.Exec(smsCountersMigration); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 func (s *Devices) Close() error { return s.db.Close() }
