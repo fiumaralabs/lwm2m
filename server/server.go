@@ -229,6 +229,9 @@ func (s *Server) expireNow() {
 // dropClientState voids observations and queued requests of a registration
 // that ended (REG-12, REG-13, REG-16, OBS-03).
 func (s *Server) dropClientState(r *Registration) {
+	if r.models != nil {
+		r.models.end(r.ID)
+	}
 	s.obs.removeRegistration(r.ID)
 	s.queues.drop(r.ID)
 	s.formats.Delete(r.ID)

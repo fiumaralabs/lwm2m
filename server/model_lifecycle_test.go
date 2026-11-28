@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,8 +45,15 @@ func TestModelsRegistrationLifecycle(t *testing.T) {
 		t.Fatalf("update: %v", result.Code)
 	}
 	updated, _ := s.store.ByID(live.ID)
-	if models.schemaOf(updated) == oldSchema {
+	newSchema := models.schemaOf(updated)
+	if newSchema == oldSchema {
 		t.Fatal("update reused stale schema")
+	}
+	if _, ok := newSchema.Object(1); !ok {
+		t.Fatal("updated schema lacks object 1")
+	}
+	if _, ok := newSchema.Object(3); ok {
+		t.Fatal("updated schema retains object 3")
 	}
 	for i := 0; i < 10; i++ {
 		r := register(fmt.Sprintf("gone-%d", i), 600)
@@ -63,5 +71,30 @@ func TestModelsRegistrationLifecycle(t *testing.T) {
 	s.expireNow()
 	if got, want := count(), len(s.store.All()); got != want {
 		t.Fatalf("cache entries = %d, live registrations = %d", got, want)
+	}
+}
+
+func TestModelsConcurrentEndCannotResurrectCache(t *testing.T) {
+	reg := &Registration{ID: "race", Version: "1.1", models: &registrationModels{}}
+	first, second := NewModels(model.Default()), NewModels(model.Default())
+	first.schemaOf(reg)
+	second.schemaOf(reg)
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				first.schemaOf(reg)
+				second.schemaOf(reg)
+			}
+		}()
+	}
+	reg.models.end(reg.ID)
+	wg.Wait()
+	for _, m := range []*Models{first, second} {
+		if _, ok := m.cache.Load(reg.ID); ok {
+			t.Fatal("ended registration was retained or resurrected")
+		}
 	}
 }

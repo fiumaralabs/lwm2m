@@ -95,7 +95,7 @@ Pion's contribution policy applies: the submitter reviews and explains the code 
   - Run load and soak tests: 100k+ registrations, sleepy-fleet wake storms, NAT-rebind storms.
   - Get an external security review of the DTLS demux, OSCORE, SMS Secured mode and the bootstrap paths.
   - The nightly `-race` stress job guards against the one race seen once before.
-- **Resource bounds.** Evict ended registrations from the schema cache (`server/model.go:46`). Clean up superseded OSCORE peers (`transport/coap/oscore.go:360`). Index observations and SMS numbers instead of linear scans (`transport/coap/oscore.go:318`, `transport/sms/sms.go:383`). Bound the event buffers (`leshanapi/events.go:39`).
+- **Resource bounds.** Clean up superseded OSCORE peers (`transport/coap/oscore.go:360`). Index observations and SMS numbers instead of linear scans (`transport/coap/oscore.go:318`, `transport/sms/sms.go:383`). Bound the event buffers (`leshanapi/events.go:39`). The schema cache evicts ended registrations.
 
 ## 5. Spec work (P2)
 
