@@ -27,9 +27,34 @@ type cached struct {
 	schema *model.Schema
 }
 
+// registrationModels serializes caching with termination. Immutable
+// snapshots of one registration share it, including in-flight operations.
+type registrationModels struct {
+	mu     sync.Mutex
+	ended  bool
+	owners map[*Models]struct{}
+}
+
+func (r *registrationModels) end(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ended = true
+	for m := range r.owners {
+		if c, ok := m.cache.Load(id); ok && c.(cached).reg.models == r {
+			m.cache.CompareAndDelete(id, c)
+		}
+	}
+	r.owners = nil
+}
+
 func NewModels(r *model.Registry) *Models { return &Models{reg: r} }
 
 func (m *Models) schemaOf(reg *Registration) *model.Schema {
+	state := reg.models
+	if state != nil {
+		state.mu.Lock()
+		defer state.mu.Unlock()
+	}
 	if c, ok := m.cache.Load(reg.ID); ok && c.(cached).reg == reg {
 		return c.(cached).schema
 	}
@@ -42,10 +67,15 @@ func (m *Models) schemaOf(reg *Registration) *model.Schema {
 		versions[o.ID] = v
 	}
 	s := m.reg.Schema(versions)
-	// Registrations are immutable, so the pointer identifies the version of
-	// the object list. ponytail: entries of ended registrations stay until
-	// the ID is reused; add eviction if registrations churn heavily.
-	m.cache.Store(reg.ID, cached{reg, s})
+	// Loaded or externally created registrations have no lifecycle state, so
+	// resolve without caching rather than retaining an untracked entry.
+	if state != nil && !state.ended {
+		if state.owners == nil {
+			state.owners = make(map[*Models]struct{})
+		}
+		state.owners[m] = struct{}{}
+		m.cache.Store(reg.ID, cached{reg, s})
+	}
 	return s
 }
 

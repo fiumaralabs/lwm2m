@@ -303,6 +303,7 @@ func (s *Server) register(peer Peer, m *Message) reply {
 		RegisteredAt:   now,
 		LastUpdate:     now,
 		peer:           peer,
+		models:         &registrationModels{},
 	}
 	var old *Registration
 	var replayed bool

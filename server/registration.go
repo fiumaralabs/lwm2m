@@ -34,7 +34,8 @@ type Registration struct {
 	RegisteredAt   time.Time
 	LastUpdate     time.Time
 
-	peer Peer // current transport session
+	peer   Peer                // current transport session
+	models *registrationModels // shared by immutable updates of this registration
 }
 
 // Peer returns the transport session the client registered or last
