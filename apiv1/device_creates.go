@@ -89,15 +89,15 @@ func saltedCreateFingerprint(canonical []byte, salt []byte) string {
 	return "salted-sha256:" + hex.EncodeToString(salt) + ":" + hex.EncodeToString(h.Sum(nil))
 }
 
-// ambiguousCredentialKeys rejects spellings that encoding/json would fold onto
-// Credentials and repeated exact keys before any secret-bearing fingerprint.
+// ambiguousCredentialKeys rejects folded or repeated secret-bearing fields
+// before a fingerprint can expose an unsalted digest.
 func ambiguousCredentialKeys(raw json.RawMessage) bool {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	token, err := dec.Token()
 	if err != nil || token != json.Delim('{') {
 		return false
 	}
-	seen := false
+	seen := map[string]bool{}
 	for dec.More() {
 		keyToken, err := dec.Token()
 		if err != nil {
@@ -107,11 +107,11 @@ func ambiguousCredentialKeys(raw json.RawMessage) bool {
 		if !ok {
 			return false
 		}
-		if strings.EqualFold(key, "credentials") {
-			if key != "credentials" || seen {
+		if strings.EqualFold(key, "credentials") || strings.EqualFold(key, "bootstrap") {
+			if (key != "credentials" && key != "bootstrap") || seen[key] {
 				return true
 			}
-			seen = true
+			seen[key] = true
 		}
 		var value json.RawMessage
 		if dec.Decode(&value) != nil {
@@ -199,14 +199,18 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if ambiguousCredentialKeys(raw) {
-			WriteProblem(w, 400, "invalid_json", "Ambiguous credentials field")
+			WriteProblem(w, 400, "invalid_json", "Ambiguous credentials or bootstrap field")
 			return
 		}
-		credentialBody := false
+		credentialBody, bootstrapBody := false, false
 		if object, ok := body.(map[string]any); ok {
 			_, credentialBody = object["credentials"]
+			_, bootstrapBody = object["bootstrap"]
 		}
-		if (credentialBody || strings.HasPrefix(existing.Fingerprint, "salted-sha256:")) && !authorizeDeviceReplayCredentials(w, r) {
+		if (credentialBody || strings.HasPrefix(existing.Fingerprint, "salted-sha256:") || strings.HasPrefix(existing.Fingerprint, "salted-both:")) && !authorizeDeviceReplayCredentials(w, r) {
+			return
+		}
+		if (bootstrapBody || strings.HasPrefix(existing.Fingerprint, "salted-bootstrap:") || strings.HasPrefix(existing.Fingerprint, "salted-both:")) && !authorizeDeviceReplayBootstrap(w, r) {
 			return
 		}
 		canonical, e := json.Marshal(body)
@@ -216,10 +220,10 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		}
 		digest := sha256.Sum256(canonical)
 		fingerprint := "sha256:" + hex.EncodeToString(digest[:])
-		if credentialBody {
+		if credentialBody || bootstrapBody {
 			var salt [16]byte
 			parts := strings.Split(existing.Fingerprint, ":")
-			if len(parts) == 3 && parts[0] == "salted-sha256" {
+			if len(parts) == 3 && (parts[0] == "salted-sha256" || parts[0] == "salted-bootstrap" || parts[0] == "salted-both") {
 				decoded, err := hex.DecodeString(parts[1])
 				if err != nil || len(decoded) != len(salt) {
 					WriteProblem(w, 500, "internal_error", "Invalid stored fingerprint")
@@ -231,6 +235,13 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			fingerprint = saltedCreateFingerprint(canonical, salt[:])
+			if bootstrapBody {
+				prefix := "salted-bootstrap"
+				if credentialBody {
+					prefix = "salted-both"
+				}
+				fingerprint = strings.Replace(fingerprint, "salted-sha256", prefix, 1)
+			}
 		}
 		var input struct {
 			Endpoint    string            `json:"endpoint"`
@@ -238,6 +249,7 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			Profile     string            `json:"profile"`
 			Labels      map[string]string `json:"labels"`
 			Credentials json.RawMessage   `json:"credentials"`
+			Bootstrap   json.RawMessage   `json:"bootstrap"`
 		}
 		inputDecoder := json.NewDecoder(bytes.NewReader(canonical))
 		inputDecoder.DisallowUnknownFields()
@@ -277,7 +289,84 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			device := store.Device{Endpoint: input.Endpoint, Name: input.Name, Profile: input.Profile, Labels: input.Labels}
-			if credentialBody {
+			if bootstrapBody {
+				b := bytes.TrimSpace(input.Bootstrap)
+				var config bootstrapInput
+				if len(b) == 0 || b[0] != '{' || json.Unmarshal(b, &config) != nil || !unambiguousBootstrapJSON(b) {
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+					goto bootstrapValidated
+				}
+				for _, entry := range config.Servers {
+					if entry.Security.PSK != nil && entry.Security.PSK.Generate {
+						result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+						goto bootstrapValidated
+					}
+				}
+				code, fields := validateBootstrap(config)
+				if code != "" {
+					WriteProblem(w, 501, code, "Bootstrap security mode is not supported")
+					return
+				}
+				if len(fields) != 0 {
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+					goto bootstrapValidated
+				}
+				var sec server.SecurityInfo
+				if credentialBody {
+					validation := &validationOutcomeWriter{ResponseWriter: w}
+					security, ok := o.decodeInlineCredentials(validation, r, tenant, input.Endpoint, input.Credentials)
+					if validation.invalid {
+						result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+						goto bootstrapValidated
+					}
+					if !ok {
+						return
+					}
+					sec = *security
+					owner, ok := o.Devices.(interface {
+						OwnsSecurity(server.SecurityStore) bool
+					})
+					var live server.SecurityStore
+					if o.Server != nil {
+						live = o.Server.Security()
+					}
+					if wrapped, ok := live.(*coap.RevokingSecurityStore); ok && wrapped != nil {
+						live = wrapped.SecurityStore
+					}
+					if !ok || live == nil || !owner.OwnsSecurity(live) {
+						WriteProblem(w, 501, "inline_credentials_unavailable", "Atomic inline credentials are unavailable")
+						return
+					}
+				}
+				creator, ok := o.Devices.(store.DeviceBootstrapCreateStore)
+				shared, sharedOK := o.BootstrapConfigs.(sharedBootstrapConfigs)
+				outcomes, hasOutcomes := o.Devices.(store.DeviceCreateStore)
+				if !ok || !sharedOK || !reflect.TypeOf(creator).Comparable() || shared.DeviceBootstrapCreateStore != creator || !hasOutcomes || !reflect.TypeOf(outcomes).Comparable() || outcomes != s {
+					WriteProblem(w, 501, "inline_bootstrap_unavailable", "Atomic inline bootstrap is unavailable")
+					return
+				}
+				unlockLifecycle := bootstrapLifecycle.lock(tenant)
+				defer unlockLifecycle()
+				if o.Server != nil && o.Server.Security() != nil {
+					if _, exists := o.Server.Security().ByEndpoint(input.Endpoint); exists {
+						WriteProblem(w, 409, "credential_exists", "Credential already exists")
+						return
+					}
+				}
+				result, inserted, err = creator.CreateDeviceWithSecurityAndBootstrap(r.Context(), tenant, id, fingerprint, device, sec, input.Bootstrap)
+				if errors.Is(err, store.ErrBootstrapConfigExists) {
+					WriteProblem(w, 409, "bootstrap_exists", "Bootstrap config already exists")
+					return
+				}
+				if errors.Is(err, store.ErrCredentialExists) {
+					WriteProblem(w, 409, "credential_exists", "Credential already exists")
+					return
+				}
+				if errors.Is(err, server.ErrDuplicatePSKIdentity) {
+					WriteProblem(w, 409, "duplicate_psk_identity", "PSK identity already exists")
+					return
+				}
+			} else if credentialBody {
 				validation := &validationOutcomeWriter{ResponseWriter: w}
 				security, ok := o.decodeInlineCredentials(validation, r, tenant, input.Endpoint, input.Credentials)
 				if !ok && !validation.invalid {
@@ -311,6 +400,7 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			} else {
 				result, inserted, err = s.CreateDeviceWithOutcome(r.Context(), tenant, id, fingerprint, device)
 			}
+		bootstrapValidated:
 			if inserted && err == nil && result.Status == "committed" {
 				status = 201
 				if d, e := o.Devices.Get(tenant, input.Endpoint); e == nil {
@@ -322,14 +412,17 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 		// Compare again using the winner's salt after the atomic store rejects it.
 		if errors.Is(err, store.ErrOperationIDReused) {
 			winner, readErr := s.GetDeviceCreate(r.Context(), tenant, id)
-			if readErr == nil && strings.HasPrefix(winner.Fingerprint, "salted-sha256:") {
-				if !credentialBody && !authorizeDeviceReplayCredentials(w, r) {
+			if readErr == nil && (strings.HasPrefix(winner.Fingerprint, "salted-sha256:") || strings.HasPrefix(winner.Fingerprint, "salted-bootstrap:") || strings.HasPrefix(winner.Fingerprint, "salted-both:")) {
+				if !credentialBody && (strings.HasPrefix(winner.Fingerprint, "salted-sha256:") || strings.HasPrefix(winner.Fingerprint, "salted-both:")) && !authorizeDeviceReplayCredentials(w, r) {
+					return
+				}
+				if !bootstrapBody && (strings.HasPrefix(winner.Fingerprint, "salted-bootstrap:") || strings.HasPrefix(winner.Fingerprint, "salted-both:")) && !authorizeDeviceReplayBootstrap(w, r) {
 					return
 				}
 				parts := strings.Split(winner.Fingerprint, ":")
-				if credentialBody && len(parts) == 3 {
+				if (credentialBody || bootstrapBody) && len(parts) == 3 {
 					salt, decodeErr := hex.DecodeString(parts[1])
-					if decodeErr == nil && len(salt) == 16 && saltedCreateFingerprint(canonical, salt) == winner.Fingerprint {
+					if decodeErr == nil && len(salt) == 16 && strings.Replace(saltedCreateFingerprint(canonical, salt), "salted-sha256", parts[0], 1) == winner.Fingerprint {
 						result, inserted, err = winner, false, nil
 					}
 				}

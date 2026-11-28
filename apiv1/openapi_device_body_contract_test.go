@@ -32,7 +32,7 @@ func TestOpenAPIDeviceRequestBodies(t *testing.T) {
 	}
 	allowed := []string{
 		"PATCH /v1/device-profiles/{id}", "PATCH /v1/firmware/{id}", "PATCH /v1/observations/{id}", "PATCH /v1/settings", "PATCH /v1/tenants/{id}",
-		"POST /v1/api-keys", "POST /v1/device-profiles", "POST /v1/firmware", "POST /v1/jobs", "POST /v1/jobs/{id}/cancel", "POST /v1/jobs/{id}/pause", "POST /v1/jobs/{id}/resume", "POST /v1/models", "POST /v1/tenants", "POST /v1/trust-anchors", "POST /v1/webhooks/{id}/deliveries/{deliveryId}/retry", "POST /v1/webhooks/{id}/rotate-secret", "POST /v1/webhooks/{id}/test", "PUT /v1/device-creates/{id}", "PUT /v1/est", "PUT /v1/firmware/{id}/content",
+		"POST /v1/api-keys", "POST /v1/device-profiles", "POST /v1/firmware", "POST /v1/jobs", "POST /v1/jobs/{id}/cancel", "POST /v1/jobs/{id}/pause", "POST /v1/jobs/{id}/resume", "POST /v1/models", "POST /v1/tenants", "POST /v1/trust-anchors", "POST /v1/webhooks/{id}/deliveries/{deliveryId}/retry", "POST /v1/webhooks/{id}/rotate-secret", "POST /v1/webhooks/{id}/test", "PUT /v1/est", "PUT /v1/firmware/{id}/content",
 	}
 	var missing []string
 	for path, methods := range doc.Paths {
@@ -178,5 +178,41 @@ func TestDeviceBodyExistingValidationContract(t *testing.T) {
 		if tc.status == 422 && w.Header().Get("Content-Type") != "application/problem+json" {
 			t.Error("wrong content type")
 		}
+	}
+}
+
+func TestOpenAPIDeviceCreatePutBodyParity(t *testing.T) {
+	var doc struct {
+		Paths      map[string]map[string]json.RawMessage `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(openAPIDocument, &doc); err != nil {
+		t.Fatal(err)
+	}
+	ref := func(path, method string) string {
+		var op struct {
+			RequestBody struct {
+				Content map[string]struct {
+					Schema struct {
+						Ref string `json:"$ref"`
+					} `json:"schema"`
+				} `json:"content"`
+			} `json:"requestBody"`
+		}
+		if err := json.Unmarshal(doc.Paths[path][method], &op); err != nil {
+			t.Fatal(err)
+		}
+		return op.RequestBody.Content["application/json"].Schema.Ref
+	}
+	post, put := ref("/v1/devices", "post"), ref("/v1/device-creates/{id}", "put")
+	if post == "" || put != post {
+		t.Fatalf("body refs POST %q PUT %q", post, put)
+	}
+	if _, ok := doc.Components.Schemas["DeviceCreate"].Properties["bootstrap"]; !ok {
+		t.Fatal("bootstrap missing")
 	}
 }
