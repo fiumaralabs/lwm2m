@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/fiumaralabs/lwm2m"
@@ -19,6 +20,7 @@ func TestForcedWriteFormatValidation(t *testing.T) {
 	}{
 		{"write-instance-text", "1.0", "write", "/1/0", lwm2m.FormatText, false},
 		{"write-instance-tlv", "1.0", "write", "/1/0", lwm2m.FormatTLV, true},
+		{"write-instance-legacy-json", "1.0", "write", "/1/0", lwm2m.FormatOMAJSON, true},
 		{"write-instance-cbor-old", "1.1", "write", "/1/0", lwm2m.FormatLwM2MCBOR, false},
 		{"write-instance-cbor", "1.2", "write", "/1/0", lwm2m.FormatLwM2MCBOR, true},
 		{"write-resource-text", "1.1", "write", "/1/0/1", lwm2m.FormatText, true},
@@ -27,6 +29,7 @@ func TestForcedWriteFormatValidation(t *testing.T) {
 		{"create-cbor-old", "1.1", "create", "/1", lwm2m.FormatLwM2MCBOR, false},
 		{"create-cbor", "1.2", "create", "/1", lwm2m.FormatLwM2MCBOR, true},
 		{"composite-tlv", "1.1", "composite", "/", lwm2m.FormatTLV, false},
+		{"composite-senml-1.0", "1.0", "composite", "/", lwm2m.FormatSenMLJSON, false},
 		{"composite-senml", "1.1", "composite", "/", lwm2m.FormatSenMLJSON, true},
 		{"composite-cbor-old", "1.1", "composite", "/", lwm2m.FormatLwM2MCBOR, false},
 		{"composite-cbor", "1.2", "composite", "/", lwm2m.FormatLwM2MCBOR, true},
@@ -34,9 +37,9 @@ func TestForcedWriteFormatValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := h.device(testclient.Config{Endpoint: tc.name, Version: tc.version})
 			mustCode(mustRegister(h, c))
-			calls := 0
+			var calls atomic.Int32
 			c.SetOverride(func(r testclient.Request) (codes.Code, *lwm2m.ContentFormat, []byte, bool) {
-				calls++
+				calls.Add(1)
 				return codes.Changed, nil, nil, true
 			})
 			node := lwm2m.ValueNode(p("/1/0/1"), lwm2m.Integer(123))
@@ -50,13 +53,13 @@ func TestForcedWriteFormatValidation(t *testing.T) {
 				_, err = h.srv.WriteComposite(h.ctx, tc.name, []lwm2m.Node{node}, &tc.format)
 			}
 			if !tc.allowed {
-				if !errors.Is(err, server.ErrBadRequest) || calls != 0 {
-					t.Fatalf("err=%v calls=%d, want bad request and no exchange", err, calls)
+				if !errors.Is(err, server.ErrBadRequest) || calls.Load() != 0 {
+					t.Fatalf("err=%v calls=%d, want bad request and no exchange", err, calls.Load())
 				}
 				return
 			}
-			if err != nil || calls != 1 {
-				t.Fatalf("err=%v calls=%d, want one exchange", err, calls)
+			if err != nil || calls.Load() != 1 {
+				t.Fatalf("err=%v calls=%d, want one exchange", err, calls.Load())
 			}
 			req, ok := c.LastRequest()
 			if !ok || req.Format == nil || *req.Format != tc.format {
