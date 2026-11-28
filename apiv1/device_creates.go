@@ -293,13 +293,13 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 				b := bytes.TrimSpace(input.Bootstrap)
 				var config bootstrapInput
 				if len(b) == 0 || b[0] != '{' || json.Unmarshal(b, &config) != nil || !unambiguousBootstrapJSON(b) {
-					WriteProblem(w, 400, "invalid_json", "Invalid bootstrap config")
-					return
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+					goto bootstrapValidated
 				}
 				for _, entry := range config.Servers {
 					if entry.Security.PSK != nil && entry.Security.PSK.Generate {
-						WriteProblem(w, 400, "invalid_credential", "Generated bootstrap PSKs are not supported; see https://github.com/fiumaralabs/lwm2m/issues/340")
-						return
+						result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+						goto bootstrapValidated
 					}
 				}
 				code, fields := validateBootstrap(config)
@@ -308,12 +308,17 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if len(fields) != 0 {
-					WriteProblem(w, 400, "validation_error", "Invalid bootstrap config")
-					return
+					result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+					goto bootstrapValidated
 				}
 				var sec server.SecurityInfo
 				if credentialBody {
-					security, ok := o.decodeInlineCredentials(w, r, tenant, input.Endpoint, input.Credentials)
+					validation := &validationOutcomeWriter{ResponseWriter: w}
+					security, ok := o.decodeInlineCredentials(validation, r, tenant, input.Endpoint, input.Credentials)
+					if validation.invalid {
+						result, inserted, err = s.RecordDeviceCreateNotCreated(r.Context(), tenant, id, fingerprint, "invalid")
+						goto bootstrapValidated
+					}
 					if !ok {
 						return
 					}
@@ -395,6 +400,7 @@ func (o Options) serveDeviceCreates(w http.ResponseWriter, r *http.Request) {
 			} else {
 				result, inserted, err = s.CreateDeviceWithOutcome(r.Context(), tenant, id, fingerprint, device)
 			}
+		bootstrapValidated:
 			if inserted && err == nil && result.Status == "committed" {
 				status = 201
 				if d, e := o.Devices.Get(tenant, input.Endpoint); e == nil {

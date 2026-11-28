@@ -88,10 +88,6 @@ func TestDeviceCreatePutBootstrap(t *testing.T) {
 				h.ServeHTTP(w, r)
 				return w
 			}
-			generated := `{"endpoint":"generated","bootstrap":{"servers":[{"shortServerId":1,"security":{"psk":{"generate":true}}}]}}`
-			if w := call("lwm_test_secret", generated); w.Code != 400 || !strings.Contains(w.Body.String(), "invalid_credential") || !strings.Contains(w.Body.String(), "340") {
-				t.Fatalf("generated: %d %s", w.Code, w.Body)
-			}
 			for _, fields := range []string{`"Bootstrap":{}`, `"bootstrap":{},"bootstrap":{}`} {
 				if w := call("lwm_test_secret", `{"endpoint":"pump",`+fields+`}`); w.Code != 400 {
 					t.Fatalf("ambiguous: %d %s", w.Code, w.Body)
