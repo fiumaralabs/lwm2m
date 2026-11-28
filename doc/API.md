@@ -206,7 +206,9 @@ Objects with no known definition have `"definition": null`.
 
 Device create outcomes let a client resolve an uncertain create and retry without creating a second device. The client generates `operationId`, an opaque string of 1–128 characters from `[A-Za-z0-9._~-]`; an invalid ID returns 400 `invalid-argument`. Records are keyed by `(tenant, operationId)`, with the tenant taken only from the authenticated key. Different tenants can use the same ID independently.
 
-`PUT /v1/device-creates/{operationId}` accepts inline PSK credentials with `credentials:write` scope when the device store owns the server's security store. Unsupported inline security modes or non-owned security stores return 501. For requests without credentials, the server computes `fingerprint = "sha256:" + hex(SHA-256(canonical JSON of the body, keys sorted))`. For requests containing credentials, the fingerprint uses a random per-operation salt: `salted-sha256:<hex salt>:<hex SHA-256(salt || canonical JSON)>`. The outcome record never stores the plaintext body or credentials. Retrying requires the identical body and, for credential-bearing outcomes, `credentials:write` scope.
+`PUT /v1/device-creates/{operationId}` accepts inline PSK credentials with `credentials:write` scope and inline `bootstrap` with `bootstrap:write` scope. Bootstrap may contain caller-supplied credentials; generated bootstrap PSKs are not yet supported (see [#340](https://github.com/fiumaralabs/lwm2m/issues/340)). Atomic provisioning requires compatible stores, as for `POST /v1/devices`.
+
+The fingerprint covers the canonical JSON body. Requests without credentials or bootstrap use `sha256:<digest>`. Requests containing credentials or bootstrap use a random per-operation salt and SHA-256 over the salt and canonical body. Their prefixes are `salted-sha256`, `salted-bootstrap`, or `salted-both`, followed by the hex salt and digest separated by colons. Outcome records never store plaintext request bodies or bootstrap secrets. Retrying requires the identical body and the scopes required by the original request.
 
 | Case | Response |
 |---|---|
