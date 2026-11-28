@@ -352,6 +352,15 @@ Finished operations are kept for the event retention (§17.3), then deleted.
 | `discover` | `path`, `depth` (optional, 1.2) | Discover (DM-04). The result has `links` (§7.4), no `values`. |
 | `write-attributes` | `path`, `attributes` (§8.2). A `null` attribute removes it. | Write-Attributes (ATT-01) |
 
+For a device-assigned instance, give resource values as `/o/r`, for example
+`{"type":"create","path":"/3303","values":[{"path":"/3303/5700","type":"float","value":23}]}`.
+The request uses TLV without an Object Instance wrapper. The returned
+`result.location`, when supplied by the device, identifies the new instance
+(for example `/3303/7`). At least one `/o/r` resource is required to select
+this form. Do not mix these paths with explicit-instance paths. Resource
+instance values are not supported in this form. Explicit instance creation
+continues to use `/o/i/r` paths.
+
 **Server account and access control** (C §6.2, C §8)
 
 | `type` | Body | LwM2M |
